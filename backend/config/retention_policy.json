@@ -1,0 +1,79 @@
+{
+  "_metadata": {
+    "description": "Enterprise Rolling 30-Day Retention Policy & Precision Cutoff Configuration",
+    "version": "1.0.0",
+    "last_updated": "2026-09-21",
+    "compliance_notes": [
+      "Hot Database Retention: Rolling 30 days (720 hours) down to the second.",
+      "Cumulative Alerts Table: Strictly PERMANENT (Lifetime behavioral baselines).",
+      "Vacuum & Optimization: Automatic VACUUM ANALYZE after sweep to eliminate dead tuples.",
+      "Audit Logging: Comprehensive execution tracking to prevent silent retention failures."
+    ]
+  },
+  "retention_policy": {
+    "mode": "ROLLING_30_DAYS",
+    "retention_days": 30,
+    "retention_hours": 720,
+    "precision": "SECOND",
+    "batch_chunk_size": 50000,
+    "vacuum_analyze_after_sweep": true,
+    "audit_logging": true,
+    "log_file": "logs/retention_audit.log"
+  },
+  "target_tables": {
+    "telemetry.raw_events": {
+      "timestamp_column": "timestamp",
+      "description": "Original raw JSONL payloads and forensic evidence (Rolling 30 days)",
+      "index_name": "idx_raw_events_timestamp"
+    },
+    "telemetry.normalized_events": {
+      "timestamp_column": "event_timestamp",
+      "description": "Normalized Common Event Model indexed records (Rolling 30 days)",
+      "index_name": "idx_normalized_events_timestamp"
+    },
+    "suppression.aggregated_alerts": {
+      "timestamp_column": "window_end",
+      "description": "100% Aggregated sliding-window alerts including suppressed noise (Rolling 30 days)",
+      "index_name": "idx_aggregated_alerts_window_end"
+    },
+    "correlation.correlated_incidents": {
+      "timestamp_column": "last_seen_at",
+      "description": "Correlated multi-stage security incidents (Rolling 30 days)",
+      "index_name": "idx_correlated_incidents_last_seen"
+    }
+  },
+  "cascade_managed_tables": [
+    {
+      "table": "suppression.aggregate_evidence_mapping",
+      "parent": "suppression.aggregated_alerts",
+      "cascade_trigger": "ON DELETE CASCADE"
+    },
+    {
+      "table": "correlation.incident_stages",
+      "parent": "correlation.correlated_incidents",
+      "cascade_trigger": "ON DELETE CASCADE"
+    },
+    {
+      "table": "risk_engine.calculated_risk_scores",
+      "parent": "correlation.correlated_incidents",
+      "cascade_trigger": "ON DELETE CASCADE"
+    },
+    {
+      "table": "risk_engine.risk_scoring_factors",
+      "parent": "correlation.correlated_incidents",
+      "cascade_trigger": "ON DELETE CASCADE"
+    },
+    {
+      "table": "soc_ops.soc_triage_queue",
+      "parent": "correlation.correlated_incidents",
+      "cascade_trigger": "ON DELETE CASCADE"
+    }
+  ],
+  "permanently_preserved_tables": [
+    {
+      "table": "suppression.cumulative_alerts",
+      "policy": "PERMANENT_LIFETIME",
+      "reason": "Entity behavioral profiling, first_seen_at timestamps, and lifetime burst history must never be purged."
+    }
+  ]
+}

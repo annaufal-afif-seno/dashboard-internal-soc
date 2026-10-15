@@ -1,0 +1,259 @@
+{
+  "_metadata": {
+    "description": "OCSF v1.3 Field Mapping for Wazuh Normalization Pipeline (21 Sweet Spot Categories)",
+    "ocsf_version": "1.3.0",
+    "last_updated": "2026-09-29",
+    "reference": "https://schema.ocsf.io/1.3.0/classes",
+    "notes": [
+      "class_uid: OCSF numeric event class identifier",
+      "category_uid: OCSF top-level category (1=System, 2=Findings, 3=IAM, 4=Network, 5=Discovery, 6=Config)",
+      "activity_id: OCSF activity within class (verb of the event)",
+      "To add support for a new internal category, add a new key here \u2014 no Python code change needed."
+    ]
+  },
+  "categories": {
+    "RANSOMWARE": {
+      "class_uid": 2004,
+      "class_name": "Detection Finding",
+      "category_uid": 2,
+      "category_name": "Findings",
+      "activity_id": 1,
+      "activity_name": "Create",
+      "severity_bias": 3
+    },
+    "MALWARE": {
+      "class_uid": 2004,
+      "class_name": "Detection Finding",
+      "category_uid": 2,
+      "category_name": "Findings",
+      "activity_id": 1,
+      "activity_name": "Create",
+      "severity_bias": 2
+    },
+    "COMMAND_AND_CONTROL": {
+      "class_uid": 4002,
+      "class_name": "DNS Activity",
+      "category_uid": 4,
+      "category_name": "Network Activity",
+      "activity_id": 6,
+      "activity_name": "Traffic",
+      "severity_bias": 2
+    },
+    "EXFILTRATION": {
+      "class_uid": 4002,
+      "class_name": "DNS Activity",
+      "category_uid": 4,
+      "category_name": "Network Activity",
+      "activity_id": 6,
+      "activity_name": "Traffic",
+      "severity_bias": 2
+    },
+    "LATERAL_MOVEMENT": {
+      "class_uid": 3002,
+      "class_name": "Authentication",
+      "category_uid": 3,
+      "category_name": "Identity and Access Management",
+      "activity_id": 1,
+      "activity_name": "Logon",
+      "severity_bias": 2
+    },
+    "PRIVILEGE_ESCALATION": {
+      "class_uid": 3004,
+      "class_name": "Account Change",
+      "category_uid": 3,
+      "category_name": "Identity and Access Management",
+      "activity_id": 3,
+      "activity_name": "Enable",
+      "severity_bias": 2
+    },
+    "CREDENTIAL_ACCESS": {
+      "class_uid": 3002,
+      "class_name": "Authentication",
+      "category_uid": 3,
+      "category_name": "Identity and Access Management",
+      "activity_id": 1,
+      "activity_name": "Logon",
+      "severity_bias": 1
+    },
+    "DEFENSE_EVASION": {
+      "class_uid": 1007,
+      "class_name": "Process Activity",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 1,
+      "activity_name": "Launch",
+      "severity_bias": 2
+    },
+    "EXECUTION": {
+      "class_uid": 1007,
+      "class_name": "Process Activity",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 1,
+      "activity_name": "Launch",
+      "severity_bias": 0
+    },
+    "PERSISTENCE": {
+      "class_uid": 1007,
+      "class_name": "Process Activity",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 1,
+      "activity_name": "Launch",
+      "severity_bias": 1
+    },
+    "DISCOVERY": {
+      "class_uid": 5001,
+      "class_name": "Device Inventory Info",
+      "category_uid": 5,
+      "category_name": "Discovery",
+      "activity_id": 1,
+      "activity_name": "Query",
+      "severity_bias": 0
+    },
+    "INITIAL_ACCESS": {
+      "class_uid": 4001,
+      "class_name": "Network Activity",
+      "category_uid": 4,
+      "category_name": "Network Activity",
+      "activity_id": 6,
+      "activity_name": "Traffic",
+      "severity_bias": 1
+    },
+    "AUTH_FAILURE": {
+      "class_uid": 3002,
+      "class_name": "Authentication",
+      "category_uid": 3,
+      "category_name": "Identity and Access Management",
+      "activity_id": 2,
+      "activity_name": "Logon Failed",
+      "severity_bias": 0
+    },
+    "AUTH_SUCCESS": {
+      "class_uid": 3002,
+      "class_name": "Authentication",
+      "category_uid": 3,
+      "category_name": "Identity and Access Management",
+      "activity_id": 1,
+      "activity_name": "Logon",
+      "severity_bias": 0
+    },
+    "WEB_ATTACK": {
+      "class_uid": 4001,
+      "class_name": "Network Activity",
+      "category_uid": 4,
+      "category_name": "Network Activity",
+      "activity_id": 6,
+      "activity_name": "Traffic",
+      "severity_bias": 1
+    },
+    "WEB_OPERATIONAL": {
+      "class_uid": 4001,
+      "class_name": "Network Activity",
+      "category_uid": 4,
+      "category_name": "Network Activity",
+      "activity_id": 6,
+      "activity_name": "Traffic",
+      "severity_bias": 0
+    },
+    "FILE_INTEGRITY": {
+      "class_uid": 1001,
+      "class_name": "File System Activity",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 3,
+      "activity_name": "Modify",
+      "severity_bias": 0
+    },
+    "VULNERABILITY": {
+      "class_uid": 2002,
+      "class_name": "Vulnerability Finding",
+      "category_uid": 2,
+      "category_name": "Findings",
+      "activity_id": 1,
+      "activity_name": "Create",
+      "severity_bias": 1
+    },
+    "COMPLIANCE": {
+      "class_uid": 2003,
+      "class_name": "Compliance Finding",
+      "category_uid": 2,
+      "category_name": "Findings",
+      "activity_id": 1,
+      "activity_name": "Create",
+      "severity_bias": 0
+    },
+    "CONFIGURATION_ASSESSMENT": {
+      "class_uid": 2003,
+      "class_name": "Compliance Finding",
+      "category_uid": 2,
+      "category_name": "Findings",
+      "activity_id": 1,
+      "activity_name": "Create",
+      "severity_bias": 0
+    },
+    "CLOUD_CONTAINER": {
+      "class_uid": 1010,
+      "class_name": "Container Lifecycle",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 6,
+      "activity_name": "Launch",
+      "severity_bias": 0
+    },
+    "SYSTEM_HEALTH": {
+      "class_uid": 1004,
+      "class_name": "Operating System Patch State",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 0,
+      "activity_name": "Unknown",
+      "severity_bias": -1
+    },
+    "TELEMETRY": {
+      "class_uid": 1004,
+      "class_name": "Operating System Patch State",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 0,
+      "activity_name": "Unknown",
+      "severity_bias": -2
+    },
+    "OTHER": {
+      "class_uid": 1004,
+      "class_name": "Operating System Patch State",
+      "category_uid": 1,
+      "category_name": "System Activity",
+      "activity_id": 0,
+      "activity_name": "Unknown",
+      "severity_bias": -1
+    }
+  },
+  "severity_map": {
+    "comment": "Maps Wazuh rule_level (1-15) to OCSF severity_id (1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 0=Unknown)",
+    "1": 1,
+    "2": 1,
+    "3": 2,
+    "4": 2,
+    "5": 3,
+    "6": 3,
+    "7": 4,
+    "8": 4,
+    "9": 5,
+    "10": 5,
+    "11": 5,
+    "12": 6,
+    "13": 6,
+    "14": 6,
+    "15": 6
+  },
+  "severity_labels": {
+    "0": "Unknown",
+    "1": "Informational",
+    "2": "Low",
+    "3": "Medium",
+    "4": "High",
+    "5": "Critical",
+    "6": "Fatal"
+  }
+}

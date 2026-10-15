@@ -1,0 +1,12 @@
+{
+  "entity_correlation": {
+    "enabled": true,
+    "window_hours": 24,
+    "keys": ["tenant_id", "actor", "target_host"],
+    "rule_id": "CORR-ENTITY",
+    "rule_code": "ENTITY_ATTACK_PROGRESSION",
+    "description": "Pure Dynamic Entity-Based Correlation (Tenant, Actor, Target Host in 24h Window)"
+  },
+  "ticket_dedup_window_hours": 24,
+  "correlation_rules": []
+}

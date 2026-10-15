@@ -1,0 +1,642 @@
+{
+  "default_window_seconds": 900,
+  "rules": {
+    "52002": {
+      "name": "Apparmor DENIED",
+      "window_seconds": 900,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "agent_id",
+        "source_ip"
+      ],
+      "progressive_escalation": false
+    },
+    "31101": {
+      "name": "Web server 400 error code",
+      "window_seconds": 900,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "31533": {
+      "name": "High amount of POST requests in a small period of time (likely bot)",
+      "window_seconds": 600,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "86003": {
+      "name": "Docker: Error message",
+      "window_seconds": 900,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "100020": {
+      "name": "Authentication Failed",
+      "window_seconds": 600,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "23502": {
+      "name": "Vulnerability resolved feed notification",
+      "window_seconds": 900,
+      "suppression_class": "S1_KNOWN_GOOD",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "5715": {
+      "name": "sshd: authentication success",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5710": {
+      "name": "sshd: Attempt to login using non-existent user",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5716": {
+      "name": "sshd: authentication failed",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5760": {
+      "name": "sshd: authentication failed (PAM)",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5762": {
+      "name": "sshd: connection reset",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5501": {
+      "name": "PAM: Login session opened",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5502": {
+      "name": "PAM: Login session closed",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5503": {
+      "name": "PAM: User login failed",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "2501": {
+      "name": "syslog: User authentication failure",
+      "window_seconds": 600,
+      "category": "AUTH_FAILURE",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "52004": {
+      "name": "Apparmor DENIED mknod operation",
+      "window_seconds": 900,
+      "category": "PROCESS_EXECUTION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "11": {
+      "name": "High log volume burst statistics notice",
+      "window_seconds": 900,
+      "category": "PROCESS_EXECUTION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "5402": {
+      "name": "Successful sudo to ROOT executed",
+      "window_seconds": 600,
+      "category": "PRIVILEGE_ESCALATION",
+      "keys": [
+        "rule_id",
+        "agent_id",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5901": {
+      "name": "New group added to the system",
+      "window_seconds": 600,
+      "category": "PRIVILEGE_ESCALATION",
+      "keys": [
+        "rule_id",
+        "agent_id",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "5902": {
+      "name": "New user added to the system",
+      "window_seconds": 600,
+      "category": "PRIVILEGE_ESCALATION",
+      "keys": [
+        "rule_id",
+        "agent_id",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "2904": {
+      "name": "Dpkg (Debian Package) half configured",
+      "window_seconds": 1800,
+      "category": "PERSISTENCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "40704": {
+      "name": "Systemd: Service exited due to a failure",
+      "window_seconds": 1800,
+      "category": "PERSISTENCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "550": {
+      "name": "Integrity checksum changed (FIM)",
+      "window_seconds": 900,
+      "category": "DEFENSE_EVASION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "554": {
+      "name": "File added to the system (FIM)",
+      "window_seconds": 900,
+      "category": "DEFENSE_EVASION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "553": {
+      "name": "File deleted (FIM)",
+      "window_seconds": 900,
+      "category": "DEFENSE_EVASION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "591": {
+      "name": "Log file rotated",
+      "window_seconds": 900,
+      "category": "DEFENSE_EVASION",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "521": {
+      "name": "Possible kernel level rootkit",
+      "window_seconds": 600,
+      "category": "MALWARE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": true
+    },
+    "31110": {
+      "name": "PHP CGI-bin vulnerability attempt",
+      "window_seconds": 600,
+      "category": "MALWARE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": true
+    },
+    "31151": {
+      "name": "Multiple web server 400 error codes from same IP",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "31301": {
+      "name": "Nginx error message",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "31410": {
+      "name": "PHP Warning message",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "31122": {
+      "name": "Web server 500 error code (Internal Error)",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "533": {
+      "name": "Listened ports status (netstat) changed",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "31516": {
+      "name": "Suspicious URL access",
+      "window_seconds": 900,
+      "category": "NETWORK_ANOMALY",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": true
+    },
+    "5553": {
+      "name": "PAM misconfiguration (pam_lastlog.so)",
+      "window_seconds": 600,
+      "category": "LATERAL_MOVEMENT",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "username"
+      ],
+      "progressive_escalation": true
+    },
+    "31104": {
+      "name": "Common web attack (AWS Dir Traversal)",
+      "window_seconds": 900,
+      "category": "DATA_ACCESS",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": false
+    },
+    "31103": {
+      "name": "SQL injection attempt",
+      "window_seconds": 900,
+      "category": "DATA_ACCESS",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": false
+    },
+    "30305": {
+      "name": "Apache: Attempt to access forbidden file or dir",
+      "window_seconds": 900,
+      "category": "DATA_ACCESS",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": false
+    },
+    "30306": {
+      "name": "Apache: Attempt to access forbidden directory index",
+      "window_seconds": 900,
+      "category": "DATA_ACCESS",
+      "keys": [
+        "rule_id",
+        "source_ip",
+        "destination_host"
+      ],
+      "progressive_escalation": false
+    },
+    "2902": {
+      "name": "New dpkg (Debian Package) installed",
+      "window_seconds": 1800,
+      "category": "CONFIGURATION_CHANGE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "2901": {
+      "name": "New dpkg requested to install",
+      "window_seconds": 1800,
+      "category": "CONFIGURATION_CHANGE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "2903": {
+      "name": "Dpkg (Debian Package) removed",
+      "window_seconds": 1800,
+      "category": "CONFIGURATION_CHANGE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "1002": {
+      "name": "Unknown problem / Generic Syslog Notice",
+      "window_seconds": 1800,
+      "category": "CONFIGURATION_CHANGE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "23504": {
+      "name": "CVE-2026-2243 affects qemu-guest-agent",
+      "window_seconds": 3600,
+      "category": "VULNERABILITY",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "23505": {
+      "name": "CVE-2025-11234 affects qemu-guest-agent",
+      "window_seconds": 3600,
+      "category": "VULNERABILITY",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "23508": {
+      "name": "CVE-2026-3890 affects qemu-guest-agent",
+      "window_seconds": 3600,
+      "category": "VULNERABILITY",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "23506": {
+      "name": "CVE-2025-27558 affects linux-image",
+      "window_seconds": 3600,
+      "category": "VULNERABILITY",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "23503": {
+      "name": "CVE-2024-8612 affects qemu-guest-agent",
+      "window_seconds": 3600,
+      "category": "VULNERABILITY",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19010": {
+      "name": "CIS Ubuntu Benchmark: Status Passed",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19011": {
+      "name": "CIS Ubuntu Benchmark: Changed to Failed",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19014": {
+      "name": "CIS Ubuntu Benchmark: Changed to Failed",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19004": {
+      "name": "SCA summary: Score less than 50%",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19003": {
+      "name": "SCA summary: Score less than 80%",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "19015": {
+      "name": "CIS Ubuntu Benchmark: Changed to Passed",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "510": {
+      "name": "Host-based anomaly detection (rootcheck)",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "203": {
+      "name": "Agent event queue is full",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "202": {
+      "name": "Agent event queue is 90% full",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "205": {
+      "name": "Agent event queue back to normal",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "506": {
+      "name": "Wazuh agent stopped",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "503": {
+      "name": "Wazuh agent started",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    },
+    "502": {
+      "name": "Wazuh server started",
+      "window_seconds": 900,
+      "category": "COMPLIANCE",
+      "keys": [
+        "rule_id",
+        "agent_id"
+      ],
+      "progressive_escalation": false
+    }
+  }
+}

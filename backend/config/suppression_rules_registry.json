@@ -1,0 +1,1239 @@
+{
+  "version": "2.0.0",
+  "phase": "Phase 3 Deliverable - Suppression & Known-Good Exceptions Registry (Empirical Census)",
+  "categories": [
+    "KNOWN_GOOD",
+    "FALSE_POSITIVE",
+    "MAINTENANCE",
+    "EXCEPTION",
+    "CONDITIONAL"
+  ],
+  "suppression_policies": [
+    {
+      "id": "SUP-2026-001",
+      "category": "KNOWN_GOOD",
+      "reason": "Routine getattr/open kernel inspection syscalls on /proc and /sys by Docker containers",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "52002"
+      ],
+      "conditions": {
+        "profile": [
+          "docker-default",
+          "cri-containerd"
+        ],
+        "operations": [
+          "getattr",
+          "open"
+        ],
+        "path": [
+          "/proc/*",
+          "/sys/*"
+        ]
+      },
+      "historical_volume": 457198,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-002",
+      "category": "KNOWN_GOOD",
+      "reason": "Routine polling requests from verified monitoring host to /dash/chunk endpoints",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31101"
+      ],
+      "conditions": {
+        "source_ip": "103.19.110.156",
+        "url_regex": "^/dash/chunk/",
+        "status": 400
+      },
+      "historical_volume": 262826,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-003",
+      "category": "KNOWN_GOOD",
+      "reason": "Automated database synchronization and microservice heartbeat batch POST requests",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31533"
+      ],
+      "conditions": {
+        "service": "svc_telemetry_sync",
+        "method": "POST",
+        "destination_port": [
+          80,
+          443,
+          8080
+        ]
+      },
+      "historical_volume": 53756,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-004",
+      "category": "KNOWN_GOOD",
+      "reason": "Non-critical informational stderr and routine health check messages emitted by healthy containers",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "86003"
+      ],
+      "conditions": {
+        "daemon": "dockerd",
+        "channel": "stderr",
+        "log_level": "info"
+      },
+      "historical_volume": 12946,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-005",
+      "category": "KNOWN_GOOD",
+      "reason": "Suppress repetitive benign missing static asset errors (favicon.ico, robots.txt, css/js map)",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31301"
+      ],
+      "conditions": {
+        "url_patterns": [
+          "*.ico",
+          "*.map",
+          "/robots.txt",
+          "/apple-touch-icon*.png"
+        ],
+        "status": 404
+      },
+      "historical_volume": 8163,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-006",
+      "category": "MAINTENANCE",
+      "reason": "Transient dpkg half-configured package state during scheduled system maintenance window",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "2904"
+      ],
+      "conditions": {
+        "maintenance_window": "MAINT_WEEKLY_LINUX",
+        "package_manager": "dpkg"
+      },
+      "historical_volume": 1774,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-007",
+      "category": "MAINTENANCE",
+      "reason": "File integrity monitoring checksum changes on system binaries updated during approved maintenance",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "550"
+      ],
+      "conditions": {
+        "maintenance_window": "MAINT_WEEKLY_LINUX",
+        "paths": [
+          "/usr/bin/*",
+          "/usr/lib/*",
+          "/etc/*"
+        ]
+      },
+      "historical_volume": 1428,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-008",
+      "category": "FALSE_POSITIVE",
+      "reason": "Deprecated syntax warnings and non-fatal runtime notices logged by legacy PHP services",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31410"
+      ],
+      "conditions": {
+        "app_runtime": "php-fpm",
+        "severity": [
+          "E_DEPRECATED",
+          "E_NOTICE",
+          "E_WARNING"
+        ]
+      },
+      "historical_volume": 1426,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-009",
+      "category": "KNOWN_GOOD",
+      "reason": "Informational systemd unit exits for expected scheduled cron timers and oneshot jobs",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "40704"
+      ],
+      "conditions": {
+        "systemd_unit_type": "oneshot",
+        "exit_code": 0,
+        "status": "SUCCESS"
+      },
+      "historical_volume": 1385,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-010",
+      "category": "MAINTENANCE",
+      "reason": "Approved software package installation and upgrades during patch maintenance cycles",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "2902"
+      ],
+      "conditions": {
+        "maintenance_window": "MAINT_WEEKLY_LINUX",
+        "action": "install"
+      },
+      "historical_volume": 1179,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-011",
+      "category": "CONDITIONAL",
+      "reason": "Expected PAM session initialization for scheduled crontab tasks and verified admin jump hosts",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5501"
+      ],
+      "conditions": {
+        "users": [
+          "root",
+          "svc_cron",
+          "svc_ansible"
+        ],
+        "source": [
+          "cron",
+          "sshd_bastion"
+        ]
+      },
+      "historical_volume": 488,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-012",
+      "category": "CONDITIONAL",
+      "reason": "Expected PAM session termination for scheduled crontab tasks and verified admin jump hosts",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5502"
+      ],
+      "conditions": {
+        "users": [
+          "root",
+          "svc_cron",
+          "svc_ansible"
+        ],
+        "source": [
+          "cron",
+          "sshd_bastion"
+        ]
+      },
+      "historical_volume": 457,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-013",
+      "category": "KNOWN_GOOD",
+      "reason": "Suppress internal synthetic monitoring uptime checks generating high-rate 400 probes",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31151"
+      ],
+      "conditions": {
+        "source_networks": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16"
+        ],
+        "user_agent": "Synthetics-Monitor"
+      },
+      "historical_volume": 433,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-014",
+      "category": "MAINTENANCE",
+      "reason": "Ephemeral file creation in /tmp, /var/tmp, and application cache during scheduled tasks",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "554"
+      ],
+      "conditions": {
+        "allowed_directories": [
+          "/tmp/*",
+          "/var/tmp/*",
+          "/var/cache/*"
+        ]
+      },
+      "historical_volume": 417,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-015",
+      "category": "CONDITIONAL",
+      "reason": "Approved privilege elevation executed by deployment service accounts and verified engineers",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5402"
+      ],
+      "conditions": {
+        "approved_users": [
+          "deploy_eng",
+          "svc_automation",
+          "ops_admin"
+        ],
+        "terminal": [
+          "pts/*",
+          "system"
+        ]
+      },
+      "historical_volume": 364,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-016",
+      "category": "KNOWN_GOOD",
+      "reason": "Routine network port listening inventory performed by Wazuh syscheck and inventory agent",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "533"
+      ],
+      "conditions": {
+        "process": "wazuh-agent",
+        "collector": "syscollector_netstat"
+      },
+      "historical_volume": 327,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-017",
+      "category": "KNOWN_GOOD",
+      "reason": "Expected kernel security denial preventing container processes from creating device nodes",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "52004"
+      ],
+      "conditions": {
+        "profile": "docker-default",
+        "operation": "mknod",
+        "denial_type": "enforce"
+      },
+      "historical_volume": 278,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-018",
+      "category": "MAINTENANCE",
+      "reason": "Expected daily/weekly system log rotation and compression by logrotate service",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "591"
+      ],
+      "conditions": {
+        "daemon": "logrotate",
+        "cron_schedule": "daily_weekly",
+        "status": "completed"
+      },
+      "historical_volume": 200,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-019",
+      "category": "MAINTENANCE",
+      "reason": "Routine deletion of expired session files, temp sockets, and package installation artifacts",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "553"
+      ],
+      "conditions": {
+        "allowed_directories": [
+          "/tmp/*",
+          "/var/tmp/*",
+          "/var/cache/apt/*"
+        ]
+      },
+      "historical_volume": 200,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-020",
+      "category": "EXCEPTION",
+      "reason": "Transient agent message buffer saturation during ingestion spikes; deduplicated to avoid storm",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "203"
+      ],
+      "conditions": {
+        "component": "wazuh-agent",
+        "subsystem": "buffer_manager",
+        "queue_state": "full"
+      },
+      "historical_volume": 128,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-021",
+      "category": "MAINTENANCE",
+      "reason": "Initial packaging management request dispatched by apt-get/unattended-upgrades",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "2901"
+      ],
+      "conditions": {
+        "maintenance_window": "MAINT_WEEKLY_LINUX",
+        "originator": "apt-get"
+      },
+      "historical_volume": 112,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-022",
+      "category": "CONDITIONAL",
+      "reason": "Legitimate public-key SSH logins originating from approved corporate bastion jump hosts",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5715"
+      ],
+      "conditions": {
+        "approved_hosts": [
+          "bastion-jump-01",
+          "bastion-jump-02"
+        ],
+        "auth_method": "publickey"
+      },
+      "historical_volume": 82,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-023",
+      "category": "MAINTENANCE",
+      "reason": "Clean removal of superseded Linux kernel images and obsolete dependency packages",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "2903"
+      ],
+      "conditions": {
+        "maintenance_window": "MAINT_WEEKLY_LINUX",
+        "action": "remove"
+      },
+      "historical_volume": 75,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-024",
+      "category": "EXCEPTION",
+      "reason": "Operational telemetry warning when agent event buffer reaches 90% threshold",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "202"
+      ],
+      "conditions": {
+        "component": "wazuh-agent",
+        "threshold": "90%",
+        "action": "throttle"
+      },
+      "historical_volume": 73,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-025",
+      "category": "KNOWN_GOOD",
+      "reason": "Operational status event indicating agent queue has flushed and resumed normal speed",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "205"
+      ],
+      "conditions": {
+        "component": "wazuh-agent",
+        "queue_state": "normal"
+      },
+      "historical_volume": 73,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-026",
+      "category": "FALSE_POSITIVE",
+      "reason": "Repetitive dictionary scans targeting invalid usernames on public perimeter honeypots",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5710"
+      ],
+      "conditions": {
+        "interface": "external_wan",
+        "window_minutes": 15,
+        "dedup_key": "src_ip"
+      },
+      "historical_volume": 56,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-027",
+      "category": "FALSE_POSITIVE",
+      "reason": "Isolated mistyped user credentials or automated service retry failures from internal hosts",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5503"
+      ],
+      "conditions": {
+        "scope": "internal_lan",
+        "max_attempts": 3,
+        "service": "pam"
+      },
+      "historical_volume": 33,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-028",
+      "category": "KNOWN_GOOD",
+      "reason": "Known Linux kernel discrepancy where exported symbol offsets trigger benign rootkit alarms",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "521"
+      ],
+      "conditions": {
+        "kernel_versions": [
+          "5.15.*",
+          "6.2.*",
+          "6.5.*"
+        ],
+        "module": "sys_call_table"
+      },
+      "historical_volume": 28,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-029",
+      "category": "FALSE_POSITIVE",
+      "reason": "Low-velocity random SSH password failures on edge gateways collapsed into summary",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5760"
+      ],
+      "conditions": {
+        "protocol": "ssh",
+        "window_minutes": 15,
+        "aggregate": true
+      },
+      "historical_volume": 19,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-030",
+      "category": "KNOWN_GOOD",
+      "reason": "Expected agent daemon termination during scheduled host reboot or software upgrade",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "506"
+      ],
+      "conditions": {
+        "service": "wazuh-agent",
+        "signal": "SIGTERM",
+        "event": "stopped"
+      },
+      "historical_volume": 17,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-031",
+      "category": "KNOWN_GOOD",
+      "reason": "Expected agent daemon startup and connection handshake following host boot or service reload",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "503"
+      ],
+      "conditions": {
+        "service": "wazuh-agent",
+        "status": "started"
+      },
+      "historical_volume": 17,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-032",
+      "category": "CONDITIONAL",
+      "reason": "System group creation during container runtime initialization and service provisioning",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5901"
+      ],
+      "conditions": {
+        "system_groups": [
+          "docker",
+          "systemd-journal",
+          "soc_ops"
+        ],
+        "scope": "system"
+      },
+      "historical_volume": 4,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-033",
+      "category": "CONDITIONAL",
+      "reason": "System user creation for unprivileged daemons (e.g., _apt, systemd-resolve, prometheus)",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5902"
+      ],
+      "conditions": {
+        "system_users": [
+          "_apt",
+          "systemd-resolve",
+          "svc_monitor"
+        ],
+        "shell": "/usr/sbin/nologin"
+      },
+      "historical_volume": 4,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-034",
+      "category": "EXCEPTION",
+      "reason": "Temporary gateway timeout / 500 error logged during upstream service rolling restart",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "31122"
+      ],
+      "conditions": {
+        "upstream_state": "reloading",
+        "duration_seconds": 5,
+        "http_status": 500
+      },
+      "historical_volume": 3,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-035",
+      "category": "KNOWN_GOOD",
+      "reason": "Informational connection reset when idle remote SSH client disconnects before auth",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5762"
+      ],
+      "conditions": {
+        "reason": "connection_closed_by_remote_host",
+        "state": "preauth"
+      },
+      "historical_volume": 3,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-036",
+      "category": "KNOWN_GOOD",
+      "reason": "Server initialization telemetry logged when Wazuh manager daemon starts successfully",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "502"
+      ],
+      "conditions": {
+        "service": "wazuh-manager",
+        "cluster_node": "master-01",
+        "event": "server_started"
+      },
+      "historical_volume": 3,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-037",
+      "category": "CONDITIONAL",
+      "reason": "Informational syntax notice regarding deprecated PAM directives in older Linux distributions",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "5553"
+      ],
+      "conditions": {
+        "module": "pam_unix",
+        "severity": "notice",
+        "action": "ignore"
+      },
+      "historical_volume": 2,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-038",
+      "category": "EXCEPTION",
+      "reason": "High log burst notification triggered during mass database indexing or bulk log import",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "11"
+      ],
+      "conditions": {
+        "threshold": "burst_rate_exceeded",
+        "action": "aggregate_only"
+      },
+      "historical_volume": 1,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-039",
+      "category": "FALSE_POSITIVE",
+      "reason": "Isolated single auth failure logged via syslog daemon on edge network device",
+      "owner": "Deployment Automation Engine",
+      "approver": "SOC Architecture Lead",
+      "status": "ACTIVE",
+      "created": "2026-09-17",
+      "expires": "2027-03-16",
+      "target_rules": [
+        "2501"
+      ],
+      "conditions": {
+        "facility": "authpriv",
+        "level": "warning",
+        "action": "deduplicate"
+      },
+      "historical_volume": 1,
+      "assets": [
+        "prod-cluster-all"
+      ]
+    },
+    {
+      "id": "SUP-2026-041",
+      "category": "FALSE_POSITIVE",
+      "reason": "testtttttt",
+      "owner": "analyst_john",
+      "approver": "soc_lead_alice",
+      "status": "ACTIVE",
+      "created": "2026-09-24",
+      "expires": "2026-12-23",
+      "target_rules": [
+        "554"
+      ],
+      "conditions": {
+        "source_ip": "proc:syscheck",
+        "target_host": "elastic-prod-239",
+        "username": "root",
+        "categories": [
+          "FILE_INTEGRITY"
+        ],
+        "max_count": 500,
+        "max_risk_score": 13,
+        "referenced_ticket_id": "TRG-226EED7F1CA21D22",
+        "aggregation_id": "agg_869d94bb754b7880",
+        "match_sids": [
+          554
+        ]
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-042",
+      "category": "FALSE_POSITIVE",
+      "reason": "test",
+      "owner": "analyst_john",
+      "approver": "soc_lead_alice",
+      "status": "ACTIVE",
+      "created": "2026-09-24",
+      "expires": "2026-12-23",
+      "target_rules": [
+        "554"
+      ],
+      "conditions": {
+        "source_ip": "proc:syscheck",
+        "target_host": "elastic-prod-239",
+        "username": "root",
+        "categories": [
+          "FILE_INTEGRITY"
+        ],
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-226EED7F1CA21D22",
+        "aggregation_id": "agg_869d94bb754b7880",
+        "match_sids": [
+          554
+        ]
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-043",
+      "category": "FALSE_POSITIVE",
+      "reason": "tes",
+      "owner": "SOC Analyst (Current User)",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "hportal-prod-159",
+        "source_ip": "user:root",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-5A723D6C4B37C360"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-044",
+      "category": "FALSE_POSITIVE",
+      "reason": "tes",
+      "owner": "SOC Analyst (Current User)",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "Learning-acadcsirt-dimas-123",
+        "source_ip": "user:root",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-C1E120E826E31512"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-045",
+      "category": "FALSE_POSITIVE",
+      "reason": "test",
+      "owner": "analyst_john",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "elastic-prod-239",
+        "source_ip": "user:root",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-226EED7F1CA21D22"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-046",
+      "category": "FALSE_POSITIVE",
+      "reason": "Known-good health check polling endpoint from internal load balancer",
+      "owner": "analyst_lead_sarah",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "hportal-prod-159",
+        "source_ip": "192.168.30.114",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-1D94948B17B7E7D7"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-047",
+      "category": "FALSE_POSITIVE",
+      "reason": "Routine scheduled rsync/backup burst from internal storage node",
+      "owner": "soc_analyst_eko",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "hportal-prod-159",
+        "source_ip": "103.19.110.156",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-6504FED50542607D"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-050",
+      "category": "FALSE_POSITIVE",
+      "reason": "Known-good health check polling endpoint from internal load balancer",
+      "owner": "analyst_tier1_andi",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-27",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "hportal-prod-159",
+        "source_ip": "103.19.110.156",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-2140206E04BD2AF5"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-049",
+      "category": "FALSE_POSITIVE",
+      "reason": "Authorized security scan",
+      "owner": "analyst_john",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-01",
+      "target_rules": [
+        "550",
+        "5710"
+      ],
+      "conditions": {
+        "target_host": "hp-fluentd-tenant-172",
+        "source_ip": "192.168.1.158",
+        "match_sids": [
+          550,
+          5710
+        ],
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-TEST-001"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-051",
+      "category": "FALSE_POSITIVE",
+      "reason": "LB Probe",
+      "owner": "analyst_john",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-28",
+      "expires": "2026-12-01",
+      "target_rules": [
+        "31101"
+      ],
+      "conditions": {
+        "url_path": "/api/v1/metrics",
+        "username": "nginx",
+        "match_sids": [
+          31101
+        ],
+        "max_count": 500,
+        "max_risk_score": 60
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-054",
+      "category": "FALSE_POSITIVE",
+      "reason": "Known-good health check polling endpoint from internal load balancer",
+      "owner": "analyst_lead_sarah",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-29",
+      "expires": "2026-12-28",
+      "target_rules": [
+        "5502",
+        "5501"
+      ],
+      "conditions": {
+        "match_sids": [
+          5502,
+          5501
+        ],
+        "target_host": "leaning-sgu-dimas-124",
+        "source_ip": "Internal / N/A",
+        "username": "Internal / N/A",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-4A7630FA02A32E97",
+        "enforcement_mode": "PIPELINE_MUTE"
+      },
+      "historical_volume": 0
+    },
+    {
+      "id": "SUP-2026-055",
+      "category": "FALSE_POSITIVE",
+      "reason": "Authorized security scan",
+      "owner": "analyst_john",
+      "approver": "admin_secops",
+      "status": "ACTIVE",
+      "created": "2026-09-30",
+      "expires": "2026-12-01",
+      "target_rules": [
+        "550",
+        "5710"
+      ],
+      "conditions": {
+        "target_host": "hp-fluentd-tenant-172",
+        "source_ip": "192.168.1.158",
+        "match_sids": [
+          550,
+          5710
+        ],
+        "max_count": 500,
+        "max_risk_score": 60,
+        "referenced_ticket_id": "TRG-TEST-001",
+        "enforcement_mode": "PIPELINE_MUTE"
+      },
+      "historical_volume": 0
+    }
+  ]
+}

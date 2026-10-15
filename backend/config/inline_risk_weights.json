@@ -1,0 +1,47 @@
+{
+  "_metadata": {
+    "description": "Inline risk score formula weights for Wazuh Normalization Layer",
+    "version": "1.0.0",
+    "last_updated": "2026-09-21",
+    "reference": "Based on Splunk CIM risk_score + Microsoft Sentinel risk scoring methodology",
+    "notes": [
+      "Formula: min(cap, (rule_level * level_multiplier) + asset_score + bonuses)",
+      "All values are configurable here — no Python code change needed.",
+      "Adjust multipliers based on your SOC environment and false-positive rate.",
+      "cap: maximum possible inline_risk_score (always 100)"
+    ]
+  },
+  "formula": {
+    "description": "inline_risk_score = min(cap, floor(rule_level * level_multiplier) + asset_score + bonus_sum)",
+    "level_multiplier": 6.0,
+    "cap": 100
+  },
+  "asset_criticality_scores": {
+    "comment": "Added to base score based on host_criticality field in CEM",
+    "CROWN_JEWEL": 25,
+    "CRITICAL":    15,
+    "HIGH":        10,
+    "STANDARD":     5,
+    "LAB":          0,
+    "_default":     5
+  },
+  "ocsf_severity_bias": {
+    "comment": "Added from ocsf_mapping.json severity_bias per category — applied after asset score",
+    "enabled": true
+  },
+  "bonuses": {
+    "comment": "Each boolean field in CEM adds a fixed bonus if true",
+    "threat_intel_match":  20,
+    "is_internet_exposed": 10,
+    "is_privileged_user":   5,
+    "is_service_account":   3
+  },
+  "category_multiplier_overrides": {
+    "comment": "Override level_multiplier for specific categories. Leave empty to use global value.",
+    "MALWARE":              7.5,
+    "VULNERABILITY":        6.5,
+    "PRIVILEGE_ESCALATION": 7.0,
+    "COMPLIANCE":           4.0,
+    "SYSTEM_HEALTH":        3.5
+  }
+}

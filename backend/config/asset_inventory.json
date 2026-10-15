@@ -1,0 +1,170 @@
+{
+  "assets": {
+    "dc-01.prod.local": {
+      "ip": "10.0.0.10",
+      "type": "DOMAIN_CONTROLLER",
+      "criticality": "CROWN_JEWEL",
+      "criticality_score": 25,
+      "internet_exposed": false
+    },
+    "db-primary-01.prod.local": {
+      "ip": "10.0.0.11",
+      "type": "DB_SERVER",
+      "criticality": "CROWN_JEWEL",
+      "criticality_score": 25,
+      "internet_exposed": false
+    },
+    "api-gateway-01.prod.local": {
+      "ip": "10.0.0.12",
+      "type": "WEB_SERVER",
+      "criticality": "CRITICAL",
+      "criticality_score": 20,
+      "internet_exposed": true
+    },
+    "elastic-prod-239": {
+      "ip": "192.168.1.239",
+      "type": "DB_SERVER",
+      "criticality": "CROWN_JEWEL",
+      "criticality_score": 25,
+      "internet_exposed": false
+    },
+    "mongo-replica3-199": {
+      "ip": "192.168.1.199",
+      "type": "DB_SERVER",
+      "criticality": "CROWN_JEWEL",
+      "criticality_score": 25,
+      "internet_exposed": false
+    },
+    "mongodb-ext-158": {
+      "ip": "192.168.1.158",
+      "type": "DB_SERVER",
+      "criticality": "CROWN_JEWEL",
+      "criticality_score": 25,
+      "internet_exposed": false
+    },
+    "portal-bssn-163": {
+      "ip": "192.168.1.163",
+      "type": "WEB_SERVER",
+      "criticality": "CRITICAL",
+      "criticality_score": 20,
+      "internet_exposed": true
+    },
+    "n8n-misp-134": {
+      "ip": "192.168.1.134",
+      "type": "APP_SERVER",
+      "criticality": "CRITICAL",
+      "criticality_score": 20,
+      "internet_exposed": false
+    },
+    "multitenant-soc-131": {
+      "ip": "192.168.1.131",
+      "type": "SOC_SYSTEM",
+      "criticality": "CRITICAL",
+      "criticality_score": 20,
+      "internet_exposed": false
+    },
+    "hportal-prod-159": {
+      "ip": "192.168.1.159",
+      "type": "WEB_SERVER",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": true
+    },
+    "public-dashboard-prod-241": {
+      "ip": "192.168.1.241",
+      "type": "WEB_SERVER",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": true
+    },
+    "zabbix-prod-214": {
+      "ip": "192.168.1.214",
+      "type": "MONITORING",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": false
+    },
+    "grafana-public-240": {
+      "ip": "192.168.1.240",
+      "type": "WEB_SERVER",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": true
+    },
+    "Grafana-143": {
+      "ip": "192.168.1.143",
+      "type": "WEB_SERVER",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": false
+    },
+    "isif-rproxy-155": {
+      "ip": "192.168.1.155",
+      "type": "WEB_SERVER",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": true
+    },
+    "greylog-fluentbit-139": {
+      "ip": "192.168.1.139",
+      "type": "LOGGING",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": false
+    },
+    "hp-fluentd-tenant-172": {
+      "ip": "192.168.1.172",
+      "type": "LOGGING",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": false
+    },
+    "automation-parallel-243": {
+      "ip": "192.168.1.243",
+      "type": "AUTOMATION",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": false
+    },
+    "mongodb-honeypot-230": {
+      "ip": "192.168.1.230",
+      "type": "HONEYPOT",
+      "criticality": "HIGH",
+      "criticality_score": 15,
+      "internet_exposed": true
+    },
+    "rocky10-terminal-196": {
+      "ip": "192.168.1.196",
+      "type": "WORKSTATION",
+      "criticality": "STANDARD",
+      "criticality_score": 5,
+      "internet_exposed": false
+    },
+    "discourse-180": {
+      "ip": "192.168.1.180",
+      "type": "WEB_SERVER",
+      "criticality": "STANDARD",
+      "criticality_score": 5,
+      "internet_exposed": true
+    },
+    "leaning-sgu-dimas-124": {
+      "ip": "192.168.1.124",
+      "type": "WORKSTATION",
+      "criticality": "STANDARD",
+      "criticality_score": 5,
+      "internet_exposed": false
+    },
+    "Learning-acadcsirt-dimas-123": {
+      "ip": "192.168.1.123",
+      "type": "WORKSTATION",
+      "criticality": "STANDARD",
+      "criticality_score": 5,
+      "internet_exposed": false
+    }
+  },
+  "default": {
+    "criticality": "STANDARD",
+    "criticality_score": 5,
+    "internet_exposed": false
+  }
+}
