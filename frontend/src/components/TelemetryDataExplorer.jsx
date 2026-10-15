@@ -28,7 +28,7 @@ export default function TelemetryDataExplorer({ initialTab = 'aggregates' }) {
     try {
       setAggsLoading(true);
       const offset = (aggsPage - 1) * pageSize;
-      let url = `http://localhost:8000/api/telemetry/aggregates?limit=${pageSize}&offset=${offset}`;
+      let url = `/api/telemetry/aggregates?limit=${pageSize}&offset=${offset}`;
       if (aggsCategory !== 'ALL') url += `&category=${aggsCategory}`;
       if (aggsTenant !== 'ALL') url += `&tenant=${aggsTenant}`;
       if (aggsSearch.trim()) url += `&search=${encodeURIComponent(aggsSearch.trim())}`;
@@ -50,7 +50,7 @@ export default function TelemetryDataExplorer({ initialTab = 'aggregates' }) {
     try {
       setCumLoading(true);
       const offset = (cumPage - 1) * pageSize;
-      let url = `http://localhost:8000/api/telemetry/cumulative?limit=${pageSize}&offset=${offset}`;
+      let url = `/api/telemetry/cumulative?limit=${pageSize}&offset=${offset}`;
       if (cumSearch.trim()) url += `&search=${encodeURIComponent(cumSearch.trim())}`;
 
       const res = await fetch(url);

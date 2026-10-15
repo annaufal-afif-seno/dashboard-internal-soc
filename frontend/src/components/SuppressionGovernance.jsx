@@ -525,7 +525,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     setEditRuleError(null);
     try {
       const parsedSids = editRuleFormData.sids.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      const res = await fetch(`http://localhost:8000/api/suppression/rules/${selectedEditRule.id}`, {
+      const res = await fetch(`/api/suppression/rules/${selectedEditRule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -575,7 +575,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     setEditingRuleSubmitting(true);
     setEditRuleError(null);
     try {
-      const res = await fetch(`http://localhost:8000/api/suppression/rules/${selectedEditRule.id}`, {
+      const res = await fetch(`/api/suppression/rules/${selectedEditRule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -628,7 +628,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchRules = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/suppression/rules');
+      const res = await fetch('/api/suppression/rules');
       if (res.ok) {
         const json = await res.json();
         if (json.rules && json.rules.length > 0) {
@@ -642,7 +642,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/suppression/tuning-requests');
+      const res = await fetch('/api/suppression/tuning-requests');
       if (res.ok) {
         const json = await res.json();
         setTuningRequests(json.requests || []);
@@ -654,7 +654,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchAuditLogs = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/suppression/audit-logs');
+      const res = await fetch('/api/suppression/audit-logs');
       if (res.ok) {
         const json = await res.json();
         setAuditLogs(json.logs || []);
@@ -666,7 +666,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchAvailableGroups = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/suppression/groups');
+      const res = await fetch('/api/suppression/groups');
       if (res.ok) {
         const json = await res.json();
         setAvailableGroups(json.groups || []);
@@ -679,7 +679,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
   const fetchTriageQueue = async () => {
     if (globalTriageCache?.active && globalTriageCache.active.length > 0) return;
     try {
-      const res = await fetch('http://localhost:8000/api/triage/queue?view=active');
+      const res = await fetch('/api/triage/queue?view=active');
       if (res.ok) {
         const json = await res.json();
         if (json.incidents) {
@@ -706,7 +706,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     let inc = globalTriageCache?.active?.find(i => i.id === tid || i.triage_id === tid);
     if (!inc) {
       try {
-        const res = await fetch('http://localhost:8000/api/triage/queue?view=active');
+        const res = await fetch('/api/triage/queue?view=active');
         if (res.ok) {
           const json = await res.json();
           if (json.incidents) {
@@ -788,7 +788,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
       console.warn(e);
     }
     try {
-      await fetch(`http://localhost:8000/api/triage/${tid}/update`, {
+      await fetch(`/api/triage/${tid}/update`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -939,7 +939,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
     try {
       setSubmitting(true);
-      const res = await fetch('http://localhost:8000/api/suppression/rules', {
+      const res = await fetch('/api/suppression/rules', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1003,7 +1003,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
             console.warn(e);
           }
           try {
-            await fetch(`http://localhost:8000/api/triage/${formData.ticketId}/update`, {
+            await fetch(`/api/triage/${formData.ticketId}/update`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
@@ -1071,7 +1071,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
       }
 
       try {
-        await fetch(`http://localhost:8000/api/triage/${formData.ticketId}/update`, {
+        await fetch(`/api/triage/${formData.ticketId}/update`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

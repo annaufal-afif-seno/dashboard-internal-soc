@@ -20,7 +20,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/system/rbac/login', {
+      const res = await fetch('/api/system/rbac/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

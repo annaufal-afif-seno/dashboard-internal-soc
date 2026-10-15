@@ -469,7 +469,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
     try {
       setMlLoading(true);
       setMlPrediction(null);
-      const res = await fetch(`http://localhost:8000/api/triage/${triageId}/ml-prediction`);
+      const res = await fetch(`/api/triage/${triageId}/ml-prediction`);
       if (res.ok) {
         const data = await res.json();
         setMlPrediction(data);
@@ -492,7 +492,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
       setSelectedAggregateId(null);
       setAggregateLogs([]);
       setLogSearch('');
-      const res = await fetch(`http://localhost:8000/api/triage/${triageId}/aggregates`);
+      const res = await fetch(`/api/triage/${triageId}/aggregates`);
       if (res.ok) {
         const data = await res.json();
         const list = data.aggregates || [];
@@ -513,7 +513,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
       setSelectedAggregateId(aggregationId);
       setSelectedLogId(null);
       setLogsLoading(true);
-      const res = await fetch(`http://localhost:8000/api/aggregates/${aggregationId}/logs`);
+      const res = await fetch(`/api/aggregates/${aggregationId}/logs`);
       if (res.ok) {
         const data = await res.json();
         setAggregateLogs(data.logs || []);
@@ -574,7 +574,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
       if (!globalTriageCache[viewMode]) {
         setLoading(true);
       }
-      const res = await fetch(`http://localhost:8000/api/triage/queue?view=${viewMode}&limit=300`);
+      const res = await fetch(`/api/triage/queue?view=${viewMode}&limit=300`);
       if (res.ok) {
         setNetworkError(false);
         const json = await res.json();
@@ -637,7 +637,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
     try {
       setUpdating(true);
-      const res = await fetch(`http://localhost:8000/api/triage/${triageId}/update`, {
+      const res = await fetch(`/api/triage/${triageId}/update`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

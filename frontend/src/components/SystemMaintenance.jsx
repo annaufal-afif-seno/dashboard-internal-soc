@@ -413,7 +413,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
 
     try {
       setSubmittingEdit(true);
-      const res = await fetch(`http://localhost:8000/api/system/rbac/users/${editingUser.user_id}`, {
+      const res = await fetch(`/api/system/rbac/users/${editingUser.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -516,7 +516,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchRbacUsers = async () => {
     try {
       setRbacLoading(true);
-      const res = await fetch('http://localhost:8000/api/system/rbac/users');
+      const res = await fetch('/api/system/rbac/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
@@ -537,7 +537,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchDbHealth = async (isBackground = false) => {
     try {
       if (!isBackground) setDbLoading(true);
-      const res = await fetch('http://localhost:8000/api/system/database/health');
+      const res = await fetch('/api/system/database/health');
       if (res.ok) {
         const data = await res.json();
         setDbHealth(data);
@@ -565,7 +565,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchQuotas = async () => {
     try {
       setQuotaLoading(true);
-      const res = await fetch('http://localhost:8000/api/system/integrations/quota');
+      const res = await fetch('/api/system/integrations/quota');
       if (res.ok) {
         const data = await res.json();
         setQuotaData(data);
@@ -596,7 +596,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
 
     try {
       setSubmittingUser(true);
-      const res = await fetch('http://localhost:8000/api/system/rbac/users', {
+      const res = await fetch('/api/system/rbac/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUserForm)
@@ -631,7 +631,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const handleToggleUserStatus = async (userId, currentStatus) => {
     const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     try {
-      const res = await fetch(`http://localhost:8000/api/system/rbac/users/${userId}`, {
+      const res = await fetch(`/api/system/rbac/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
@@ -650,7 +650,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/system/rbac/users/${userId}`, {
+      const res = await fetch(`/api/system/rbac/users/${userId}`, {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -669,7 +669,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
     try {
       setMaintenanceRunning(true);
       setMaintenanceResult(null);
-      const res = await fetch('http://localhost:8000/api/system/database/maintenance/vacuum', {
+      const res = await fetch('/api/system/database/maintenance/vacuum', {
         method: 'POST'
       });
       const data = await res.json();

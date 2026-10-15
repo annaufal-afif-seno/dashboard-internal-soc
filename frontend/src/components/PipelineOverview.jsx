@@ -281,7 +281,7 @@ export default function PipelineOverview({
         start: customStartDate,
         end: customEndDate
       });
-      const res = await fetch(`http://localhost:8000/api/metrics/overview?${params.toString()}`);
+      const res = await fetch(`/api/metrics/overview?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
