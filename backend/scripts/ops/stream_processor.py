@@ -1,7 +1,14 @@
+import os
+import sys
 import time
 import logging
+from pathlib import Path
 import psycopg2
 from psycopg2 import extras
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 from pipeline.database import DatabaseManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -28,23 +35,26 @@ def process_live_events():
             
             for ev in events:
                 clean_eid = str(ev['event_id']).replace('.', '_')
-                inc_id = f"INC-{ev['rule_id']}-{clean_eid}"
-                triage_id = f"TRG-{clean_eid}"
+                inc_id = f"INC-{clean_eid[:20]}"
+                triage_id = f"TRG-{clean_eid[:20]}"
                 prio = 'P0' if ev['rule_level'] >= 12 else ('P1' if ev['rule_level'] >= 9 else ('P2' if ev['rule_level'] >= 7 else 'P3'))
                 
-                # 1. Insert incident
+                # 1. Insert incident into correlation.correlated_incidents
                 cur.execute("""
                     INSERT INTO correlation.correlated_incidents (
-                        incident_id, correlation_rule_id, entity_type, entity_id,
-                        first_seen_at, last_seen_at, event_count, status, priority, title
+                        incident_id, correlation_rule_id, tenant_id, title, narrative,
+                        attacker_source_ip, target_host, incident_status, first_seen_at, last_seen_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (incident_id) DO NOTHING;
                 """, (
-                    inc_id, 'CORR-ENTITY', 'IP', str(ev['source_ip'] or '127.0.0.1'),
-                    ev['event_timestamp'], ev['event_timestamp'], 1, 'OPEN', prio, ev['rule_description']
+                    inc_id, 'CORR-001', 'DEFAULT', ev['rule_description'] or 'Wazuh Alert Correlation',
+                    f"Automated Correlation from Alert Level {ev['rule_level']}: {ev['rule_description']}",
+                    str(ev['source_ip']) if ev['source_ip'] else None,
+                    str(ev['agent_name'] or 'wazuh-agent'),
+                    'DETECTED', ev['event_timestamp'], ev['event_timestamp']
                 ))
                 
-                # 2. Insert triage queue ticket
+                # 2. Insert triage queue ticket into soc_ops.soc_triage_queue
                 cur.execute("""
                     INSERT INTO soc_ops.soc_triage_queue (
                         triage_id, incident_id, priority, triage_status, created_at, updated_at
