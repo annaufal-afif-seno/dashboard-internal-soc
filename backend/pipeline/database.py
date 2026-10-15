@@ -251,6 +251,62 @@ class DatabaseManager:
                 execute_values(cur, query, records, page_size=5000)
         return len(records)
 
+    def bulk_insert_events(self, events: List[Dict[str, Any]]) -> int:
+        """Bulk insert into telemetry.events (Unified Lean Table) with native JSONB payload."""
+        if not events:
+            return 0
+
+        query = """
+        INSERT INTO telemetry.events (
+            event_id, event_timestamp, agent_id, tenant_id, agent_name,
+            rule_id, rule_level, rule_description, source_ip, destination_ip,
+            source_port, destination_port, protocol, username,
+            classification_groups, mitre_attack_ids, mitre_tactics, mitre_techniques,
+            compliance_frameworks, asset_criticality_tier, is_asset_internet_exposed,
+            is_privileged_user, is_service_account, threat_intel_match, threat_intel_confidence,
+            raw_payload
+        ) VALUES %s
+        ON CONFLICT (event_id, event_timestamp) DO NOTHING;
+        """
+
+        records = [
+            (
+                e.get("event_id"),
+                e.get("event_timestamp"),
+                e.get("agent_id", "000"),
+                e.get("tenant_id", "DEFAULT"),
+                e.get("agent_name"),
+                e.get("rule_id", 0),
+                e.get("rule_level", 0),
+                e.get("rule_description", ""),
+                e.get("source_ip"),
+                e.get("destination_ip"),
+                e.get("source_port"),
+                e.get("destination_port"),
+                e.get("protocol"),
+                e.get("username"),
+                e.get("classification_groups", []),
+                e.get("mitre_attack_ids", []),
+                e.get("mitre_tactics", []),
+                e.get("mitre_techniques", []),
+                extras.Json(e.get("compliance_frameworks", {})),
+                e.get("asset_criticality_tier", "STANDARD"),
+                e.get("is_asset_internet_exposed", False),
+                e.get("is_privileged_user", False),
+                e.get("is_service_account", False),
+                e.get("threat_intel_match", False),
+                e.get("threat_intel_confidence", 0),
+                extras.Json(e.get("raw_payload", {}))
+            )
+            for e in events
+        ]
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SET LOCAL synchronous_commit = off;")
+                execute_values(cur, query, records, page_size=5000)
+        return len(records)
+
     def upsert_aggregated_alert(self, agg: Dict[str, Any]) -> str:
         """Atomic upsert for sliding window aggregated alert."""
         query = """

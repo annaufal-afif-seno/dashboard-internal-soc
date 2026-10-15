@@ -5242,10 +5242,44 @@ async def receive_wazuh_alerts_stream(request: Request):
 
     inserted_raw = 0
     inserted_norm = 0
+    inserted_events = 0
     if raw_batch:
         try:
             inserted_raw = db.bulk_insert_raw_events(raw_batch)
             inserted_norm = db.bulk_insert_normalized_events(norm_batch)
+
+            # Unified Lean Table (telemetry.events) ingestion
+            unified_batch = []
+            for r, n in zip(raw_batch, norm_batch):
+                unified_batch.append({
+                    "event_id": r["event_id"],
+                    "event_timestamp": n["event_timestamp"],
+                    "agent_id": r["agent_id"],
+                    "tenant_id": r["tenant_id"],
+                    "agent_name": r["agent_name"],
+                    "rule_id": n["rule_id"],
+                    "rule_level": n["rule_level"],
+                    "rule_description": n["rule_description"],
+                    "source_ip": r["source_ip"],
+                    "destination_ip": r["destination_ip"],
+                    "source_port": r["source_port"],
+                    "destination_port": r["destination_port"],
+                    "protocol": r["protocol"],
+                    "username": r["username"],
+                    "classification_groups": n["classification_groups"],
+                    "mitre_attack_ids": n["mitre_attack_ids"],
+                    "mitre_tactics": n["mitre_tactics"],
+                    "mitre_techniques": n["mitre_techniques"],
+                    "compliance_frameworks": n["compliance_frameworks"],
+                    "asset_criticality_tier": n["asset_criticality_tier"],
+                    "is_asset_internet_exposed": n["is_asset_internet_exposed"],
+                    "is_privileged_user": n["is_privileged_user"],
+                    "is_service_account": n["is_service_account"],
+                    "threat_intel_match": n["threat_intel_match"],
+                    "threat_intel_confidence": n["threat_intel_confidence"],
+                    "raw_payload": r["raw_payload"]
+                })
+            inserted_events = db.bulk_insert_events(unified_batch)
         except Exception as e:
             logger.error(f"Failed to persist batch to PostgreSQL: {e}")
             raise HTTPException(status_code=500, detail=f"Database insertion failed: {str(e)}")
@@ -5254,7 +5288,8 @@ async def receive_wazuh_alerts_stream(request: Request):
         "status": "success",
         "received_records": len(records),
         "inserted_raw": inserted_raw,
-        "inserted_norm": inserted_norm
+        "inserted_norm": inserted_norm,
+        "inserted_events": inserted_events
     }
 
 
