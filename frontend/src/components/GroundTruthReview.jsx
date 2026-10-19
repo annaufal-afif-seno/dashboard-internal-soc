@@ -31,7 +31,7 @@ export default function GroundTruthReview({ theme = 'dark', currentUser = null }
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/ground-truth/queue');
+      const res = await fetch('/api/ground-truth/queue');
       if (res.ok) {
         const data = await res.json();
         const mapped = (data.records || []).map(r => ({
@@ -75,8 +75,8 @@ export default function GroundTruthReview({ theme = 'dark', currentUser = null }
 
     try {
       const endpoint = targetAction === 'APPROVE'
-        ? `http://127.0.0.1:8000/api/ground-truth/${triageId}/approve`
-        : `http://127.0.0.1:8000/api/ground-truth/${triageId}/reject`;
+        ? `/api/ground-truth/${triageId}/approve`
+        : `/api/ground-truth/${triageId}/reject`;
 
       const managerName = currentUser?.username || 'soc_manager';
       const notesToSubmit = managerNotes.trim() || (

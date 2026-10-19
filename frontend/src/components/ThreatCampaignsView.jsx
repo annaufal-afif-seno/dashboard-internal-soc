@@ -36,7 +36,7 @@ export default function ThreatCampaignsView({
       setError(null);
       const activeTenant = overrideTenant !== null ? overrideTenant : tenantFilter;
       const tenantParam = activeTenant && activeTenant !== 'ALL' ? `&tenant_id=${encodeURIComponent(activeTenant)}` : '';
-      const res = await fetch(`http://127.0.0.1:8000/api/campaign-clusters?limit=100${tenantParam}`);
+      const res = await fetch(`/api/campaign-clusters?limit=100${tenantParam}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: Gagal memuat daftar kampanye.`);
       const data = await res.json();
       const list = data.data || [];
@@ -61,7 +61,7 @@ export default function ThreatCampaignsView({
     if (!clusterId) return;
     try {
       setDetailLoading(true);
-      const res = await fetch(`http://127.0.0.1:8000/api/campaign-clusters/${encodeURIComponent(clusterId)}`);
+      const res = await fetch(`/api/campaign-clusters/${encodeURIComponent(clusterId)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: Gagal memuat detail kampanye ${clusterId}.`);
       const data = await res.json();
       setClusterDetail(data);

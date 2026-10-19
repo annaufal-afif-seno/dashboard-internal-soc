@@ -169,19 +169,19 @@ export default function App() {
 
   const fetchCounters = async () => {
     try {
-      const fpRes = await fetch('http://127.0.0.1:8000/api/suppression/tuning-requests');
+      const fpRes = await fetch('/api/suppression/tuning-requests');
       if (fpRes.ok) {
         const fpJson = await fpRes.json();
         setFpPendingCount(fpJson.total || 0);
       }
 
-      const tRes = await fetch('http://127.0.0.1:8000/api/triage/counts');
+      const tRes = await fetch('/api/triage/counts');
       if (tRes.ok) {
         const tJson = await tRes.json();
         setActiveTicketCount(tJson.active_count ?? tJson.total ?? 0);
       }
 
-      const gtRes = await fetch('http://127.0.0.1:8000/api/ground-truth/queue');
+      const gtRes = await fetch('/api/ground-truth/queue');
       if (gtRes.ok) {
         const gtJson = await gtRes.json();
         setGtWaitingCount(gtJson.total_pending || 0);
@@ -226,7 +226,7 @@ export default function App() {
 
     try {
       setPwSubmitting(true);
-      const res = await fetch('http://127.0.0.1:8000/api/system/rbac/change-password', {
+      const res = await fetch('/api/system/rbac/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

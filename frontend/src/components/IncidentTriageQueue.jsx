@@ -491,7 +491,7 @@ export default function IncidentTriageQueue({
       setMlLoading(true);
     }
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/ml-prediction`);
+      const res = await fetch(`/api/triage/${triageId}/ml-prediction`);
       if (res.ok) {
         const data = await res.json();
         mlPredictionCache.set(triageId, data);
@@ -519,7 +519,7 @@ export default function IncidentTriageQueue({
       setLogSearch('');
     }
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/aggregates`);
+      const res = await fetch(`/api/triage/${triageId}/aggregates`);
       if (res.ok) {
         const data = await res.json();
         const list = data.aggregates || [];
@@ -546,7 +546,7 @@ export default function IncidentTriageQueue({
       } else {
         setLogsLoading(true);
       }
-      const res = await fetch(`http://127.0.0.1:8000/api/aggregates/${aggregationId}/logs`);
+      const res = await fetch(`/api/aggregates/${aggregationId}/logs`);
       if (res.ok) {
         const data = await res.json();
         const logs = data.logs || [];
@@ -654,7 +654,7 @@ export default function IncidentTriageQueue({
           params.append('end', customEndDate);
         }
       }
-      const res = await fetch(`http://127.0.0.1:8000/api/triage/queue?${params.toString()}`);
+      const res = await fetch(`/api/triage/queue?${params.toString()}`);
       if (res.ok) {
         setNetworkError(false);
         const json = await res.json();
@@ -724,7 +724,7 @@ export default function IncidentTriageQueue({
     try {
       setUpdating(true);
       mlPredictionCache.delete(triageId);
-      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/update`, {
+      const res = await fetch(`/api/triage/${triageId}/update`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -827,7 +827,7 @@ export default function IncidentTriageQueue({
     try {
       const ticketId = gtTicket.id || gtTicket.triage_id;
       mlPredictionCache.delete(ticketId);
-      const res = await fetch(`http://127.0.0.1:8000/api/triage/${ticketId}/submit-ground-truth`, {
+      const res = await fetch(`/api/triage/${ticketId}/submit-ground-truth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

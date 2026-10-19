@@ -54,7 +54,7 @@ export default function RawAlertsQueue({
         params.append('search', searchQuery.trim());
       }
 
-      const res = await fetch(`http://127.0.0.1:8000/api/raw-alerts?${params.toString()}`);
+      const res = await fetch(`/api/raw-alerts?${params.toString()}`);
       if (res.ok) {
         setNetworkError(false);
         const data = await res.json();

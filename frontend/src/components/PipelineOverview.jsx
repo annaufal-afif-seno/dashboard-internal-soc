@@ -285,7 +285,7 @@ export default function PipelineOverview({
       if (selectedTenant && selectedTenant !== 'ALL') {
         params.append('tenant_id', selectedTenant);
       }
-      const res = await fetch(`http://127.0.0.1:8000/api/metrics/overview?${params.toString()}`);
+      const res = await fetch(`/api/metrics/overview?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);

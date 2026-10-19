@@ -143,7 +143,7 @@ export default function PolicyBundlesView({
   const fetchGroups = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/groups');
+      const res = await fetch('/api/suppression/groups');
       if (res.ok) {
         const data = await res.json();
         setGroups(data.groups || []);
@@ -157,7 +157,7 @@ export default function PolicyBundlesView({
 
   const fetchSharedLists = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/shared-lists');
+      const res = await fetch('/api/suppression/shared-lists');
       if (res.ok) {
         const data = await res.json();
         setSharedLists(data.lists || []);
@@ -169,7 +169,7 @@ export default function PolicyBundlesView({
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/tuning-requests');
+      const res = await fetch('/api/suppression/tuning-requests');
       if (res.ok) {
         const data = await res.json();
         setInternalTuningRequests(data.requests || []);
@@ -181,7 +181,7 @@ export default function PolicyBundlesView({
 
   const fetchApiTenants = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/tenants');
+      const res = await fetch('/api/suppression/tenants');
       if (res.ok) {
         const data = await res.json();
         if (data.tenants && Array.isArray(data.tenants)) {
@@ -209,7 +209,7 @@ export default function PolicyBundlesView({
     if (!groupDetails[groupId]) {
       try {
         setDetailLoading(true);
-        const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${groupId}`);
+        const res = await fetch(`/api/suppression/groups/${groupId}`);
         if (res.ok) {
           const detail = await res.json();
           setGroupDetails(prev => ({ ...prev, [groupId]: detail }));
@@ -226,7 +226,7 @@ export default function PolicyBundlesView({
     try {
       setSyncLoading(true);
       setShowSyncModal(true);
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${groupId}/sync-wazuh`, {
+      const res = await fetch(`/api/suppression/groups/${groupId}/sync-wazuh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +260,7 @@ export default function PolicyBundlesView({
         ? newGroupForm.mitre_tactics.split(',').map(t => t.trim()).filter(Boolean)
         : [];
 
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/groups', {
+      const res = await fetch('/api/suppression/groups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -318,7 +318,7 @@ export default function PolicyBundlesView({
     e.preventDefault();
     if (!targetGroupForReview) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${targetGroupForReview.group_id}/review`, {
+      const res = await fetch(`/api/suppression/groups/${targetGroupForReview.group_id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -366,7 +366,7 @@ export default function PolicyBundlesView({
   const handleExecuteEditGroup = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${editGroupForm.group_id}`, {
+      const res = await fetch(`/api/suppression/groups/${editGroupForm.group_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -395,7 +395,7 @@ export default function PolicyBundlesView({
   const handleArchiveGroup = async (group) => {
     if (!window.confirm(`Nonaktifkan / Hapus supresi bundle ${group.group_id} (${group.group_name}) beserta semua aturan di dalamnya?`)) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${group.group_id}/review`, {
+      const res = await fetch(`/api/suppression/groups/${group.group_id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,7 +423,7 @@ export default function PolicyBundlesView({
   const handleUnlinkRule = async (ruleId, groupId) => {
     if (!window.confirm(`Lepas aturan ${ruleId} dari bundle ini agar kembali menjadi aturan mandiri?`)) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}/unlink-group`, {
+      const res = await fetch(`/api/suppression/rules/${ruleId}/unlink-group`, {
         method: 'POST',
         headers: {
           'X-API-Key': 'wazuh-soc-secure-key-2026'
@@ -454,7 +454,7 @@ export default function PolicyBundlesView({
         .map(v => v.trim())
         .filter(Boolean);
 
-      const res = await fetch('http://127.0.0.1:8000/api/suppression/shared-lists', {
+      const res = await fetch('/api/suppression/shared-lists', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -492,7 +492,7 @@ export default function PolicyBundlesView({
   const handleExecuteMerge = async () => {
     if (!targetGroupForMerge || selectedRulesForMerge.length === 0) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${targetGroupForMerge.group_id}/merge`, {
+      const res = await fetch(`/api/suppression/groups/${targetGroupForMerge.group_id}/merge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -865,7 +865,7 @@ export default function PolicyBundlesView({
         if (customCodeSnippets[tenantName].cdb) payload.custom_cdb = customCodeSnippets[tenantName].cdb;
       }
 
-      const res = await fetch(`http://127.0.0.1:8000/api/suppression/tenants/${tenantName}/apply`, {
+      const res = await fetch(`/api/suppression/tenants/${tenantName}/apply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -962,7 +962,7 @@ export default function PolicyBundlesView({
     const ruleId = item.isRule ? item.id : (item.raw?.existing_suppression_id || item.raw?.suppression_id || (item.id && String(item.id).startsWith('SUP-') ? item.id : null));
     if (ruleId) {
       try {
-        await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}`, {
+        await fetch(`/api/suppression/rules/${ruleId}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -1002,7 +1002,7 @@ export default function PolicyBundlesView({
         : (extendModalItem.raw?.existing_suppression_id || extendModalItem.raw?.suppression_id || (extendModalItem.id && String(extendModalItem.id).startsWith('SUP-') ? extendModalItem.id : null));
 
       if (ruleId) {
-        const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}`, {
+        const res = await fetch(`/api/suppression/rules/${ruleId}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
