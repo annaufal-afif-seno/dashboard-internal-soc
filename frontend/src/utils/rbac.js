@@ -6,7 +6,7 @@ export const TAB_TO_FEATURE_MAP = {
   raw_alerts: 'raw_alerts',
   triage: 'ticket_queue',
   verified_tp: 'verified_tp',
-  threat_campaigns: 'verified_tp',
+  threat_campaigns: 'threat_campaigns',
   groundtruth_queue: 'groundtruth_queue',
   ground_truth_review: 'ground_truth_review',
   suppression_inbox: 'ground_truth_review',
@@ -25,12 +25,55 @@ export const normalizeRole = (role) => {
   return clean;
 };
 
+export const syncMatrixWithBlueprint = (savedList, blueprint) => {
+  if (!Array.isArray(blueprint) || blueprint.length === 0) return savedList || [];
+  const savedRoleMap = {};
+  if (Array.isArray(savedList)) {
+    savedList.forEach(row => {
+      const key = row.id || row.action;
+      if (key) savedRoleMap[key] = row.roles;
+      // Handle legacy aliases & typo fixes
+      if (row.action === 'Verified True Positives' || row.action === 'Verifed Threat' || row.id === 'verified_tp') {
+        savedRoleMap['verified_tp'] = row.roles;
+      }
+      if (row.action === 'Threat Campaigns' || row.id === 'threat_campaigns') {
+        savedRoleMap['threat_campaigns'] = row.roles;
+      }
+      if (row.action === 'Suppression Proposal' || row.id === 'suppression_proposal' || row.id === 'ground_truth_review') {
+        savedRoleMap['ground_truth_review'] = row.roles;
+      }
+      if (row.action === 'Audit Log Supresi (GRC)' || row.id === 'audit_log_grc') {
+        savedRoleMap['audit_log_grc'] = row.roles;
+      }
+    });
+  }
+
+  return blueprint.map(def => {
+    const savedRoles = savedRoleMap[def.id] || savedRoleMap[def.action];
+    return {
+      ...def,
+      roles: savedRoles ? Object.fromEntries(
+        Object.entries({ ...def.roles, ...savedRoles }).map(([r, val]) => [
+          r,
+          (val === 'READ_WRITE' || val === 'READ_ONLY') ? val : 'NO_ACCESS'
+        ])
+      ) : def.roles
+    };
+  });
+};
+
 export const getRbacMatrix = (initialFallback = null) => {
   try {
-    const saved = localStorage.getItem('wazuh_rbac_permissions_matrix_v2') || localStorage.getItem('wazuh_rbac_permissions_matrix');
+    const saved = localStorage.getItem('wazuh_rbac_permissions_matrix_v3')
+      || localStorage.getItem('wazuh_rbac_permissions_matrix_v2')
+      || localStorage.getItem('wazuh_rbac_permissions_matrix');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        if (initialFallback && Array.isArray(initialFallback) && initialFallback.length > 0) {
+          const synced = syncMatrixWithBlueprint(parsed, initialFallback);
+          return synced;
+        }
         return parsed;
       }
     }
@@ -50,6 +93,7 @@ export const getFeaturePermission = (userRole, featureId, matrixFallback = null)
     // Default safe fallback if matrix not initialized
     if (featureId === 'account_rbac') return 'NO_ACCESS';
     if (featureId === 'policy_bundle' && (normRole === 'SOC_ANALYST' || normRole === 'SOC_DEVELOPER')) return 'NO_ACCESS';
+    if (featureId === 'threat_campaigns' && normRole === 'SOC_DEVELOPER') return 'READ_ONLY';
     return 'READ_ONLY';
   }
 

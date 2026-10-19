@@ -43,7 +43,7 @@ export default function App() {
   useEffect(() => {
     if (currentUser && !hasAccess(activeTab)) {
       const candidateTabs = [
-        'analytics', 'raw_alerts', 'triage', 'verified_tp',
+        'analytics', 'raw_alerts', 'triage', 'verified_tp', 'threat_campaigns',
         'groundtruth_queue', 'ground_truth_review', 'suppression_groups',
         'suppression_audit', 'system_rbac', 'system_database', 'system_api'
       ];
@@ -398,7 +398,7 @@ export default function App() {
           )}
 
           {/* Group 2: INCIDENT TRIAGE & SOC QUEUE */}
-          {(hasAccess('triage') || hasAccess('verified_tp') || hasAccess('groundtruth_queue')) && (
+          {(hasAccess('triage') || hasAccess('verified_tp') || hasAccess('threat_campaigns') || hasAccess('groundtruth_queue')) && (
             <div>
               <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
                 Incident Triage

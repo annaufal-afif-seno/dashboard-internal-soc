@@ -7,7 +7,7 @@ import {
   Search, ArrowDownRight, ArrowUpRight, Gauge, Cpu, BarChart2, Radio
 } from 'lucide-react';
 
-// 11 RBAC Matrix Items mapped directly to Application Sidebar Navigation & Separation of Duties (SoD)
+// 12 RBAC Matrix Items mapped directly to Application Sidebar Navigation & Separation of Duties (SoD)
 export const initialRbacMatrixData = [
   // 1. Modul MAIN
   {
@@ -56,6 +56,19 @@ export const initialRbacMatrixData = [
     category: 'INCIDENT TRIAGE',
     action: 'Verified Threat',
     description: 'Analisis forensik insiden ancaman terkonfirmasi, inspeksi payload mentah, korelasi multi-tahap, dan pembuatan case IRIS.',
+    roles: {
+      SOC_ANALYST: 'READ_WRITE',
+      SOC_DEVELOPER: 'READ_ONLY',
+      SOC_LEAD: 'READ_WRITE',
+      SOC_MANAGER: 'READ_ONLY',
+      ADMIN: 'READ_WRITE',
+    }
+  },
+  {
+    id: 'threat_campaigns',
+    category: 'INCIDENT TRIAGE',
+    action: 'Threat Campaigns',
+    description: 'Analisis klaster kampanye serangan multi-vektor, korelasi aktor ancaman global, grafik sebaran taktik MITRE ATT&CK, dan visualisasi kampanye IOA.',
     roles: {
       SOC_ANALYST: 'READ_WRITE',
       SOC_DEVELOPER: 'READ_ONLY',
@@ -291,7 +304,9 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark',
   // Separation of Duties Matrix State
   const [matrixData, setMatrixData] = useState(() => {
     try {
-      const saved = localStorage.getItem('wazuh_rbac_permissions_matrix_v2') || localStorage.getItem('wazuh_rbac_permissions_matrix');
+      const saved = localStorage.getItem('wazuh_rbac_permissions_matrix_v3')
+        || localStorage.getItem('wazuh_rbac_permissions_matrix_v2') 
+        || localStorage.getItem('wazuh_rbac_permissions_matrix');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -299,8 +314,9 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark',
           parsed.forEach(row => {
             const key = row.id || row.action;
             if (key) savedRoleMap[key] = row.roles;
-            // Legacy name and id mappings
-            if (row.action === 'Verified True Positives' || row.id === 'verified_tp') savedRoleMap['verified_tp'] = row.roles;
+            // Legacy name and id mappings & typo fixes
+            if (row.action === 'Verified True Positives' || row.action === 'Verifed Threat' || row.id === 'verified_tp') savedRoleMap['verified_tp'] = row.roles;
+            if (row.action === 'Threat Campaigns' || row.id === 'threat_campaigns') savedRoleMap['threat_campaigns'] = row.roles;
             if (row.action === 'Suppression Proposal' || row.id === 'suppression_proposal' || row.id === 'ground_truth_review') savedRoleMap['ground_truth_review'] = row.roles;
             if (row.action === 'Audit Log Supresi (GRC)' || row.id === 'audit_log_grc') savedRoleMap['audit_log_grc'] = row.roles;
           });
@@ -322,6 +338,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark',
           try {
             localStorage.setItem('wazuh_rbac_permissions_matrix', JSON.stringify(synced));
             localStorage.setItem('wazuh_rbac_permissions_matrix_v2', JSON.stringify(synced));
+            localStorage.setItem('wazuh_rbac_permissions_matrix_v3', JSON.stringify(synced));
           } catch (_) {}
 
           return synced;
@@ -377,6 +394,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark',
     try {
       localStorage.setItem('wazuh_rbac_permissions_matrix', JSON.stringify(matrixData));
       localStorage.setItem('wazuh_rbac_permissions_matrix_v2', JSON.stringify(matrixData));
+      localStorage.setItem('wazuh_rbac_permissions_matrix_v3', JSON.stringify(matrixData));
     } catch (e) {
       console.warn('Failed to save matrix to localStorage:', e);
     }
