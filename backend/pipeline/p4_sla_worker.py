@@ -15,6 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import psycopg2
@@ -28,12 +29,13 @@ logger = logging.getLogger("SLAWorker")
 
 def get_expired_tickets(
     db_name: str = DB_NAME,
-    reference_time: Optional[datetime] = None
+    reference_time: Optional[datetime] = None,
+    limit: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetch ALL tickets whose SLA has expired and have no hanging aggregates.
     PRD Section 5.4: Tiket tidak langsung diproses saat SLA habis jika
-    masih ada aggregate yang menggantung.
+    masih ada aggregate yang menggantung (window_buffer_until > ref_time).
     PRD Section 6: Semua tiket lewat AI setelah SLA habis.
     """
     ref_ts = reference_time or datetime.now(timezone.utc)
@@ -43,80 +45,67 @@ def get_expired_tickets(
                             user=DB_USER, password=DB_PASSWORD)
     cur = conn.cursor()
 
-    # Fetch tickets where SLA has expired based on priority
-    query = """
+    limit_clause = f"LIMIT {int(limit)}" if limit else ""
+
+    # Fetch tickets where SLA has expired based on priority and window grace period
+    query = f"""
         SELECT
             q.incident_id, q.triage_id, q.priority, q.triage_status,
             COALESCE(q.priority_established_at, q.created_at) AS priority_established_at,
             i.title, i.attacker_source_ip, i.target_host, i.tenant_id,
-            i.narrative, i.correlation_rule_id, i.first_seen_at, i.last_seen_at
+            i.narrative, i.correlation_rule_id, i.first_seen_at, i.last_seen_at,
+            ti.threat_actor, ti.malware_family, ti.confidence_score, ti.source_feed
         FROM soc_ops.soc_triage_queue q
         JOIN correlation.correlated_incidents i ON q.incident_id = i.incident_id
+        LEFT JOIN enrichment.threat_intelligence_iocs ti ON (i.attacker_source_ip = ti.indicator_value AND ti.is_active = TRUE)
         WHERE q.triage_status IN ('NEW', 'HOLDING_P4', 'OPEN')
-          AND (
-            (q.priority = 'P0' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '15 minutes') <= %s) OR
-            (q.priority = 'P1' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '60 minutes') <= %s) OR
-            (q.priority = 'P2' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '4 hours') <= %s) OR
-            (q.priority = 'P3' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '1 day') <= %s) OR
-            (q.priority = 'P4' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '7 days') <= %s)
-          )
-          -- Pastikan tidak ada aggregate in-flight yang masih menggantung (window_end > current reference time)
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM suppression.aggregated_alerts a
-              WHERE (a.source_ip = i.attacker_source_ip OR a.actor = i.attacker_source_ip)
-                AND (a.target = i.target_host OR a.agent_id = i.target_host)
-                AND a.window_end > %s
-          )
-        ORDER BY q.priority ASC, q.created_at ASC;
+          AND COALESCE(q.sla_deadline, (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '7 days')) <= %s
+          AND (q.window_buffer_until IS NULL OR q.window_buffer_until <= %s)
+        ORDER BY q.priority ASC, q.created_at ASC
+        {limit_clause};
     """
-    cur.execute(query, (ref_naive, ref_naive, ref_naive, ref_naive, ref_naive, ref_naive))
+    cur.execute(query, (ref_naive, ref_naive))
     rows = cur.fetchall()
+
+    if not rows:
+        cur.close()
+        conn.close()
+        return []
+
+    inc_ids = [r[0] for r in rows]
+    # Batch fetch stages
+    cur.execute("""
+        SELECT incident_id, sequence_order, stage_name, reference_id, stage_description
+        FROM correlation.incident_stages
+        WHERE incident_id = ANY(%s)
+        ORDER BY sequence_order ASC;
+    """, (inc_ids,))
+    stages_by_inc = defaultdict(list)
+    for s_row in cur.fetchall():
+        stages_by_inc[s_row[0]].append({
+            "sequence_order": s_row[1], "stage_name": s_row[2], "category": s_row[2],
+            "reference_id": s_row[3], "stage_description": s_row[4]
+        })
 
     expired_tickets = []
     for r in rows:
         inc_id = r[0]
-        cur.execute("""
-            SELECT sequence_order, stage_name, reference_id, stage_description
-            FROM correlation.incident_stages
-            WHERE incident_id = %s ORDER BY sequence_order ASC;
-        """, (inc_id,))
-        stages = [
-            {"sequence_order": s[0], "stage_name": s[1], "category": s[1],
-             "reference_id": s[2], "stage_description": s[3]}
-            for s in cur.fetchall()
-        ]
-
-        # Threat Intel Context Enrichment (AbuseIPDB & MISP feed lookup)
-        src_ip = r[6]
-        ti_match = 0
-        ti_feed = None
-        ti_conf = 0
-        if src_ip:
-            cur.execute("""
-                SELECT threat_actor, malware_family, confidence_score, source_feed, description
-                FROM enrichment.threat_intelligence_iocs
-                WHERE indicator_value = %s AND is_active = TRUE
-                ORDER BY confidence_score DESC LIMIT 1;
-            """, (src_ip,))
-            ti_row = cur.fetchone()
-            if ti_row:
-                ti_match = 1
-                ti_conf = ti_row[2] or 80
-                ti_feed = ti_row[3] or "AbuseIPDB/MISP"
+        ti_actor, ti_malware, ti_conf, ti_feed = r[13], r[14], r[15], r[16]
+        ti_match = 1 if (ti_actor or ti_malware or ti_conf) else 0
 
         expired_tickets.append({
             "incident_id": inc_id, "triage_id": r[1], "priority": r[2],
             "triage_status": r[3], "priority_established_at": r[4],
-            "title": r[5], "attacker_source_ip": src_ip, "target_host": r[7],
+            "title": r[5], "attacker_source_ip": r[6], "target_host": r[7],
             "tenant_id": r[8], "narrative": r[9],
             "rule_code": r[10] or "STANDALONE_AGGREGATE",
-            "correlation_rule_id": r[10] or "CORR-SA",
+            "correlation_rule_id": r[10] or "CORR-ENTITY",
             "first_seen_at": r[11], "last_seen_at": r[12],
             "threat_intel_match": ti_match,
-            "threat_intel_confidence": ti_conf,
-            "threat_intel_feed": ti_feed,
-            "stages": stages, "stages_count": len(stages)
+            "threat_intel_confidence": ti_conf or (80 if ti_match else 0),
+            "threat_intel_feed": ti_feed or ("AbuseIPDB/MISP" if ti_match else None),
+            "stages": stages_by_inc.get(inc_id, []),
+            "stages_count": len(stages_by_inc.get(inc_id, []))
         })
 
     cur.close()
@@ -130,7 +119,8 @@ get_expired_p4_tickets = get_expired_tickets
 
 def process_expired_tickets(
     db_name: str = DB_NAME,
-    reference_time: Optional[datetime] = None
+    reference_time: Optional[datetime] = None,
+    limit: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     PRD Section 6: Proses AI triage untuk semua tiket yang SLA-nya habis.
@@ -138,7 +128,7 @@ def process_expired_tickets(
     2. ML -> LLM local -> LLM cloud - PRD Section 6.2
     3. Soft voting (0.4 local + 0.6 cloud) - PRD Section 6.3
     """
-    expired_tickets = get_expired_tickets(db_name, reference_time)
+    expired_tickets = get_expired_tickets(db_name, reference_time, limit=limit)
     if not expired_tickets:
         logger.info("[SLAWorker] No expired tickets pending AI processing.")
         return {"total_expired": 0, "auto_closed": 0, "escalated": 0, "details": []}
@@ -212,11 +202,57 @@ def process_expired_tickets(
                 """, (reason, inc_id))
                 details.append({"incident_id": inc_id, "action": "AUDIT_SOC_ANALYST",
                                 "tier": tier, "confidence": conf, "verdict": verdict})
+
+            # [Post-Threat Attack Campaign & Multi-Layer Clustering Hook]
+            # STRICT REQUIREMENT: Only trigger for confirmed THREAT tickets across all P0-P4
+            # (Strictly excludes BENIGN tickets even if they are labeled P0, P1, or P2)
+            if verdict == "THREAT" or decision == "CREATE_IRIS_CASE":
+                try:
+                    from pipeline.campaign_clustering import ThreatCampaignClusterer
+                    clusterer = ThreatCampaignClusterer(db_manager=None)
+                    clusterer.cluster_threat_campaign(inc)
+                except Exception as e_clust:
+                    logger.warning(f"[SLAWorker] Campaign clustering hook note for {inc_id}: {e_clust}")
+
+            # Record ground truth for retraining ML and LLM context enrichment
+            if cascade_res.get("needs_ground_truth"):
+                try:
+                    voting_score = cascade_res.get("voting_score") or 0.5
+                    if verdict == "THREAT":
+                        gt_label = 1
+                    elif verdict == "BENIGN":
+                        gt_label = 0
+                    else:
+                        gt_label = 1 if voting_score >= 0.5 else 0
+
+                    res_outcome = "TRUE_POSITIVE_ACTIONABLE" if gt_label == 1 else "FALSE_POSITIVE_TUNING_REQ"
+                    source_label = "LOCAL_LLM" if tier.startswith("Tier-2") else "SOFT_VOTING_PENDING_AUDIT"
+
+                    cur.execute("""
+                        INSERT INTO soc_ops.ground_truth_dataset (
+                            incident_id, triage_id, tenant_id, rule_code,
+                            priority, target_host, threat_intel_match,
+                            ml_tier1_confidence,
+                            voting_score, decision_path, ground_truth_label,
+                            resolution_outcome, analyst_id, analyst_notes, label_source
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING;
+                    """, (
+                        inc_id, triage_id, inc.get("tenant_id", "DEFAULT"), inc.get("rule_code", "CORR-ENTITY"),
+                        inc.get("priority", "P4"), inc.get("target_host"), bool(inc.get("threat_intel_match")),
+                        conf, cascade_res.get("voting_score"), cascade_res.get("decision_path"),
+                        gt_label, res_outcome,
+                        "local_llm_qwen" if tier.startswith("Tier-2") else "tier1_soc_analyst",
+                        reasoning, source_label
+                    ))
+                except Exception as e_gt:
+                    logger.warning(f"[SLAWorker] Failed to record ground truth for {inc_id}: {e_gt}")
+            conn.commit()
         except Exception as e:
+            conn.rollback()
             logger.error(f"[SLAWorker] Failed to process {inc_id}: {e}")
             details.append({"incident_id": inc_id, "action": "ERROR", "error": str(e)})
 
-    conn.commit()
     cur.close()
     conn.close()
     logger.info(f"[SLAWorker] Done: {auto_closed} Auto-Closed, {escalated} Escalated.")

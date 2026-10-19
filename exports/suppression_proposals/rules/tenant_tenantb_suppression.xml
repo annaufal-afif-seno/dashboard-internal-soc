@@ -1,0 +1,195 @@
+<!-- Auto-Generated Wazuh Upstream Suppression Rules for Tenant: TenantB -->
+<group name="tenant_tuning,suppression,tenantb,">
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 503 -->
+  <rule id="112246" level="0">
+    <if_sid>503</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 506 -->
+  <rule id="112247" level="0">
+    <if_sid>506</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 521 -->
+  <rule id="112248" level="0">
+    <if_sid>521</if_sid>
+    <hostname>mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 533 -->
+  <rule id="112249" level="0">
+    <if_sid>533</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 553 -->
+  <rule id="112250" level="0">
+    <if_sid>553</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 554 -->
+  <rule id="112251" level="0">
+    <if_sid>554</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 591 -->
+  <rule id="112252" level="0">
+    <if_sid>591</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 2902 -->
+  <rule id="112253" level="0">
+    <if_sid>2902</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 2904 -->
+  <rule id="112254" level="0">
+    <if_sid>2904</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 5402 -->
+  <rule id="112255" level="0">
+    <if_sid>5402</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 5501 -->
+  <rule id="112256" level="0">
+    <if_sid>5501</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 5502 -->
+  <rule id="112257" level="0">
+    <if_sid>5502</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 5503 -->
+  <rule id="112258" level="0">
+    <if_sid>5503</if_sid>
+    <hostname>grafana\-public\-240|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 5715 -->
+  <rule id="112259" level="0">
+    <if_sid>5715</if_sid>
+    <hostname>grafana\-public\-240</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 19003 -->
+  <rule id="112260" level="0">
+    <if_sid>19003</if_sid>
+    <hostname>public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 19004 -->
+  <rule id="112261" level="0">
+    <if_sid>19004</if_sid>
+    <hostname>public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 19010 -->
+  <rule id="112262" level="0">
+    <if_sid>19010</if_sid>
+    <hostname>public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 19011 -->
+  <rule id="112263" level="0">
+    <if_sid>19011</if_sid>
+    <hostname>public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 23502 -->
+  <rule id="112264" level="0">
+    <if_sid>23502</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 23503 -->
+  <rule id="112265" level="0">
+    <if_sid>23503</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 23504 -->
+  <rule id="112266" level="0">
+    <if_sid>23504</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 23505 -->
+  <rule id="112267" level="0">
+    <if_sid>23505</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 23508 -->
+  <rule id="112268" level="0">
+    <if_sid>23508</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantB: Suppress benign noise for Wazuh Rule 40704 -->
+  <rule id="112269" level="0">
+    <if_sid>40704</if_sid>
+    <hostname>grafana\-public\-240|mongodb\-honeypot\-230|public\-dashboard\-prod\-241</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantB</description>
+    <options>no_log</options>
+  </rule>
+</group>

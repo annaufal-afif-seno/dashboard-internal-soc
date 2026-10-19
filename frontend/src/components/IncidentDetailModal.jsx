@@ -53,7 +53,7 @@ export default function IncidentDetailModal({
     try {
       setMlLoading(true);
       setMlPrediction(null);
-      const res = await fetch(`/api/triage/${triageId}/ml-prediction`);
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/ml-prediction`);
       if (res.ok) {
         const data = await res.json();
         setMlPrediction(data);
@@ -72,7 +72,7 @@ export default function IncidentDetailModal({
       setSelectedAggregateId(null);
       setAggregateLogs([]);
       setLogSearch('');
-      const res = await fetch(`/api/triage/${triageId}/aggregates`);
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/aggregates`);
       if (res.ok) {
         const data = await res.json();
         const list = data.aggregates || [];
@@ -93,7 +93,7 @@ export default function IncidentDetailModal({
       setSelectedAggregateId(aggregationId);
       setSelectedLogId(null);
       setLogsLoading(true);
-      const res = await fetch(`/api/aggregates/${aggregationId}/logs`);
+      const res = await fetch(`http://127.0.0.1:8000/api/aggregates/${aggregationId}/logs`);
       if (res.ok) {
         const data = await res.json();
         setAggregateLogs(data.logs || []);

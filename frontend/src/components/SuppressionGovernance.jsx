@@ -157,7 +157,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
     const tStatus = String(req.triage_status || req.status || '').toUpperCase();
     if (tStatus === 'APPROVED' || tStatus === 'APPROVE') return 'approve';
-    if (tStatus === 'REJECTED' || tStatus === 'REJECT' || tStatus === 'FP REJECT' || tStatus === 'FP_REJECT') return 'reject';
+    if (tStatus === 'REJECTED' || tStatus === 'REJECT') return 'reject';
 
     return 'waiting';
   };
@@ -211,10 +211,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
   };
 
   const filteredRequests = useMemo(() => {
-    let result = tuningRequests.filter(req => {
-      const s = String(req.triage_status || req.status || '').toUpperCase();
-      return s !== 'FP REJECT' && s !== 'FP_REJECT';
-    });
+    let result = tuningRequests;
     if (selectedPriority !== 'ALL') {
       result = result.filter(req => req.priority === selectedPriority);
     }
@@ -525,7 +522,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     setEditRuleError(null);
     try {
       const parsedSids = editRuleFormData.sids.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      const res = await fetch(`/api/suppression/rules/${selectedEditRule.id}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${selectedEditRule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -575,7 +572,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     setEditingRuleSubmitting(true);
     setEditRuleError(null);
     try {
-      const res = await fetch(`/api/suppression/rules/${selectedEditRule.id}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${selectedEditRule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -628,7 +625,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchRules = async () => {
     try {
-      const res = await fetch('/api/suppression/rules');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/rules');
       if (res.ok) {
         const json = await res.json();
         if (json.rules && json.rules.length > 0) {
@@ -642,7 +639,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('/api/suppression/tuning-requests');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/tuning-requests');
       if (res.ok) {
         const json = await res.json();
         setTuningRequests(json.requests || []);
@@ -654,7 +651,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchAuditLogs = async () => {
     try {
-      const res = await fetch('/api/suppression/audit-logs');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/audit-logs');
       if (res.ok) {
         const json = await res.json();
         setAuditLogs(json.logs || []);
@@ -666,7 +663,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchAvailableGroups = async () => {
     try {
-      const res = await fetch('/api/suppression/groups');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/groups');
       if (res.ok) {
         const json = await res.json();
         setAvailableGroups(json.groups || []);
@@ -679,7 +676,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
   const fetchTriageQueue = async () => {
     if (globalTriageCache?.active && globalTriageCache.active.length > 0) return;
     try {
-      const res = await fetch('/api/triage/queue?view=active');
+      const res = await fetch('http://127.0.0.1:8000/api/triage/queue?view=active');
       if (res.ok) {
         const json = await res.json();
         if (json.incidents) {
@@ -706,7 +703,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     let inc = globalTriageCache?.active?.find(i => i.id === tid || i.triage_id === tid);
     if (!inc) {
       try {
-        const res = await fetch('/api/triage/queue?view=active');
+        const res = await fetch('http://127.0.0.1:8000/api/triage/queue?view=active');
         if (res.ok) {
           const json = await res.json();
           if (json.incidents) {
@@ -788,7 +785,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
       console.warn(e);
     }
     try {
-      await fetch(`/api/triage/${tid}/update`, {
+      await fetch(`http://127.0.0.1:8000/api/triage/${tid}/update`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -808,7 +805,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     globalTriageCache.active = null;
     await refreshAll();
     setSelectedDetailIncident(null);
-    setToastContent(`Pengajuan FP untuk tiket ${tid} DITOLAK. Tiket baru berstatus FP REJECT telah diterbitkan di antrian.`);
+    setToastContent(`Pengajuan FP untuk tiket ${tid} DITOLAK.`);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 4000);
   };
@@ -939,7 +936,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
     try {
       setSubmitting(true);
-      const res = await fetch('/api/suppression/rules', {
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/rules', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1003,7 +1000,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
             console.warn(e);
           }
           try {
-            await fetch(`/api/triage/${formData.ticketId}/update`, {
+            await fetch(`http://127.0.0.1:8000/api/triage/${formData.ticketId}/update`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
@@ -1071,7 +1068,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
       }
 
       try {
-        await fetch(`/api/triage/${formData.ticketId}/update`, {
+        await fetch(`http://127.0.0.1:8000/api/triage/${formData.ticketId}/update`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -1093,7 +1090,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
       await refreshAll();
       setShowModal(false);
       setSelectedDetailIncident(null);
-      setToastContent(`Pengajuan FP untuk tiket ${formData.ticketId} DITOLAK. Tiket lama tetap CLOSE & tiket baru berstatus FP REJECT telah diterbitkan.`);
+      setToastContent(`Pengajuan FP untuk tiket ${formData.ticketId} DITOLAK.`);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
     } catch (err) {

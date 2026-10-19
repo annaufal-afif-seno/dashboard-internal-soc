@@ -10959,18 +10959,18 @@
     {
       "rule_id": "31101",
       "desc": "Web server 400 error code",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "MALFORMED_HTTP_PROBE",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
     {
       "rule_id": "31102",
       "desc": "Ignored extensions on 400 error codes.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "MALFORMED_HTTP",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
@@ -11058,36 +11058,36 @@
     {
       "rule_id": "31120",
       "desc": "Web server 500 error code (server error).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31121",
       "desc": "Web server 501 error code (Not Implemented).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
     {
       "rule_id": "31122",
       "desc": "Web server 500 error code (Internal Error)",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "HTTP_SERVER_ERROR",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
     {
       "rule_id": "31123",
       "desc": "Web server 503 error code (Service unavailable).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
@@ -11103,9 +11103,9 @@
     {
       "rule_id": "31141",
       "desc": "Ignored 499's on nginx.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
@@ -11148,29 +11148,29 @@
     {
       "rule_id": "31161",
       "desc": "Multiple web server 501 error code (Not Implemented).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1595.002",
-      "conf": "HIGH"
+      "conf": "LOW"
     },
     {
       "rule_id": "31162",
       "desc": "Multiple web server 500 error code (Internal Error).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "HIGH"
+      "conf": "LOW"
     },
     {
       "rule_id": "31163",
       "desc": "Multiple web server 503 error code (Service unavailable).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1498",
-      "conf": "HIGH"
+      "conf": "LOW"
     },
     {
       "rule_id": "31164",
@@ -11319,27 +11319,27 @@
     {
       "rule_id": "31300",
       "desc": "Nginx messages grouped.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
     {
       "rule_id": "31301",
       "desc": "Nginx error message",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "WEB_SERVER_GATEWAY_ERROR",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
     {
       "rule_id": "31302",
       "desc": "Nginx warning message.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
@@ -11526,9 +11526,9 @@
     {
       "rule_id": "31410",
       "desc": "PHP Warning message",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "APPLICATION_EXCEPTION",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
       "conf": "LOW"
     },
@@ -11544,47 +11544,47 @@
     {
       "rule_id": "31412",
       "desc": "PHP internal error (missing file).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31413",
       "desc": "PHP internal error (server out of space).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1561.001",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31420",
       "desc": "PHP Fatal error.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31421",
       "desc": "PHP internal error (missing file or function).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31430",
       "desc": "PHP Parse error.",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "31501",
@@ -11832,20 +11832,20 @@
     {
       "rule_id": "35008",
       "desc": "Squid: 400 error code (request failed).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "MALFORMED_HTTP",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "35009",
       "desc": "Squid: 500/600 error code (server error).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1190",
-      "conf": "MEDIUM"
+      "conf": "LOW"
     },
     {
       "rule_id": "35010",
@@ -11940,20 +11940,20 @@
     {
       "rule_id": "35057",
       "desc": "Squid: Multiple 400 error codes (requests failed).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "MALFORMED_HTTP",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1499",
-      "conf": "HIGH"
+      "conf": "LOW"
     },
     {
       "rule_id": "35058",
       "desc": "Squid: Multiple 500/600 error codes (server error).",
-      "cat": "NETWORK_ANOMALY",
-      "subcat": "NETWORK_TRAFFIC_ALERT",
-      "tactic": "Initial Access",
+      "cat": "NETWORK_WEB",
+      "subcat": "WEB_OPERATIONAL_ERROR",
+      "tactic": "Reconnaissance",
       "tech": "T1499",
-      "conf": "HIGH"
+      "conf": "LOW"
     },
     {
       "rule_id": "35095",

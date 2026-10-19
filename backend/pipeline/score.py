@@ -9,6 +9,7 @@ Risk score dihapus sesuai PRD Section 8 #2. Pengganti = AI triage (ML/LLM local/
 import os
 import json
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from config.settings import BASE_DIR, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD
 
@@ -139,6 +140,32 @@ class PriorityEngine:
         """Evaluate priority. Returns (score_record, triage_record)."""
         incident_id = incident["incident_id"]
         soc_priority, reason, sla_mins = self.determine_priority(incident)
+        now_utc = datetime.now(timezone.utc)
+
+        first_detected_at = (
+            incident.get("first_detected_at")
+            or incident.get("first_seen_at")
+            or incident.get("created_at")
+            or now_utc
+        )
+        priority_changed_at = (
+            incident.get("priority_changed_at")
+            or incident.get("priority_established_at")
+            or incident.get("last_seen_at")
+            or now_utc
+        )
+        sla_deadline = incident.get("sla_deadline")
+        if not sla_deadline and priority_changed_at:
+            if isinstance(priority_changed_at, str):
+                try:
+                    from dateutil import parser as dt_parser
+                    p_dt = dt_parser.parse(priority_changed_at)
+                    sla_deadline = p_dt + timedelta(minutes=sla_mins)
+                except Exception:
+                    sla_deadline = now_utc + timedelta(minutes=sla_mins)
+            else:
+                sla_deadline = priority_changed_at + timedelta(minutes=sla_mins)
+
         score_record = {
             "incident_id": incident_id, "soc_priority": soc_priority,
             "sla_minutes": sla_mins, "priority_reason": reason,
@@ -149,6 +176,10 @@ class PriorityEngine:
             "priority": soc_priority, "sla_minutes": sla_mins,
             "triage_status": "OPEN", "resolution_outcome": None,
             "false_positive_reason": None,
+            "first_detected_at": first_detected_at,
+            "priority_changed_at": priority_changed_at,
+            "priority_established_at": priority_changed_at,
+            "sla_deadline": sla_deadline,
         }
         return score_record, triage_record
 

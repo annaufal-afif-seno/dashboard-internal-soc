@@ -1,0 +1,30 @@
+# Wazuh CDB Allowlist for Tenant: TenantC
+# Auto-generated from calibrated SOC benign proposals
+10.20.100.121:Learning-acadcsirt-dimas-123
+10.20.100.121:leaning-sgu-dimas-124
+10.20.100.122:leaning-sgu-dimas-124
+10.20.100.252:Learning-acadcsirt-dimas-123
+10.20.100.252:hportal-prod-159
+10.20.100.252:leaning-sgu-dimas-124
+103.135.24.89:hportal-prod-159
+103.19.110.156:hportal-prod-159
+104.23.229.142:hportal-prod-159
+127.0.0.1:Learning-acadcsirt-dimas-123
+127.0.0.1:automation-parallel-243
+127.0.0.1:hportal-prod-159
+127.0.0.1:leaning-sgu-dimas-124
+13.48.193.185:hportal-prod-159
+147.185.132.43:hportal-prod-159
+15.188.85.247:hportal-prod-159
+172.253.216.54:hportal-prod-159
+172.71.131.193:hportal-prod-159
+172.71.131.194:hportal-prod-159
+18.231.143.242:hportal-prod-159
+192.168.1.122:automation-parallel-243
+192.168.1.122:hportal-prod-159
+192.168.1.123:Learning-acadcsirt-dimas-123
+192.168.1.124:leaning-sgu-dimas-124
+192.168.1.230:automation-parallel-243
+192.168.30.114:automation-parallel-243
+192.168.30.114:leaning-sgu-dimas-124
+205.210.31.90:hportal-prod-159

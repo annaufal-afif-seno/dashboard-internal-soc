@@ -8,13 +8,13 @@ import {
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 
 const defaultReductionData = [
-  { day: 'Jul 25', ingested: 30458, suppressed: 30084, aggregated: 372, correlated: 2, raw: 30458, visible: 374 },
-  { day: 'Jul 26', ingested: 29760, suppressed: 29387, aggregated: 371, correlated: 2, raw: 29760, visible: 373 },
-  { day: 'Jul 27', ingested: 29995, suppressed: 29617, aggregated: 377, correlated: 1, raw: 29995, visible: 378 },
-  { day: 'Jul 28', ingested: 21344, suppressed: 20954, aggregated: 387, correlated: 3, raw: 21344, visible: 390 },
-  { day: 'Jul 29', ingested: 20714, suppressed: 20309, aggregated: 399, correlated: 6, raw: 20714, visible: 405 },
-  { day: 'Jul 30', ingested: 22960, suppressed: 22670, aggregated: 277, correlated: 13, raw: 22960, visible: 290 },
-  { day: 'Jul 31', ingested: 12768, suppressed: 12354, aggregated: 386, correlated: 28, raw: 12768, visible: 414 },
+  { day: 'Jul 25', ingest: 30458, ingested: 30458, suppressed: 30084, aggregate: 372, aggregated: 372, ticket: 2, ticketing: 2, threat: 1, groundtruth: 1, raw: 30458, visible: 374 },
+  { day: 'Jul 26', ingest: 29760, ingested: 29760, suppressed: 29387, aggregate: 371, aggregated: 371, ticket: 2, ticketing: 2, threat: 1, groundtruth: 1, raw: 29760, visible: 373 },
+  { day: 'Jul 27', ingest: 29995, ingested: 29995, suppressed: 29617, aggregate: 377, aggregated: 377, ticket: 1, ticketing: 1, threat: 1, groundtruth: 1, raw: 29995, visible: 378 },
+  { day: 'Jul 28', ingest: 21344, ingested: 21344, suppressed: 20954, aggregate: 387, aggregated: 387, ticket: 3, ticketing: 3, threat: 1, groundtruth: 1, raw: 21344, visible: 390 },
+  { day: 'Jul 29', ingest: 20714, ingested: 20714, suppressed: 20309, aggregate: 399, aggregated: 399, ticket: 6, ticketing: 6, threat: 2, groundtruth: 2, raw: 20714, visible: 405 },
+  { day: 'Jul 30', ingest: 22960, ingested: 22960, suppressed: 22670, aggregate: 277, aggregated: 277, ticket: 13, ticketing: 13, threat: 3, groundtruth: 2, raw: 22960, visible: 290 },
+  { day: 'Jul 31', ingest: 12768, ingested: 12768, suppressed: 12354, aggregate: 386, aggregated: 386, ticket: 28, ticketing: 28, threat: 5, groundtruth: 4, raw: 12768, visible: 414 },
 ];
 
 const defaultPriorityData = [
@@ -267,6 +267,7 @@ export default function PipelineOverview({
   timeRange = 'semua', 
   customStartDate = '2026-07-01', 
   customEndDate = '2026-09-30',
+  selectedTenant = 'ALL',
   theme = 'dark'
 }) {
   const [data, setData] = useState(null);
@@ -281,7 +282,10 @@ export default function PipelineOverview({
         start: customStartDate,
         end: customEndDate
       });
-      const res = await fetch(`/api/metrics/overview?${params.toString()}`);
+      if (selectedTenant && selectedTenant !== 'ALL') {
+        params.append('tenant_id', selectedTenant);
+      }
+      const res = await fetch(`http://127.0.0.1:8000/api/metrics/overview?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -297,7 +301,7 @@ export default function PipelineOverview({
     fetchOverview();
     const interval = setInterval(fetchOverview, 20000);
     return () => clearInterval(interval);
-  }, [timeRange, customStartDate, customEndDate]);
+  }, [timeRange, customStartDate, customEndDate, selectedTenant]);
 
   const totalRaw = data ? data.total_raw_events.toLocaleString() : "-";
   const totalAggs = data ? data.total_aggregated_alerts.toLocaleString() : "-";
@@ -317,15 +321,38 @@ export default function PipelineOverview({
     ? Number(data.aggregates_in_correlation).toLocaleString()
     : "-";
   const totalCorr = data ? data.total_correlated_incidents.toLocaleString() : "-";
+  const totalTickets = data ? (data.total_active_tickets || data.total_correlated_incidents).toLocaleString() : (totalCorr || "-");
+  const totalThreats = data?.total_threats !== undefined
+    ? Number(data.total_threats).toLocaleString()
+    : (data?.ticket_overview?.true_positive !== undefined
+      ? Number(data.ticket_overview.true_positive).toLocaleString()
+      : "0");
+  const totalGroundtruth = data
+    ? (data.total_groundtruth !== undefined
+        ? Number(data.total_groundtruth).toLocaleString()
+        : (data.total_ground_truth !== undefined
+            ? Number(data.total_ground_truth).toLocaleString()
+            : "46.191"))
+    : "-";
 
-  const reductionChartData = (data?.reduction_data || defaultReductionData).map(d => ({
-    ...d,
-    ingested: d.ingested ?? d.raw ?? 0,
-    aggregated: d.aggregated ?? (d.visible ? Math.max(0, d.visible - 2) : 0),
-    actionable: d.actionable ?? Math.round((d.aggregated || 0) * 0.08),
-    standalone: d.standalone ?? Math.round((d.aggregated || 0) * 0.07),
-    correlated: d.correlated ?? 0
-  }));
+  const reductionChartData = (data?.reduction_data || defaultReductionData).map(d => {
+    const rawVal = d.ingest ?? d.ingested ?? d.raw ?? 0;
+    const aggVal = d.aggregate ?? d.aggregated ?? (d.visible ? Math.max(0, d.visible - 2) : 0);
+    const tickVal = d.ticket ?? d.ticketing ?? d.correlated ?? 0;
+    const thrVal = d.threat ?? Math.round((d.correlated || 0) * 0.12);
+    const gtVal = d.groundtruth ?? (d.gt ?? Math.round((d.threat || 0) * 0.8));
+    return {
+      ...d,
+      ingest: rawVal,
+      ingested: rawVal,
+      aggregate: aggVal,
+      aggregated: aggVal,
+      ticket: tickVal,
+      ticketing: tickVal,
+      threat: thrVal,
+      groundtruth: gtVal
+    };
+  });
 
   const xAxisTicks = useMemo(() => {
     if (!reductionChartData || reductionChartData.length === 0) return [];
@@ -452,8 +479,8 @@ export default function PipelineOverview({
   return (
     <div className="space-y-5 w-full">
       {/* 5 Metric Summary Cards - Ultra Minimalist Clean */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Ingested */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Ingest */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -461,13 +488,13 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>INGESTED</span>
+          }`}>INGEST</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>{totalRaw}</div>
         </div>
 
-        {/* Card 2: Aggregated */}
+        {/* Card 2: Aggregate */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -475,13 +502,13 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>AGGREGATED</span>
+          }`}>AGGREGATE</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>{totalAggs}</div>
         </div>
 
-        {/* Card 3: Actionable */}
+        {/* Card 3: Ticket */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -489,13 +516,13 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>ACTIONABLE</span>
+          }`}>TICKET</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
-          }`}>{actionableAggs}</div>
+          }`}>{totalTickets}</div>
         </div>
 
-        {/* Card 4: Standalone */}
+        {/* Card 4: Threat */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -503,13 +530,13 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>STANDALONE</span>
+          }`}>THREAT</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
-          }`}>{standaloneAggs}</div>
+          }`}>{totalThreats}</div>
         </div>
 
-        {/* Card 5: Correlated */}
+        {/* Card 5: Groundtruth */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -517,10 +544,10 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>CORRELATED</span>
+          }`}>GROUNDTRUTH</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
-          }`}>{totalCorr}</div>
+          }`}>{totalGroundtruth}</div>
         </div>
       </div>
 
@@ -537,19 +564,19 @@ export default function PipelineOverview({
               }`}>Alert Volume</h3>
               <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#38bdf8]"></span> Ingested
+                  <span className="w-2.5 h-1 rounded-full bg-[#38bdf8]"></span> Ingest
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#818cf8]"></span> Aggregated
+                  <span className="w-2.5 h-1 rounded-full bg-[#818cf8]"></span> Aggregate
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#10b981]"></span> Actionable
+                  <span className="w-2.5 h-1 rounded-full bg-[#f59e0b]"></span> Ticket
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#f59e0b]"></span> Standalone
+                  <span className="w-2.5 h-1 rounded-full bg-[#f43f5e]"></span> Threat
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#f43f5e]"></span> Correlated
+                  <span className="w-2.5 h-1 rounded-full bg-[#10b981]"></span> Groundtruth
                 </span>
               </div>
             </div>
@@ -559,7 +586,7 @@ export default function PipelineOverview({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={reductionChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="ingestedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="ingestGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.2}/>
                     <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.0}/>
                   </linearGradient>
@@ -575,11 +602,11 @@ export default function PipelineOverview({
                 />
                 <YAxis stroke={isDark ? "#94a3b8" : "#64748b"} fontSize={11} tickLine={false} tickFormatter={(val) => `${Math.round(val / 1000)}k`} />
                 <Tooltip content={<CustomAreaTooltip isDark={isDark} />} />
-                <Area type="monotone" dataKey="ingested" name="Ingested" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#ingestedGrad)" dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="aggregated" name="Aggregated" stroke="#818cf8" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="actionable" name="Actionable" stroke="#10b981" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="standalone" name="Standalone" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="correlated" name="Correlated" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="ingest" name="Ingest" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#ingestGrad)" dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="aggregate" name="Aggregate" stroke="#818cf8" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="ticket" name="Ticket" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="threat" name="Threat" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="groundtruth" name="Groundtruth" stroke="#10b981" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

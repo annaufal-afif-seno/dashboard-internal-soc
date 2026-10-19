@@ -77,15 +77,27 @@ class LocalLLMTriageClient:
         self.timeout = timeout or LOCAL_LLM_TIMEOUT
         self.threshold = threshold or LOCAL_LLM_CONFIDENCE_THRESHOLD
 
+    _cached_available: Optional[bool] = None
+    _last_check_ts: float = 0.0
+
     def is_available(self) -> bool:
-        """Check if remote Ollama service is reachable and responsive."""
+        """Check if remote Ollama service is reachable and responsive (cached 180s)."""
+        now = time.time()
+        if LocalLLMTriageClient._cached_available is not None and (now - LocalLLMTriageClient._last_check_ts) < 180.0:
+            return LocalLLMTriageClient._cached_available
+
         try:
             url = f"{self.base_url}/api/tags"
             req = urllib.request.Request(url, headers={"User-Agent": "Wazuh-SOC-Triage/1.0"})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                return resp.status == 200
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                is_ok = (resp.status == 200)
+                LocalLLMTriageClient._cached_available = is_ok
+                LocalLLMTriageClient._last_check_ts = now
+                return is_ok
         except Exception as e:
             logger.warning(f"[LocalLLM] Service unreachable at {self.base_url}: {e}")
+            LocalLLMTriageClient._cached_available = False
+            LocalLLMTriageClient._last_check_ts = now
             return False
 
     def build_prompt(self, incident: Dict[str, Any]) -> str:

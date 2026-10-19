@@ -64,6 +64,7 @@ class LightGBMIncidentClassifier:
         "threat_intel_match",
         "is_external_multistage",
         "wazuh_rule",
+        "priority_level",
     ]
 
     FEATURE_CATEGORICAL = [
@@ -149,9 +150,14 @@ class LightGBMIncidentClassifier:
         total_risk_val = incident.get("total_score", incident.get("total_risk_score", max_inline))
         total_risk = max_inline if (total_risk_val is None or pd.isna(total_risk_val)) else float(total_risk_val)
 
+        prio_str = str(incident.get("priority", incident.get("target_severity", "P4"))).upper()
+        prio_map = {"P4": 0, "P3": 1, "P2": 2, "P1": 3, "P0": 4}
+        priority_level = prio_map.get(prio_str, 0)
+
         rule_lvl_val = incident.get("rule_level")
-        if rule_lvl_val is None or pd.isna(rule_lvl_val):
-            rule_lvl = max(1, min(15, round(total_risk / 7.0)))
+        if rule_lvl_val is None or pd.isna(rule_lvl_val) or float(rule_lvl_val) <= 1:
+            prio_lvl_map = {"P0": 14, "P1": 11, "P2": 8, "P3": 5, "P4": 2}
+            rule_lvl = prio_lvl_map.get(prio_str, max(1, min(15, round(total_risk / 7.0))))
         else:
             rule_lvl = int(float(rule_lvl_val))
 
@@ -207,6 +213,10 @@ class LightGBMIncidentClassifier:
         elif 'powershell' in combined:
             wazuh_rule = 80710
 
+        prio_str = str(incident.get("priority", incident.get("target_severity", "P3"))).upper()
+        prio_map = {"P4": 0, "P3": 1, "P2": 2, "P1": 3, "P0": 4}
+        priority_level = prio_map.get(prio_str, 0)
+
         return {
             "log_event_velocity": log_event_velocity,
             "log_duration": log_duration,
@@ -223,8 +233,9 @@ class LightGBMIncidentClassifier:
             "threat_intel_match": ti_match,
             "is_external_multistage": is_external_multistage,
             "wazuh_rule": wazuh_rule,
+            "priority_level": priority_level,
             "rule_code": r_code,
-            "priority": str(incident.get("priority", incident.get("target_severity", "P3"))).upper(),
+            "priority": prio_str,
             "host_criticality": crit_tier,
         }
 
@@ -278,6 +289,7 @@ class LightGBMIncidentClassifier:
             "host_criticality_score": 1,
             "threat_intel_match": 1,
             "is_external_multistage": 1,
+            "priority_level": 1,
         }
         mono_constraints = [mono_map.get(f, 0) for f in self.feature_names]
 
@@ -295,9 +307,17 @@ class LightGBMIncidentClassifier:
             verbosity=-1
         )
 
-        # Wrap in Isotonic Calibrated Classifier
-        self.calibrated_model = CalibratedClassifierCV(estimator=base_model, method="isotonic", cv=3)
-        self.calibrated_model.fit(X_train, y_train)
+        # Wrap in Calibrated Classifier (Adaptive CV folds based on minimum class count)
+        min_class_count = int(min(y_train.value_counts())) if len(y_train.unique()) > 1 else 0
+        if min_class_count >= 3:
+            self.calibrated_model = CalibratedClassifierCV(estimator=base_model, method="isotonic", cv=min(3, min_class_count))
+            self.calibrated_model.fit(X_train, y_train)
+        elif min_class_count >= 2:
+            self.calibrated_model = CalibratedClassifierCV(estimator=base_model, method="sigmoid", cv=2)
+            self.calibrated_model.fit(X_train, y_train)
+        else:
+            base_model.fit(X_train, y_train)
+            self.calibrated_model = base_model
 
         # Evaluate on Test Set
         y_pred = self.calibrated_model.predict(X_test)
@@ -369,11 +389,15 @@ class LightGBMIncidentClassifier:
         # Predict calibrated probabilities: [prob_benign, prob_threat]
         probs = self.calibrated_model.predict_proba(X_vec)[0]
         classes = list(self.calibrated_model.classes_)
-        idx_0 = classes.index(0) if 0 in classes else 0
-        idx_1 = classes.index(1) if 1 in classes else 1
-
-        prob_benign = round(float(probs[idx_0]) * 100, 2)
-        prob_threat = round(float(probs[idx_1]) * 100, 2)
+        if len(classes) == 1:
+            only_c = classes[0]
+            prob_benign = 100.0 if only_c == 0 else 0.0
+            prob_threat = 100.0 if only_c == 1 else 0.0
+        else:
+            idx_0 = classes.index(0) if 0 in classes else 0
+            idx_1 = classes.index(1) if 1 in classes else 1
+            prob_benign = round(float(probs[idx_0]) * 100, 2)
+            prob_threat = round(float(probs[idx_1]) * 100, 2)
         pred_label = 0 if prob_benign > prob_threat else 1
 
         # Pure ML Decision Logic (Prinsip G: Zero guardrails / overrides)

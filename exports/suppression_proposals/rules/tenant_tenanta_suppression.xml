@@ -1,0 +1,355 @@
+<!-- Auto-Generated Wazuh Upstream Suppression Rules for Tenant: TenantA -->
+<group name="tenant_tuning,suppression,tenanta,">
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 11 -->
+  <rule id="112102" level="0">
+    <if_sid>11</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 202 -->
+  <rule id="112103" level="0">
+    <if_sid>202</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 203 -->
+  <rule id="112104" level="0">
+    <if_sid>203</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 205 -->
+  <rule id="112105" level="0">
+    <if_sid>205</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 501 -->
+  <rule id="112106" level="0">
+    <if_sid>501</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 503 -->
+  <rule id="112107" level="0">
+    <if_sid>503</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 506 -->
+  <rule id="112108" level="0">
+    <if_sid>506</if_sid>
+    <hostname>Grafana\-143|discourse\-180|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 533 -->
+  <rule id="112109" level="0">
+    <if_sid>533</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 550 -->
+  <rule id="112110" level="0">
+    <if_sid>550</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 553 -->
+  <rule id="112111" level="0">
+    <if_sid>553</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 554 -->
+  <rule id="112112" level="0">
+    <if_sid>554</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 591 -->
+  <rule id="112113" level="0">
+    <if_sid>591</if_sid>
+    <hostname>discourse\-180|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 2901 -->
+  <rule id="112114" level="0">
+    <if_sid>2901</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 2902 -->
+  <rule id="112115" level="0">
+    <if_sid>2902</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 2903 -->
+  <rule id="112116" level="0">
+    <if_sid>2903</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 2904 -->
+  <rule id="112117" level="0">
+    <if_sid>2904</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5402 -->
+  <rule id="112118" level="0">
+    <if_sid>5402</if_sid>
+    <hostname>Grafana\-143|discourse\-180|hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5501 -->
+  <rule id="112119" level="0">
+    <if_sid>5501</if_sid>
+    <hostname>Grafana\-143|hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5502 -->
+  <rule id="112120" level="0">
+    <if_sid>5502</if_sid>
+    <hostname>Grafana\-143|hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5503 -->
+  <rule id="112121" level="0">
+    <if_sid>5503</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5551 -->
+  <rule id="112122" level="0">
+    <if_sid>5551</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5712 -->
+  <rule id="112123" level="0">
+    <if_sid>5712</if_sid>
+    <hostname>hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5715 -->
+  <rule id="112124" level="0">
+    <if_sid>5715</if_sid>
+    <hostname>Grafana\-143|discourse\-180|hp\-fluentd\-tenant\-172</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5901 -->
+  <rule id="112125" level="0">
+    <if_sid>5901</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 5902 -->
+  <rule id="112126" level="0">
+    <if_sid>5902</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19003 -->
+  <rule id="112127" level="0">
+    <if_sid>19003</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19004 -->
+  <rule id="112128" level="0">
+    <if_sid>19004</if_sid>
+    <hostname>greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19007 -->
+  <rule id="112129" level="0">
+    <if_sid>19007</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19008 -->
+  <rule id="112130" level="0">
+    <if_sid>19008</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19009 -->
+  <rule id="112131" level="0">
+    <if_sid>19009</if_sid>
+    <hostname>Grafana\-143|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19010 -->
+  <rule id="112132" level="0">
+    <if_sid>19010</if_sid>
+    <hostname>greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 19011 -->
+  <rule id="112133" level="0">
+    <if_sid>19011</if_sid>
+    <hostname>greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23502 -->
+  <rule id="112134" level="0">
+    <if_sid>23502</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23503 -->
+  <rule id="112135" level="0">
+    <if_sid>23503</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23504 -->
+  <rule id="112136" level="0">
+    <if_sid>23504</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23505 -->
+  <rule id="112137" level="0">
+    <if_sid>23505</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23506 -->
+  <rule id="112138" level="0">
+    <if_sid>23506</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 23508 -->
+  <rule id="112139" level="0">
+    <if_sid>23508</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 31101 -->
+  <rule id="112140" level="0">
+    <if_sid>31101</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 31530 -->
+  <rule id="112141" level="0">
+    <if_sid>31530</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 31533 -->
+  <rule id="112142" level="0">
+    <if_sid>31533</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 40704 -->
+  <rule id="112143" level="0">
+    <if_sid>40704</if_sid>
+    <hostname>discourse\-180|hp\-fluentd\-tenant\-172|zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 86003 -->
+  <rule id="112144" level="0">
+    <if_sid>86003</if_sid>
+    <hostname>Grafana\-143|discourse\-180|greylog\-fluentbit\-139</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantA: Suppress benign noise for Wazuh Rule 100088 -->
+  <rule id="112145" level="0">
+    <if_sid>100088</if_sid>
+    <hostname>zabbix\-prod\-214</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantA</description>
+    <options>no_log</options>
+  </rule>
+</group>

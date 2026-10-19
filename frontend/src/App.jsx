@@ -1,18 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Shield, LayoutGrid, Filter, AlertCircle, ChevronDown, Database, 
   Layers, Inbox, CheckCircle2, ShieldAlert, History, Activity, 
   Sliders, User, UserCheck, RefreshCw, BarChart2, Radio, Sun, Moon,
   Users, Globe, Server, Calendar, Lock, X, AlertTriangle, LogOut,
-  Menu
+  Menu, Brain, Building2, Network
 } from 'lucide-react';
 import PipelineOverview from './components/PipelineOverview';
 import SuppressionGovernance from './components/SuppressionGovernance';
 import IncidentTriageQueue, { globalTriageCache, normalizeStatus } from './components/IncidentTriageQueue';
-import SystemMaintenance from './components/SystemMaintenance';
+import ThreatCampaignsView from './components/ThreatCampaignsView';
+import SystemMaintenance, { initialRbacMatrixData } from './components/SystemMaintenance';
 import GroundTruthReview from './components/GroundTruthReview';
 import LoginPage from './components/LoginPage';
+import RawAlertsQueue from './components/RawAlertsQueue';
 import logoImg from './assets/logo.png';
+import { canAccessTab, isTabReadOnly, normalizeRole } from './utils/rbac';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -30,7 +33,25 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  const userRole = normalizeRole(currentUser?.role || 'ADMIN');
+  const hasAccess = (tabId) => canAccessTab(userRole, tabId, initialRbacMatrixData);
+  const isReadOnly = (tabId) => isTabReadOnly(userRole, tabId, initialRbacMatrixData);
+
   const [activeTab, setActiveTab] = useState('analytics');
+
+  // Auto-redirect if active tab is restricted for current role
+  useEffect(() => {
+    if (currentUser && !hasAccess(activeTab)) {
+      const candidateTabs = [
+        'analytics', 'raw_alerts', 'triage', 'verified_tp',
+        'groundtruth_queue', 'ground_truth_review', 'suppression_groups',
+        'suppression_audit', 'system_rbac', 'system_database', 'system_api'
+      ];
+      const firstAllowed = candidateTabs.find(t => hasAccess(t)) || 'analytics';
+      setActiveTab(firstAllowed);
+    }
+  }, [userRole, currentUser]);
+
   const [fpPendingCount, setFpPendingCount] = useState(0);
   const [activeTicketCount, setActiveTicketCount] = useState(0);
   const [gtWaitingCount, setGtWaitingCount] = useState(0);
@@ -41,6 +62,14 @@ export default function App() {
   const [tempEndDate, setTempEndDate] = useState('2026-09-30');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const timeDropdownRef = useRef(null);
+
+  // Tenant Multi-Tenancy Filter State
+  const [selectedTenant, setSelectedTenant] = useState(() => {
+    return localStorage.getItem('wazuh_selected_tenant') || 'ALL';
+  });
+  const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false);
+  const tenantDropdownRef = useRef(null);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return localStorage.getItem('asoc_sidebar_open') !== 'false';
   });
@@ -59,14 +88,42 @@ export default function App() {
   const isDark = theme === 'dark';
 
   useEffect(() => {
+    localStorage.setItem('wazuh_selected_tenant', selectedTenant);
+  }, [selectedTenant]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (timeDropdownRef.current && !timeDropdownRef.current.contains(event.target)) {
         setIsTimeDropdownOpen(false);
+      }
+      if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(event.target)) {
+        setIsTenantDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const tenantOptions = [
+    { id: 'ALL', label: 'all' },
+    { id: 'DEFAULT', label: 'DEFAULT' },
+    { id: 'ikmicirebon', label: 'ikmicirebon' },
+    { id: 'InstikiBali', label: 'InstikiBali' },
+    { id: 'Petra', label: 'Petra' },
+    { id: 'PraditaUniversity', label: 'PraditaUniversity' },
+    { id: 'sgu', label: 'sgu' },
+    { id: 'SOC_CORE', label: 'SOC_CORE' },
+    { id: 'TenantA', label: 'TenantA' },
+    { id: 'TenantB', label: 'TenantB' },
+    { id: 'TenantC', label: 'TenantC' },
+    { id: 'TenantD', label: 'TenantD' },
+    { id: 'wicida', label: 'wicida' },
+  ];
+
+  const getTenantLabel = () => {
+    if (selectedTenant === 'ALL') return 'all';
+    return selectedTenant;
+  };
 
   const timeOptions = [
     { id: 'semua', label: 'All Time', description: 'Seluruh 3 Bulan Telemetri (Juli, Agt, Sept)' },
@@ -112,19 +169,19 @@ export default function App() {
 
   const fetchCounters = async () => {
     try {
-      const fpRes = await fetch('/api/suppression/tuning-requests');
+      const fpRes = await fetch('http://127.0.0.1:8000/api/suppression/tuning-requests');
       if (fpRes.ok) {
         const fpJson = await fpRes.json();
         setFpPendingCount(fpJson.total || 0);
       }
 
-      const tRes = await fetch('/api/triage/counts');
+      const tRes = await fetch('http://127.0.0.1:8000/api/triage/counts');
       if (tRes.ok) {
         const tJson = await tRes.json();
         setActiveTicketCount(tJson.active_count ?? tJson.total ?? 0);
       }
 
-      const gtRes = await fetch('/api/ground-truth/queue');
+      const gtRes = await fetch('http://127.0.0.1:8000/api/ground-truth/queue');
       if (gtRes.ok) {
         const gtJson = await gtRes.json();
         setGtWaitingCount(gtJson.total_pending || 0);
@@ -169,7 +226,7 @@ export default function App() {
 
     try {
       setPwSubmitting(true);
-      const res = await fetch('/api/system/rbac/change-password', {
+      const res = await fetch('http://127.0.0.1:8000/api/system/rbac/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,10 +274,17 @@ export default function App() {
     switch (activeTab) {
       case 'analytics':
         return { category: 'MAIN', subcategory: 'ANALYTICS' };
+      case 'raw_alerts':
+        return { category: 'MAIN', subcategory: 'RAW ALERT' };
       case 'triage':
         return { category: 'INCIDENT TRIAGE', subcategory: 'TICKET QUEUE' };
       case 'verified_tp':
         return { category: 'INCIDENT TRIAGE', subcategory: 'VERIFIED THREAT' };
+      case 'threat_campaigns':
+        return { category: 'INCIDENT TRIAGE', subcategory: 'THREAT CAMPAIGNS' };
+      case 'groundtruth_queue':
+        return { category: 'INCIDENT TRIAGE', subcategory: 'GROUNDTRUTH' };
+      case 'ground_truth_review':
       case 'suppression_inbox':
         return { category: 'SUPPRESSION & TUNING', subcategory: 'GROUND TRUTH REVIEW' };
       case 'suppression_rules':
@@ -294,126 +358,229 @@ export default function App() {
             </div>
 
           {/* Group 1: MAIN */}
-          <div>
-            <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-              Main
+          {(hasAccess('analytics') || hasAccess('raw_alerts')) && (
+            <div>
+              <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                Main
+              </div>
+              <nav className="space-y-0.5">
+                {hasAccess('analytics') && (
+                  <button
+                    onClick={() => setActiveTab('analytics')}
+                    className={navItemClass('analytics')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Analytics</span>
+                    </div>
+                    {isReadOnly('analytics') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('raw_alerts') && (
+                  <button
+                    onClick={() => setActiveTab('raw_alerts')}
+                    className={navItemClass('raw_alerts')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Radio className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Raw Alert</span>
+                    </div>
+                    {isReadOnly('raw_alerts') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => setActiveTab('analytics')}
-                className={navItemClass('analytics')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                  <span>Analytics</span>
-                </div>
-              </button>
-            </nav>
-          </div>
+          )}
 
           {/* Group 2: INCIDENT TRIAGE & SOC QUEUE */}
-          <div>
-            <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-              Incident Triage
-            </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => setActiveTab('triage')}
-                className={navItemClass('triage')}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <Inbox className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">Ticket Queue</span>
-                </div>
-              </button>
+          {(hasAccess('triage') || hasAccess('verified_tp') || hasAccess('groundtruth_queue')) && (
+            <div>
+              <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                Incident Triage
+              </div>
+              <nav className="space-y-0.5">
+                {hasAccess('triage') && (
+                  <button
+                    onClick={() => setActiveTab('triage')}
+                    className={navItemClass('triage')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Inbox className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Ticket Queue</span>
+                    </div>
+                    {isReadOnly('triage') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
 
-              <button
-                onClick={() => setActiveTab('verified_tp')}
-                className={navItemClass('verified_tp')}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">Verified Threat</span>
-                </div>
-              </button>
-            </nav>
-          </div>
+                {hasAccess('verified_tp') && (
+                  <button
+                    onClick={() => setActiveTab('verified_tp')}
+                    className={navItemClass('verified_tp')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Verified Threat</span>
+                    </div>
+                    {isReadOnly('verified_tp') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('threat_campaigns') && (
+                  <button
+                    onClick={() => setActiveTab('threat_campaigns')}
+                    className={navItemClass('threat_campaigns')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Network className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Threat Campaigns</span>
+                    </div>
+                    {isReadOnly('threat_campaigns') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('groundtruth_queue') && (
+                  <button
+                    onClick={() => setActiveTab('groundtruth_queue')}
+                    className={navItemClass('groundtruth_queue')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Brain className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Groundtruth</span>
+                    </div>
+                    {isReadOnly('groundtruth_queue') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+              </nav>
+            </div>
+          )}
 
           {/* Group 3: SUPPRESSION & TUNING GOVERNANCE */}
-          <div>
-            <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-              Suppression & Tuning
+          {(hasAccess('ground_truth_review') || hasAccess('suppression_groups') || hasAccess('suppression_audit')) && (
+            <div>
+              <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                Suppression & Tuning
+              </div>
+              <nav className="space-y-0.5">
+                {hasAccess('ground_truth_review') && (
+                  <button
+                    onClick={() => setActiveTab('ground_truth_review')}
+                    className={navItemClass('ground_truth_review')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Sliders className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Ground Truth Review</span>
+                    </div>
+                    {gtWaitingCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        {gtWaitingCount}
+                      </span>
+                    )}
+                    {isReadOnly('ground_truth_review') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('suppression_groups') && (
+                  <button
+                    onClick={() => setActiveTab('suppression_groups')}
+                    className={navItemClass('suppression_groups')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Layers className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Policy Bundle</span>
+                    </div>
+                    {isReadOnly('suppression_groups') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('suppression_audit') && (
+                  <button
+                    onClick={() => setActiveTab('suppression_audit')}
+                    className={navItemClass('suppression_audit')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <History className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Governance & Compliance Audit</span>
+                    </div>
+                    {isReadOnly('suppression_audit') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => setActiveTab('suppression_inbox')}
-                className={navItemClass('suppression_inbox')}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <Sliders className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">Ground Truth Review</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('suppression_groups')}
-                className={navItemClass('suppression_groups')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Layers className="w-3.5 h-3.5 shrink-0" />
-                  <span>Policy Bundle</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('suppression_audit')}
-                className={navItemClass('suppression_audit')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <History className="w-3.5 h-3.5 shrink-0" />
-                  <span>Governance & Compliance Audit</span>
-                </div>
-              </button>
-            </nav>
-          </div>
+          )}
 
           {/* Group 4: SYSTEM & SOC MAINTENANCE */}
-          <div>
-            <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-              System Maintenance
+          {(hasAccess('system_rbac') || hasAccess('system_database') || hasAccess('system_api')) && (
+            <div>
+              <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                System Maintenance
+              </div>
+              <nav className="space-y-0.5">
+                {hasAccess('system_rbac') && (
+                  <button
+                    onClick={() => setActiveTab('system_rbac')}
+                    className={navItemClass('system_rbac')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Users className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Manajemen Akun & RBAC</span>
+                    </div>
+                    {isReadOnly('system_rbac') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('system_database') && (
+                  <button
+                    onClick={() => setActiveTab('system_database')}
+                    className={navItemClass('system_database')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Database className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Database & Storage Health</span>
+                    </div>
+                    {isReadOnly('system_database') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+
+                {hasAccess('system_api') && (
+                  <button
+                    onClick={() => setActiveTab('system_api')}
+                    className={navItemClass('system_api')}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Globe className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">API & Quota Threat Intel</span>
+                    </div>
+                    {isReadOnly('system_api') && (
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+                    )}
+                  </button>
+                )}
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => setActiveTab('system_rbac')}
-                className={navItemClass('system_rbac')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Users className="w-3.5 h-3.5 shrink-0" />
-                  <span>Manajemen Akun & RBAC</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('system_database')}
-                className={navItemClass('system_database')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Database className="w-3.5 h-3.5 shrink-0" />
-                  <span>Database & Storage Health</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('system_api')}
-                className={navItemClass('system_api')}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Globe className="w-3.5 h-3.5 shrink-0" />
-                  <span>API & Quota Threat Intel</span>
-                </div>
-              </button>
-            </nav>
-          </div>
+          )}
         </div>
 
         {/* Footer: User Profile & Logout (Menggantikan 19 Tables Active) */}
@@ -534,6 +701,67 @@ export default function App() {
                 <Moon className="w-4 h-4 text-indigo-600" />
               )}
             </button>
+
+            {/* Multi-Tenant Filter Dropdown (Format Identical to Time Filter) */}
+            <div className="relative" ref={tenantDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsTenantDropdownOpen(prev => !prev)}
+                className={`flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium border transition-all cursor-pointer min-w-[165px] shadow-xs ${
+                  theme === 'dark'
+                    ? 'bg-[#0c101c] border-slate-800 text-slate-200 hover:bg-slate-800/80 hover:border-slate-700'
+                    : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+                title="Pilih Tenant"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span className="truncate">{getTenantLabel()}</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
+                  isTenantDropdownOpen ? 'rotate-180 text-indigo-500' : ''
+                }`} />
+              </button>
+
+              {/* Tenant Dropdown Menu matching Time Filter style */}
+              {isTenantDropdownOpen && (
+                <div className={`absolute right-0 mt-1 w-64 max-h-72 overflow-y-auto custom-scrollbar rounded-md shadow-2xl border z-50 font-mono text-xs animate-in fade-in zoom-in-95 ${
+                  theme === 'dark'
+                    ? 'bg-[#0c101c] border-slate-700 text-slate-200 shadow-black/80'
+                    : 'bg-white border-slate-300 text-slate-800 shadow-slate-400/30'
+                }`}>
+                  <div className="py-1">
+                    {tenantOptions.map((opt) => {
+                      const isSelected = selectedTenant === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTenant(opt.id);
+                            setIsTenantDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected
+                              ? (theme === 'dark' 
+                                  ? 'bg-slate-700/80 text-white font-semibold' 
+                                  : 'bg-slate-200/90 text-slate-900 font-semibold')
+                              : (theme === 'dark' 
+                                  ? 'hover:bg-slate-800/60 text-slate-300 hover:text-white' 
+                                  : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900')
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && (
+                            <span className={`text-xs ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Time Range Filter Dropdown (Wazuh Style) */}
             <div className="relative" ref={timeDropdownRef}>
@@ -656,25 +884,165 @@ export default function App() {
 
         {/* Dynamic Main Workspace */}
         <main className="p-6 flex-1 overflow-x-hidden">
-          {activeTab === 'analytics' && (
-            <PipelineOverview 
-              onNavigate={setActiveTab} 
-              timeRange={timeRange}
-              customStartDate={customStartDate}
-              customEndDate={customEndDate}
-              theme={theme}
-            />
+          {!hasAccess(activeTab) ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 animate-in fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mb-4 shadow-lg shadow-rose-500/5">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <h2 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                403 - Akses Dibatasi (Separation of Duties)
+              </h2>
+              <p className={`text-sm max-w-md mb-6 leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                Role akun Anda (<span className="font-semibold text-rose-500">{userRole.replace(/_/g, ' ')}</span>) tidak memiliki wewenang untuk mengakses modul <span className="font-semibold">{getBreadcrumb().subcategory}</span>.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('analytics')}
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-md cursor-pointer"
+              >
+                Kembali ke Analytics
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'analytics' && (
+                <PipelineOverview 
+                  onNavigate={setActiveTab} 
+                  timeRange={timeRange}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  selectedTenant={selectedTenant}
+                  theme={theme}
+                  isReadOnly={isReadOnly('analytics')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'raw_alerts' && (
+                <RawAlertsQueue 
+                  theme={theme} 
+                  onNavigate={setActiveTab} 
+                  selectedTenant={selectedTenant}
+                  timeRange={timeRange}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  isReadOnly={isReadOnly('raw_alerts')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'triage' && (
+                <IncidentTriageQueue 
+                  viewMode="active" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant}
+                  timeRange={timeRange}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  isReadOnly={isReadOnly('triage')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'verified_tp' && (
+                <IncidentTriageQueue 
+                  viewMode="verified_tp" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant}
+                  timeRange={timeRange}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  isReadOnly={isReadOnly('verified_tp')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'threat_campaigns' && (
+                <ThreatCampaignsView
+                  theme={theme}
+                  selectedTenant={selectedTenant}
+                  currentUser={currentUser}
+                  isReadOnly={isReadOnly('threat_campaigns')}
+                />
+              )}
+              {activeTab === 'groundtruth_queue' && (
+                <IncidentTriageQueue 
+                  viewMode="groundtruth" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant}
+                  timeRange={timeRange}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  isReadOnly={isReadOnly('groundtruth_queue')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'ground_truth_review' && (
+                <GroundTruthReview 
+                  theme={theme} 
+                  currentUser={currentUser} 
+                  selectedTenant={selectedTenant} 
+                  isReadOnly={isReadOnly('ground_truth_review')}
+                />
+              )}
+              {activeTab === 'suppression_inbox' && (
+                <SuppressionGovernance 
+                  initialTab="inbox" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant} 
+                  isReadOnly={isReadOnly('ground_truth_review')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'suppression_rules' && (
+                <SuppressionGovernance 
+                  initialTab="rules" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant} 
+                  isReadOnly={isReadOnly('suppression_groups')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'suppression_groups' && (
+                <SuppressionGovernance 
+                  initialTab="groups" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant} 
+                  isReadOnly={isReadOnly('suppression_groups')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'suppression_audit' && (
+                <SuppressionGovernance 
+                  initialTab="audit" 
+                  theme={theme} 
+                  selectedTenant={selectedTenant} 
+                  isReadOnly={isReadOnly('suppression_audit')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'system_rbac' && (
+                <SystemMaintenance 
+                  initialTab="rbac" 
+                  theme={theme} 
+                  isReadOnly={isReadOnly('system_rbac')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'system_database' && (
+                <SystemMaintenance 
+                  initialTab="database" 
+                  theme={theme} 
+                  isReadOnly={isReadOnly('system_database')}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'system_api' && (
+                <SystemMaintenance 
+                  initialTab="api_quota" 
+                  theme={theme} 
+                  isReadOnly={isReadOnly('system_api')}
+                  currentUser={currentUser}
+                />
+              )}
+            </>
           )}
-          {activeTab === 'triage' && <IncidentTriageQueue viewMode="active" theme={theme} />}
-          {activeTab === 'ground_truth_review' && <GroundTruthReview theme={theme} currentUser={currentUser} />}
-          {activeTab === 'verified_tp' && <IncidentTriageQueue viewMode="verified_tp" theme={theme} />}
-          {activeTab === 'suppression_inbox' && <SuppressionGovernance initialTab="inbox" theme={theme} />}
-          {activeTab === 'suppression_rules' && <SuppressionGovernance initialTab="rules" theme={theme} />}
-          {activeTab === 'suppression_groups' && <SuppressionGovernance initialTab="groups" theme={theme} />}
-          {activeTab === 'suppression_audit' && <SuppressionGovernance initialTab="audit" theme={theme} />}
-          {activeTab === 'system_rbac' && <SystemMaintenance initialTab="rbac" theme={theme} />}
-          {activeTab === 'system_database' && <SystemMaintenance initialTab="database" theme={theme} />}
-          {activeTab === 'system_api' && <SystemMaintenance initialTab="api_quota" theme={theme} />}
         </main>
       </div>
 

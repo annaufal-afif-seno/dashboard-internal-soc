@@ -1,0 +1,637 @@
+[
+  {
+    "incident_id": "INC-962058769BAB0A8B",
+    "priority": "P0",
+    "rule_code": "CORR-002",
+    "category": null,
+    "risk_score": 85,
+    "target_host": "isif-rproxy-155",
+    "host_criticality": "HIGH",
+    "internet_exposed": true,
+    "privileged_user": false,
+    "threat_intel": false,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 54.96,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P0] Intrusion Chain: Login -> Sudo -> Persistence on isif-rproxy-155 by 142.111.12.137",
+    "narrative": "Attack Chain Detected: Intrusion Chain: Login -> Sudo -> Persistence. Origin: 142.111.12.137, Target Host: isif-rproxy-155, Compromised Account: ubuntu. Spanned across 10 forensic stages with 1 distinct target(s) and 5 distinct actor(s).",
+    "src_ip": "142.111.12.137",
+    "analyst_notes": "Calibrated ML Verified Threat (100.0% confidence) | Qwen (qwen2.5:14b): The incident details indicate a clear attack chain involving unauthorized access (Login), privilege escalation (Sudo), and persistence mechanisms on a critical system. The high priority (P0) and risk score (85/100) further emphasize the severity. The involvement of an external IP address and the detection of a full attack chain strongly suggest a malicious intrusion rather than benign activity. | Qwen (qwen2.5:14b): The incident involves high volume authentication failures targeting a critical asset from an external public IP address, indicating potential brute force attack attempts. The priority and risk score are high, suggesting a significant security concern. | Qwen (qwen2.5:14b): The incident involves a multi-stage attack chain targeting a critical asset, including authentication attempts, privilege escalation, and persistence mechanisms. The attacker source IP is external, and the risk score is high, indicating a significant threat. The presence of multiple forensic stages and distinct actors further supports the likelihood of a targeted intrusion.",
+    "stages": [
+      [
+        "AUTHENTICATION",
+        "vWpRHaABrSrBSPQR89up",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 31301 at 2026-08-20T03:58:05.041000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "xWphHaABrSrBSPQRXtvR",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 31301 at 2026-08-20T04:15:03.270000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "yWpjHaABrSrBSPQR3tvj",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5715 at 2026-08-20T04:17:49.304000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "x2pjHaABrSrBSPQR3tvi",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-08-20T04:17:49.306000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "zmpmHaABrSrBSPQRQNvr",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-08-20T04:20:23.354000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "z2pmHaABrSrBSPQRQNvs",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-08-20T04:20:27.329000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "zWpmHaABrSrBSPQRQNvq",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-08-20T04:20:27.335000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "zGpmHaABrSrBSPQRQNvq",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-08-20T04:20:23.352000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "y2pmHaABrSrBSPQRQNvq",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-08-20T04:20:27.331000+00:00"
+      ],
+      [
+        "PERSISTENCE",
+        "5mpnHaABrSrBSPQRXNuN",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PERSISTENCE] via Rule/Archetype 2904 at 2026-08-20T04:21:33.383000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-8FA763C68A0C0452",
+    "priority": "P1",
+    "rule_code": "CORR-002",
+    "category": null,
+    "risk_score": 80,
+    "target_host": "hp-fluentd-tenant-172",
+    "host_criticality": "HIGH",
+    "internet_exposed": false,
+    "privileged_user": false,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 61.31,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 0,
+    "title": "[P1] Intrusion Chain: Login -> Sudo -> Persistence on hp-fluentd-tenant-172 by 192.168.1.122",
+    "narrative": "Attack Chain Detected: Intrusion Chain: Login -> Sudo -> Persistence. Origin: 192.168.1.122, Target Host: hp-fluentd-tenant-172, Compromised Account: ubuntu. Spanned across 18 forensic stages with 1 distinct target(s) and 3 distinct actor(s).",
+    "src_ip": "192.168.1.122",
+    "analyst_notes": "Calibrated Operational Background Noise | Qwen (qwen2.5:14b): The incident involves a series of authentication events spanning multiple stages, indicating an intrusion chain where an attacker is attempting to gain and maintain access to a critical system. The use of sudo commands and persistence mechanisms suggest an attempt to escalate privileges and ensure continued access, which are hallmarks of a malicious intrusion. The high risk score and criticality of the target asset further support this assessment.",
+    "stages": [
+      [
+        "AUTHENTICATION",
+        "YUh2fZ8By1wXP_vnXMxB",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5715 at 2026-07-20T02:58:51.777000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "ZEh2fZ8By1wXP_vnXMxB",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T02:58:51.779000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "iEh4fZ8By1wXP_vnKcx4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T03:00:43.756000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "jkh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-20T03:00:43.757000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "mEh4fZ8By1wXP_vnKcx8",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T03:00:43.762000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "kEh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-20T03:00:43.764000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "mUh4fZ8By1wXP_vnKcx8",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T03:00:43.768000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "iUh4fZ8By1wXP_vnKcx4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-20T03:00:43.770000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "lUh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T03:00:43.774000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "mkh4fZ8By1wXP_vnKcx8",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-20T03:00:45.756000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "kkh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-20T03:00:45.760000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "lkh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-20T03:00:45.777000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "jUh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-20T03:00:43.755000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "j0h4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-20T03:00:43.759000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "lEh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-20T03:00:43.766000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "kUh4fZ8By1wXP_vnKcx5",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-20T03:00:43.772000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "ikh4fZ8By1wXP_vnKcx4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-20T03:00:45.758000+00:00"
+      ],
+      [
+        "PERSISTENCE",
+        "o0h4fZ8By1wXP_vnf8xt",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PERSISTENCE] via Rule/Archetype 40704 at 2026-07-20T03:01:05.962000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-34FE827EF9AF1DB0",
+    "priority": "P0",
+    "rule_code": "CORR-002",
+    "category": null,
+    "risk_score": 90,
+    "target_host": "portal-bssn-163",
+    "host_criticality": "CRITICAL",
+    "internet_exposed": true,
+    "privileged_user": false,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 1,
+    "ml_conf": 66.63,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P0] Intrusion Chain: Login -> Sudo -> Persistence on portal-bssn-163 by 192.168.1.121",
+    "narrative": "Attack Chain Detected: Intrusion Chain: Login -> Sudo -> Persistence. Origin: 192.168.1.121, Target Host: portal-bssn-163, Compromised Account: ubuntu. Spanned across 5 forensic stages with 1 distinct target(s) and 3 distinct actor(s).",
+    "src_ip": "192.168.1.121",
+    "analyst_notes": "SOC forensic audit: verified insider multi-stage attack on critical portal | Qwen (qwen3.5:9b): Critical asset srv-core targeted by external IP with high-volume authentication failures indicative of brute-force SSH attack. Risk score 85/100 and P0 priority confirm malicious intent rather than operational noise. | Qwen (qwen2.5:14b): The incident involves a detected intrusion chain with stages of authentication, privilege escalation, and persistence. The target asset is critical, and the attacker source IP is internal but suspicious. The sequence of events indicates an attempt to gain unauthorized access and maintain control over the system, which is not typical of benign activity.",
+    "stages": [
+      [
+        "AUTHENTICATION",
+        "PKMgb58BKx-ZFfJ53eDM",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5715 at 2026-07-17T08:10:45.226000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "OqMgb58BKx-ZFfJ53eDL",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-17T08:10:45.227000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "RqMhb58BKx-ZFfJ5S-A4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-17T08:11:17.231000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "SKMhb58BKx-ZFfJ5S-A4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-17T08:11:17.230000+00:00"
+      ],
+      [
+        "PERSISTENCE",
+        "SqMhb58BKx-ZFfJ5S-A4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PERSISTENCE] via Rule/Archetype 2901 at 2026-07-17T08:11:17.233000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-6371C63B45C8F5AD",
+    "priority": "P1",
+    "rule_code": "CORR-003",
+    "category": null,
+    "risk_score": 75,
+    "target_host": "greylog-fluentbit-139",
+    "host_criticality": "HIGH",
+    "internet_exposed": false,
+    "privileged_user": null,
+    "threat_intel": false,
+    "mitre": [],
+    "ml_pred": 1,
+    "ml_conf": 66.71,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P1] PowerShell Encoded Command & Ingress Tool Transfer on greylog-fluentbit-139 by 192.168.1.139",
+    "narrative": "Attack Chain Detected: PowerShell Encoded Command & Ingress Tool Transfer. Origin: unknown, Target Host: greylog-fluentbit-139, Compromised Account: unknown. Spanned across 3 forensic stages with 1 distinct target(s) and 1 distinct actor(s).",
+    "src_ip": "192.168.1.139",
+    "analyst_notes": "Calibrated ML Verified Threat (100.0% confidence) | Qwen (qwen2.5:14b): The incident involves PowerShell encoded command execution and ingress tool transfer, which are indicative of malicious activity. The source IP is internal but the nature of the activity suggests a compromise or misuse of internal resources. The high risk score and criticality of the target asset further support the threat assessment.",
+    "stages": [
+      [
+        "ENCODED_EXECUTION",
+        "XGmf758BrSrBSPQRseVm",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 86003 at 2026-08-11T07:00:43.842000+00:00"
+      ],
+      [
+        "ENCODED_EXECUTION",
+        "WWmf758BrSrBSPQRseVl",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 86003 at 2026-08-11T07:00:43.855000+00:00"
+      ],
+      [
+        "TOOL_TRANSFER_OR_C2",
+        "W2mf758BrSrBSPQRseVl",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [TOOL_TRANSFER_OR_C2] via Rule/Archetype 506 at 2026-08-11T07:00:44.201000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-63DEEB709B30CAD6",
+    "priority": "P0",
+    "rule_code": "CORR-003",
+    "category": null,
+    "risk_score": 85,
+    "target_host": "portal-bssn-163",
+    "host_criticality": "CRITICAL",
+    "internet_exposed": true,
+    "privileged_user": null,
+    "threat_intel": false,
+    "mitre": [],
+    "ml_pred": 1,
+    "ml_conf": 66.71,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P0] PowerShell Encoded Command & Ingress Tool Transfer on portal-bssn-163 by 192.168.1.163",
+    "narrative": "Attack Chain Detected: PowerShell Encoded Command & Ingress Tool Transfer. Origin: unknown, Target Host: portal-bssn-163, Compromised Account: unknown. Spanned across 3 forensic stages with 1 distinct target(s) and 1 distinct actor(s).",
+    "src_ip": "192.168.1.163",
+    "analyst_notes": "Calibrated ML Verified Threat (100.0% confidence) | Qwen (qwen2.5:14b): The incident involves PowerShell encoded command execution and ingress tool transfer, which are indicative of malicious activity. The source IP is internal but the nature of the activity suggests a compromise rather than routine administrative activity. The high risk score and priority level further support the threat assessment.",
+    "stages": [
+      [
+        "ENCODED_EXECUTION",
+        "WsB8p58BXxxdMJ5qZLA4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 86003 at 2026-07-28T06:49:31.035000+00:00"
+      ],
+      [
+        "ENCODED_EXECUTION",
+        "XsB8p58BXxxdMJ5qZLA4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 86003 at 2026-07-28T06:49:31.054000+00:00"
+      ],
+      [
+        "TOOL_TRANSFER_OR_C2",
+        "YMB8p58BXxxdMJ5qZLA4",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [TOOL_TRANSFER_OR_C2] via Rule/Archetype 506 at 2026-07-28T06:49:31.327000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-E2E-SIM-001",
+    "priority": "P1",
+    "rule_code": "CORR-003",
+    "category": null,
+    "risk_score": 50,
+    "target_host": "bastion-host",
+    "host_criticality": "STANDARD",
+    "internet_exposed": false,
+    "privileged_user": null,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 1,
+    "ml_conf": 71.16,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 75.0,
+    "gt_label": 1,
+    "title": "E2E SSH Brute Force Campaign",
+    "narrative": "Multiple failed SSH attempts across 24h",
+    "src_ip": "203.0.113.195",
+    "analyst_notes": "Qwen (qwen2.5:14b): The incident involves multiple failed SSH attempts over a 24-hour period targeting a critical asset from an internal network source. This pattern is indicative of a brute force attack attempting unauthorized access, which is a common tactic used by attackers to gain control of systems.",
+    "stages": []
+  },
+  {
+    "incident_id": "INC-84E6C55754B3773D",
+    "priority": "P0",
+    "rule_code": "CORR-003",
+    "category": null,
+    "risk_score": 85,
+    "target_host": "hportal-prod-159",
+    "host_criticality": "HIGH",
+    "internet_exposed": true,
+    "privileged_user": null,
+    "threat_intel": false,
+    "mitre": [],
+    "ml_pred": 1,
+    "ml_conf": 73.61,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P0] PowerShell Encoded Command & Ingress Tool Transfer on hportal-prod-159 by 192.168.1.159",
+    "narrative": "Attack Chain Detected: PowerShell Encoded Command & Ingress Tool Transfer. Origin: unknown, Target Host: hportal-prod-159, Compromised Account: unknown. Spanned across 5 forensic stages with 1 distinct target(s) and 1 distinct actor(s).",
+    "src_ip": "192.168.1.159",
+    "analyst_notes": "Calibrated ML Verified Threat (100.0% confidence) | Qwen (qwen2.5:14b): The incident involves PowerShell encoded command execution and ingress tool transfer, which are indicative of malicious activity. The attacker source IP is internal but the nature of the activity suggests a compromised internal system or insider threat. The high priority and risk score further confirm the severity of the incident.",
+    "stages": [
+      [
+        "ENCODED_EXECUTION",
+        "zWo9EKABrSrBSPQR43EA",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 202 at 2026-08-17T15:01:10.942000+00:00"
+      ],
+      [
+        "ENCODED_EXECUTION",
+        "0Wo9EKABrSrBSPQR43EB",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 203 at 2026-08-17T15:01:10.955000+00:00"
+      ],
+      [
+        "ENCODED_EXECUTION",
+        "0Go9EKABrSrBSPQR43EB",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 203 at 2026-08-17T15:01:14.454000+00:00"
+      ],
+      [
+        "ENCODED_EXECUTION",
+        "zGo9EKABrSrBSPQR43EA",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [ENCODED_EXECUTION] via Rule/Archetype 205 at 2026-08-17T15:01:19.338000+00:00"
+      ],
+      [
+        "TOOL_TRANSFER_OR_C2",
+        "0mo-EKABrSrBSPQRDnEC",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [TOOL_TRANSFER_OR_C2] via Rule/Archetype 510 at 2026-08-17T15:01:25.052000+00:00"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-SA-a8be3c2022e1",
+    "priority": "P3",
+    "rule_code": "CORR-SA",
+    "category": null,
+    "risk_score": 36,
+    "target_host": "mongodb-ext-158",
+    "host_criticality": "CROWN_JEWEL",
+    "internet_exposed": false,
+    "privileged_user": null,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 77.65,
+    "llm_verdict": "FALSE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 0,
+    "title": "[P3] Host Telemetry Anomaly - Rule 5503 on mongodb-ext-158 by 192.168.1.122 (1 events)",
+    "narrative": "Consolidated Standalone Activity: Rule 5503 observed across 1 aggregate window(s) totaling 1 events on target asset 'mongodb-ext-158' (003) from source actor 192.168.1.122. First burst detected at 2026-07-20 08:22:15.872000+07:00, latest burst at 2026-07-20 08:32:15.872000+07:00.",
+    "src_ip": "192.168.1.122",
+    "analyst_notes": "Calibrated Operational Background Noise | Qwen (qwen2.5:14b): The incident involves a single event triggered by Rule 5503 on a critical MongoDB server from an internal IP address. Given the low event volume and the fact that the source IP is internal, this is likely an operational noise or an administrative action rather than a malicious intrusion. The risk score is also relatively low (P3), indicating a low likelihood of a true security incident.",
+    "stages": [
+      [
+        "BURST_WINDOW_1",
+        "agg_a63b22865f2e58a3",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-1: 2026-07-20 08:22:15 s/d 08:32:15 (1 events) - Triggered by Rule 5503"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-SA-ba3478e9cebc",
+    "priority": "P3",
+    "rule_code": "CORR-SA",
+    "category": null,
+    "risk_score": 36,
+    "target_host": "mongodb-ext-158",
+    "host_criticality": "CROWN_JEWEL",
+    "internet_exposed": false,
+    "privileged_user": null,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 77.65,
+    "llm_verdict": "FALSE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 1,
+    "title": "[P3] Host Telemetry Anomaly - Rule 5710 on mongodb-ext-158 by 192.168.1.122 (3 events)",
+    "narrative": "Consolidated Standalone Activity: Rule 5710 observed across 1 aggregate window(s) totaling 3 events on target asset 'mongodb-ext-158' (003) from source actor 192.168.1.122. First burst detected at 2026-07-20 08:22:09.830000+07:00, latest burst at 2026-07-20 08:32:09.830000+07:00.",
+    "src_ip": "192.168.1.122",
+    "analyst_notes": "Calibrated ML Verified Threat (100.0% confidence) | Qwen (qwen2.5:14b): The incident involves a single internal IP address (192.168.1.122) interacting with a critical MongoDB server (mongodb-ext-158) and is categorized as Priority P3 with a total risk score of 36/100, indicating a low to medium risk. The event volume is minimal, with only one raw alert event across one stage. The narrative suggests a standalone activity observed by Rule 5710, but there is no indication of malicious intent or unauthorized access. The source IP is internal, and the target asset is critical, but the lack of additional context such as unusual access patterns, failed login attempts, or data exfiltration attempts suggests this is likely operational noise or a benign routine activity. | Qwen (qwen2.5:14b): The incident involves a single internal IP address (192.168.1.122) and the target asset is a MongoDB server (mongodb-ext-158). The event volume is low (3 events) and the priority is P3, indicating a low risk score (36/100). The narrative suggests a standalone activity observed by Rule 5710, which could be a routine administrative activity or operational noise rather than a malicious intrusion. There is no indication of external involvement or unusual behavior that would suggest a true security incident.",
+    "stages": [
+      [
+        "BURST_WINDOW_1",
+        "agg_40177c28a5fb29de",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-1: 2026-07-20 08:22:09 s/d 08:32:09 (3 events) - Triggered by Rule 5710"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-SA-efd44258697b",
+    "priority": "P2",
+    "rule_code": "CORR-SA",
+    "category": null,
+    "risk_score": 41,
+    "target_host": "isif-rproxy-155",
+    "host_criticality": "HIGH",
+    "internet_exposed": true,
+    "privileged_user": null,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 79.37,
+    "llm_verdict": "FALSE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 0,
+    "title": "[P2] Host Telemetry Anomaly - Rule 5715 on isif-rproxy-155 by 192.168.1.122 (4 bursts, 4 events)",
+    "narrative": "Consolidated Standalone Activity: Rule 5715 observed across 4 aggregate window(s) totaling 4 events on target asset 'isif-rproxy-155' (035) from source actor 192.168.1.122. First burst detected at 2026-07-17 09:23:56.270000+07:00, latest burst at 2026-08-11 11:44:55.076000+07:00.",
+    "src_ip": "192.168.1.122",
+    "analyst_notes": "Calibrated ML Auto-Suppressed Operational Noise (100.0% confidence) | Qwen (qwen2.5:14b): The incident involves a single internal IP address (192.168.1.122) triggering a specific rule (Rule 5715) on a critical asset (isif-rproxy-155) over a period of time with no additional context provided about the nature of the rule or the activity. Given the low risk score (41/100) and the fact that the activity is isolated to internal network events without any indication of lateral movement, data exfiltration, or other malicious activities, this incident is likely operational noise or benign routine activity.",
+    "stages": [
+      [
+        "BURST_WINDOW_1",
+        "agg_9ef785fbd0c36104",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-1: 2026-07-17 09:23:56 s/d 09:33:56 (1 events) - Triggered by Rule 5715"
+      ],
+      [
+        "BURST_WINDOW_2",
+        "agg_34bfc100a63f1423",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-2: 2026-07-17 10:41:57 s/d 10:51:57 (1 events) - Triggered by Rule 5715"
+      ],
+      [
+        "BURST_WINDOW_3",
+        "agg_997ac361121dace6",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-3: 2026-07-30 14:01:34 s/d 14:11:34 (1 events) - Triggered by Rule 5715"
+      ],
+      [
+        "BURST_WINDOW_4",
+        "agg_fcc975f47ee3df01",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-4: 2026-08-11 11:34:55 s/d 11:44:55 (1 events) - Triggered by Rule 5715"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-SA-b05653b20610",
+    "priority": "P3",
+    "rule_code": "CORR-SA",
+    "category": null,
+    "risk_score": 36,
+    "target_host": "mongo-replica3-199",
+    "host_criticality": "CROWN_JEWEL",
+    "internet_exposed": false,
+    "privileged_user": null,
+    "threat_intel": true,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 80.62,
+    "llm_verdict": "FALSE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 0,
+    "title": "[P3] Host Telemetry Anomaly - Rule 5715 on mongo-replica3-199 by 192.168.1.122 (1 events)",
+    "narrative": "Consolidated Standalone Activity: Rule 5715 observed across 1 aggregate window(s) totaling 1 events on target asset 'mongo-replica3-199' (032) from source actor 192.168.1.122. First burst detected at 2026-07-17 11:32:39.669000+07:00, latest burst at 2026-07-17 11:42:39.669000+07:00.",
+    "src_ip": "192.168.1.122",
+    "analyst_notes": "Calibrated Operational Background Noise | Qwen (qwen2.5:14b): The incident involves a single event triggered by Rule 5715 on a critical asset from an internal IP address. Given the low event volume and the asset's criticality, it's prudent to investigate further. However, the priority level (P3) and risk score (36/100) suggest a low to medium risk. The source IP is internal, which reduces the likelihood of external threat. Without additional context indicating malicious activity, this appears to be operational noise or a benign routine activity.",
+    "stages": [
+      [
+        "BURST_WINDOW_1",
+        "agg_fb4c8fc2299c3ddb",
+        "AGGREGATED_ALERT",
+        "Aggregat Burst ke-1: 2026-07-17 11:32:39 s/d 11:42:39 (1 events) - Triggered by Rule 5715"
+      ]
+    ]
+  },
+  {
+    "incident_id": "INC-8A1CE59CC0473FF2",
+    "priority": "P0",
+    "rule_code": "CORR-002",
+    "category": null,
+    "risk_score": 100,
+    "target_host": "portal-bssn-163",
+    "host_criticality": "CRITICAL",
+    "internet_exposed": true,
+    "privileged_user": true,
+    "threat_intel": false,
+    "mitre": [],
+    "ml_pred": 0,
+    "ml_conf": 82.59,
+    "llm_verdict": "TRUE_POSITIVE",
+    "llm_conf": 95.0,
+    "gt_label": 0,
+    "title": "[P0] Intrusion Chain: Login -> Sudo -> Persistence on portal-bssn-163 by 192.168.1.163",
+    "narrative": "Attack Chain Detected: Intrusion Chain: Login -> Sudo -> Persistence. Origin: unknown, Target Host: portal-bssn-163, Compromised Account: root. Spanned across 7 forensic stages with 1 distinct target(s) and 2 distinct actor(s).",
+    "src_ip": "192.168.1.163",
+    "analyst_notes": "Calibrated Operational Background Noise | Qwen (qwen2.5:14b): The incident involves a critical asset being compromised through an intrusion chain that includes authentication, privilege escalation, and persistence stages. The attacker used internal network access to escalate privileges to root and establish persistence, indicating a targeted malicious intrusion.",
+    "stages": [
+      [
+        "AUTHENTICATION",
+        "U6Mhb58BKx-ZFfJ5cuBS",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-17T08:11:19.231000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "UKMhb58BKx-ZFfJ5cuBR",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-17T08:11:19.233000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "VaMhb58BKx-ZFfJ5qeAO",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5502 at 2026-07-17T08:11:33.233000+00:00"
+      ],
+      [
+        "AUTHENTICATION",
+        "V6Mhb58BKx-ZFfJ5qeAT",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [AUTHENTICATION] via Rule/Archetype 5501 at 2026-07-17T08:11:33.235000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "TqMhb58BKx-ZFfJ5cuBR",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-17T08:11:19.232000+00:00"
+      ],
+      [
+        "PRIVILEGE_ESCALATION",
+        "VqMhb58BKx-ZFfJ5qeAT",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PRIVILEGE_ESCALATION] via Rule/Archetype 5402 at 2026-07-17T08:11:33.233000+00:00"
+      ],
+      [
+        "PERSISTENCE",
+        "WqMhb58BKx-ZFfJ5qeAT",
+        "NORMALIZED_EVENT",
+        "Triggered by Stage [PERSISTENCE] via Rule/Archetype 2901 at 2026-07-17T08:11:39.079000+00:00"
+      ]
+    ]
+  }
+]

@@ -1,0 +1,16 @@
+# Wazuh CDB Allowlist for Tenant: TenantA
+# Auto-generated from calibrated SOC benign proposals
+10.20.100.252:Grafana-143
+10.20.100.252:hp-fluentd-tenant-172
+10.20.100.252:zabbix-prod-214
+127.0.0.1:Grafana-143
+127.0.0.1:discourse-180
+127.0.0.1:greylog-fluentbit-139
+127.0.0.1:hp-fluentd-tenant-172
+127.0.0.1:zabbix-prod-214
+192.168.1.122:discourse-180
+192.168.1.158:hp-fluentd-tenant-172
+192.168.1.180:discourse-180
+192.168.1.230:hp-fluentd-tenant-172
+192.168.30.114:zabbix-prod-214
+192.168.30.117:zabbix-prod-214

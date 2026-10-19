@@ -8,11 +8,13 @@ import glob
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from contextlib import contextmanager
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import json
 import psycopg2
 from psycopg2 import pool, extras
 from psycopg2.extras import execute_values
+
+from pipeline.score import SLA_MATRIX_MINUTES
 
 from config.settings import (
     DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD,
@@ -251,62 +253,6 @@ class DatabaseManager:
                 execute_values(cur, query, records, page_size=5000)
         return len(records)
 
-    def bulk_insert_events(self, events: List[Dict[str, Any]]) -> int:
-        """Bulk insert into telemetry.events (Unified Lean Table) with native JSONB payload."""
-        if not events:
-            return 0
-
-        query = """
-        INSERT INTO telemetry.events (
-            event_id, event_timestamp, agent_id, tenant_id, agent_name,
-            rule_id, rule_level, rule_description, source_ip, destination_ip,
-            source_port, destination_port, protocol, username,
-            classification_groups, mitre_attack_ids, mitre_tactics, mitre_techniques,
-            compliance_frameworks, asset_criticality_tier, is_asset_internet_exposed,
-            is_privileged_user, is_service_account, threat_intel_match, threat_intel_confidence,
-            raw_payload
-        ) VALUES %s
-        ON CONFLICT (event_id, event_timestamp) DO NOTHING;
-        """
-
-        records = [
-            (
-                e.get("event_id"),
-                e.get("event_timestamp"),
-                e.get("agent_id", "000"),
-                e.get("tenant_id", "DEFAULT"),
-                e.get("agent_name"),
-                e.get("rule_id", 0),
-                e.get("rule_level", 0),
-                e.get("rule_description", ""),
-                e.get("source_ip"),
-                e.get("destination_ip"),
-                e.get("source_port"),
-                e.get("destination_port"),
-                e.get("protocol"),
-                e.get("username"),
-                e.get("classification_groups", []),
-                e.get("mitre_attack_ids", []),
-                e.get("mitre_tactics", []),
-                e.get("mitre_techniques", []),
-                extras.Json(e.get("compliance_frameworks", {})),
-                e.get("asset_criticality_tier", "STANDARD"),
-                e.get("is_asset_internet_exposed", False),
-                e.get("is_privileged_user", False),
-                e.get("is_service_account", False),
-                e.get("threat_intel_match", False),
-                e.get("threat_intel_confidence", 0),
-                extras.Json(e.get("raw_payload", {}))
-            )
-            for e in events
-        ]
-
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET LOCAL synchronous_commit = off;")
-                execute_values(cur, query, records, page_size=5000)
-        return len(records)
-
     def upsert_aggregated_alert(self, agg: Dict[str, Any]) -> str:
         """Atomic upsert for sliding window aggregated alert."""
         query = """
@@ -480,7 +426,7 @@ class DatabaseManager:
                 a.get("suppression_rule_id"),
                 a.get("suppression_reason"),
                 int(a.get("max_inline_risk_score", 0) or 0),   # Peak risk score in this window
-                a.get("ocsf_severity_id"),                      # Highest OCSF severity in this window
+                max(1, min(6, int(a.get("ocsf_severity_id") or 1))), # Highest OCSF severity in this window (1-6)
                 a.get("tlp_level", "TLP:AMBER"),                # MISP TLP level
                 a.get("mitre_technique_id"),                    # ATT&CK technique ID
                 a.get("os_platform", "unknown"),                # OS platform dimension
@@ -862,33 +808,67 @@ class DatabaseManager:
                     # 5. Insert SOC Triage Queue Item
                     triage = inc.get("triage_queue", {})
                     if triage:
-                        ts_estab = (
-                            triage.get("priority_established_at")
+                        ts_first = (
+                            triage.get("first_detected_at")
+                            or inc.get("first_detected_at")
+                            or inc.get("first_seen_at")
+                            or inc.get("created_at")
+                            or datetime.now(timezone.utc)
+                        )
+                        ts_changed = (
+                            triage.get("priority_changed_at")
+                            or triage.get("priority_established_at")
+                            or inc.get("priority_changed_at")
                             or inc.get("priority_established_at")
                             or inc.get("last_seen_at")
                             or inc.get("created_at")
+                            or ts_first
                         )
+                        sla_deadline = triage.get("sla_deadline")
+                        if not sla_deadline:
+                            sla_mins = inc.get("sla_minutes") or triage.get("sla_minutes") or SLA_MATRIX_MINUTES.get(triage.get("priority", "P4"), 10080)
+                            if isinstance(ts_changed, datetime):
+                                sla_deadline = ts_changed + timedelta(minutes=sla_mins)
+
                         cur.execute("""
                         INSERT INTO soc_triage_queue (
                             triage_id, incident_id, assigned_analyst, priority,
                             triage_status, cooldown_until, resolution_outcome, false_positive_reason,
-                            priority_established_at
+                            priority_established_at, first_detected_at, priority_changed_at, sla_deadline
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (triage_id) DO UPDATE SET
                             triage_status = EXCLUDED.triage_status,
                             cooldown_until = COALESCE(EXCLUDED.cooldown_until, soc_triage_queue.cooldown_until),
                             resolution_outcome = EXCLUDED.resolution_outcome,
                             false_positive_reason = EXCLUDED.false_positive_reason,
                             priority = EXCLUDED.priority,
-                            priority_established_at = COALESCE(EXCLUDED.priority_established_at, soc_triage_queue.priority_established_at);
+                            priority_established_at = COALESCE(EXCLUDED.priority_established_at, soc_triage_queue.priority_established_at),
+                            first_detected_at = soc_triage_queue.first_detected_at,
+                            priority_changed_at = COALESCE(EXCLUDED.priority_changed_at, soc_triage_queue.priority_changed_at),
+                            sla_deadline = COALESCE(EXCLUDED.sla_deadline, soc_triage_queue.sla_deadline);
                         """, (
                             triage["triage_id"], triage["incident_id"],
                             triage.get("assigned_analyst"), triage["priority"],
                             triage.get("triage_status", "OPEN"), triage.get("cooldown_until"),
                             triage.get("resolution_outcome"), triage.get("false_positive_reason"),
-                            ts_estab
+                            ts_changed, ts_first, ts_changed, sla_deadline
                         ))
+
+                        # Insert ticket_aggregates
+                        for ta in inc.get("ticket_aggregates", []):
+                            cur.execute("""
+                            INSERT INTO soc_ops.ticket_aggregates
+                                (ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (ticket_id, aggregation_id) DO NOTHING;
+                            """, (
+                                triage["triage_id"],
+                                ta["aggregation_id"],
+                                ta.get("is_induk", False),
+                                ta.get("is_escalation_trigger", False),
+                                ta.get("added_at", ts_estab)
+                            ))
 
         return len(incidents)
 
@@ -912,6 +892,7 @@ class DatabaseManager:
             "correlation.incident_stages",
             "risk_engine.calculated_risk_scores",
             "risk_engine.risk_scoring_factors",
+            "soc_ops.ticket_aggregates",
             "soc_ops.soc_triage_queue",
             "soc_ops.incident_investigation_notes",
             "soc_ops.incident_response_actions",

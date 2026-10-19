@@ -1,0 +1,9 @@
+# Wazuh CDB Allowlist for Tenant: TenantB
+# Auto-generated from calibrated SOC benign proposals
+10.20.100.252:grafana-public-240
+127.0.0.1:grafana-public-240
+127.0.0.1:mongodb-honeypot-230
+127.0.0.1:public-dashboard-prod-241
+192.168.1.122:grafana-public-240
+192.168.1.122:public-dashboard-prod-241
+192.168.30.114:public-dashboard-prod-241

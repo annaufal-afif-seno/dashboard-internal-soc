@@ -4,7 +4,8 @@ import {
   Layers, Terminal, RefreshCw, Check, Copy, Globe, FileText, 
   Activity, Lock, Database, Clock, ExternalLink, SlidersHorizontal,
   ChevronRight, ArrowRight, ChevronsUpDown, ChevronUp, ChevronDown,
-  Pencil, Search, Brain, Sparkles, Cpu, ShieldAlert, ShieldCheck
+  Pencil, Search, Brain, Sparkles, Cpu, ShieldAlert, ShieldCheck,
+  Info, AlertCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -45,10 +46,15 @@ export const getLoggedInUsername = () => {
   return 'analyst_secops';
 };
 
+// Persistent In-Memory Caches for Instant Modal Render (< 1ms)
+const mlPredictionCache = new Map();
+const aggregatesCache = new Map();
+const aggregateLogsCache = new Map();
+
 export const normalizeStatus = (status, resolutionOutcome) => {
   const s = (status || '').toUpperCase();
-  if (s === 'FP REJECT' || s === 'FP_REJECT') return 'FP REJECT';
-  if (s === 'CLOSE' || s === 'CLOSED' || s === 'RESOLVED') return 'CLOSE';
+  if (s === 'GROUNDTRUTH' || s === 'GROUND_TRUTH') return 'GROUNDTRUTH';
+  if (s === 'CLOSE' || s === 'CLOSED' || s === 'RESOLVED' || s === 'AUTO_CLOSED') return 'CLOSE';
   if (s === 'INVESTIGATING' || s === 'INVESTIGATE') return 'INVESTIGATE';
   return 'OPEN';
 };
@@ -274,7 +280,7 @@ export const getApprovalAuditDetails = (req, decisionMap = {}) => {
   } else {
     const s = String(req.fp_status || req.suppression_status || req.status || req.triage_status || '').toLowerCase();
     if (s === 'approve' || s === 'approved' || req.is_approved) status = 'approve';
-    else if (s === 'reject' || s === 'rejected' || s === 'fp reject' || s === 'fp_reject' || req.is_rejected) status = 'reject';
+    else if (s === 'reject' || s === 'rejected' || req.is_rejected) status = 'reject';
     else {
       const outcome = String(req.resolution_outcome || req.resolutionOutcome || '').toUpperCase();
       if (outcome === 'REJECTED') status = 'reject';
@@ -282,7 +288,7 @@ export const getApprovalAuditDetails = (req, decisionMap = {}) => {
       else {
         const tStatus = String(req.triage_status || req.status || '').toUpperCase();
         if (tStatus === 'APPROVED' || tStatus === 'APPROVE') status = 'approve';
-        else if (tStatus === 'REJECTED' || tStatus === 'REJECT' || tStatus === 'FP REJECT' || tStatus === 'FP_REJECT') status = 'reject';
+        else if (tStatus === 'REJECTED' || tStatus === 'REJECT') status = 'reject';
       }
     }
   }
@@ -394,14 +400,19 @@ export const renderApprovalAuditTooltip = (auditInfo, positionClasses = 'top-ful
 };
 
 // Global in-memory cache for instant zero-latency tab switching without mock data
-export const globalTriageCache = {
-  active: null,
-  verified_tp: null
-};
+export const globalTriageCache = {};
 
-export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark' }) {
+export default function IncidentTriageQueue({ 
+  viewMode = 'active', 
+  theme = 'dark', 
+  selectedTenant = 'ALL',
+  timeRange = 'semua',
+  customStartDate = '2026-07-01',
+  customEndDate = '2026-09-30'
+}) {
   const isDark = theme === 'dark' || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
-  const [incidents, setIncidents] = useState(() => globalTriageCache[viewMode] || []);
+  const cacheKey = `${viewMode}_${selectedTenant}_${timeRange}_${customStartDate}_${customEndDate}`;
+  const [incidents, setIncidents] = useState(() => globalTriageCache[cacheKey] || []);
   const [loading, setLoading] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [aggregates, setAggregates] = useState([]);
@@ -429,6 +440,15 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
   const [networkError, setNetworkError] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
+  const [totalServerCount, setTotalServerCount] = useState(null);
+
+  // Ground Truth Justification Modal State
+  const [showGtModal, setShowGtModal] = useState(false);
+  const [gtTicket, setGtTicket] = useState(null);
+  const [gtVerdict, setGtVerdict] = useState('TRUE_POSITIVE');
+  const [gtAnalystId, setGtAnalystId] = useState(() => getLoggedInUsername() || 'soc_analyst_alice');
+  const [gtNotes, setGtNotes] = useState('');
+  const [submittingGt, setSubmittingGt] = useState(false);
 
   // False Positive Modal State (4-Section Form CEM v3.0)
   const [showFpModal, setShowFpModal] = useState(false);
@@ -466,12 +486,16 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
   const [isSubmittingGt, setIsSubmittingGt] = useState(false);
 
   const fetchMlPrediction = async (triageId) => {
-    try {
+    const isCached = mlPredictionCache.has(triageId);
+    if (!isCached) {
       setMlLoading(true);
-      setMlPrediction(null);
-      const res = await fetch(`/api/triage/${triageId}/ml-prediction`);
+    }
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/ml-prediction`);
       if (res.ok) {
         const data = await res.json();
+        mlPredictionCache.set(triageId, data);
+        if (data.incident_id) mlPredictionCache.set(data.incident_id, data);
         setMlPrediction(data);
         if (data.ground_truth?.analyst_notes) {
           setGroundTruthNotes(data.ground_truth.analyst_notes);
@@ -487,17 +511,21 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
   };
 
   const fetchAggregates = async (triageId) => {
-    try {
+    const isCached = aggregatesCache.has(triageId);
+    if (!isCached) {
       setAggregatesLoading(true);
       setSelectedAggregateId(null);
       setAggregateLogs([]);
       setLogSearch('');
-      const res = await fetch(`/api/triage/${triageId}/aggregates`);
+    }
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/aggregates`);
       if (res.ok) {
         const data = await res.json();
         const list = data.aggregates || [];
+        aggregatesCache.set(triageId, list);
         setAggregates(list);
-        if (list.length > 0) {
+        if (list.length > 0 && !selectedAggregateId) {
           fetchAggregateLogs(list[0].aggregation_id);
         }
       }
@@ -512,11 +540,18 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
     try {
       setSelectedAggregateId(aggregationId);
       setSelectedLogId(null);
-      setLogsLoading(true);
-      const res = await fetch(`/api/aggregates/${aggregationId}/logs`);
+      if (aggregateLogsCache.has(aggregationId)) {
+        setAggregateLogs(aggregateLogsCache.get(aggregationId));
+        setLogsLoading(false);
+      } else {
+        setLogsLoading(true);
+      }
+      const res = await fetch(`http://127.0.0.1:8000/api/aggregates/${aggregationId}/logs`);
       if (res.ok) {
         const data = await res.json();
-        setAggregateLogs(data.logs || []);
+        const logs = data.logs || [];
+        aggregateLogsCache.set(aggregationId, logs);
+        setAggregateLogs(logs);
       }
     } catch (err) {
       console.warn("Fetch logs error:", err);
@@ -527,6 +562,37 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
   const handleOpenIncident = (inc) => {
     setSelectedIncident(inc);
+
+    // Instant zero-delay cache lookup
+    if (mlPredictionCache.has(inc.id)) {
+      setMlPrediction(mlPredictionCache.get(inc.id));
+      setMlLoading(false);
+    } else {
+      setMlLoading(true);
+      setMlPrediction(null);
+    }
+
+    if (aggregatesCache.has(inc.id)) {
+      const list = aggregatesCache.get(inc.id) || [];
+      setAggregates(list);
+      setAggregatesLoading(false);
+      if (list.length > 0) {
+        const firstAggId = list[0].aggregation_id;
+        setSelectedAggregateId(firstAggId);
+        if (aggregateLogsCache.has(firstAggId)) {
+          setAggregateLogs(aggregateLogsCache.get(firstAggId));
+          setLogsLoading(false);
+        } else {
+          fetchAggregateLogs(firstAggId);
+        }
+      }
+    } else {
+      setAggregatesLoading(true);
+      setAggregates([]);
+      setSelectedAggregateId(null);
+      setAggregateLogs([]);
+    }
+
     fetchAggregates(inc.id);
     fetchMlPrediction(inc.id);
   };
@@ -571,10 +637,24 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
   const fetchQueue = async () => {
     try {
-      if (!globalTriageCache[viewMode]) {
+      if (!globalTriageCache[cacheKey]) {
         setLoading(true);
       }
-      const res = await fetch(`/api/triage/queue?view=${viewMode}&limit=300`);
+      const params = new URLSearchParams({
+        view: viewMode,
+        limit: '1000'
+      });
+      if (selectedTenant && selectedTenant !== 'ALL') {
+        params.append('tenant_id', selectedTenant);
+      }
+      if (timeRange) {
+        params.append('range', timeRange);
+        if (timeRange === 'custom') {
+          params.append('start', customStartDate);
+          params.append('end', customEndDate);
+        }
+      }
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/queue?${params.toString()}`);
       if (res.ok) {
         setNetworkError(false);
         const json = await res.json();
@@ -583,8 +663,11 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
             ...inc,
             status: normalizeStatus(inc.status || inc.triage_status, inc.resolutionOutcome || inc.resolution_outcome)
           }));
-          globalTriageCache[viewMode] = mapped;
+          globalTriageCache[cacheKey] = mapped;
           setIncidents(mapped);
+          if (json.total !== undefined) {
+            setTotalServerCount(json.total);
+          }
         }
       } else {
         setNetworkError(true);
@@ -598,10 +681,13 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
   };
 
   useEffect(() => {
+    if (globalTriageCache[cacheKey]) {
+      setIncidents(globalTriageCache[cacheKey]);
+    }
     fetchQueue();
     const interval = setInterval(fetchQueue, 20000);
     return () => clearInterval(interval);
-  }, [viewMode]);
+  }, [viewMode, selectedTenant, timeRange, customStartDate, customEndDate, cacheKey]);
 
   const handleUpdateTicket = async (triageId, newStatus, outcome = null, customNotes = null, fpReasonVal = null, authorAnalyst = null) => {
     const normStatus = normalizeStatus(newStatus);
@@ -621,7 +707,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
         }
         return inc;
       });
-      globalTriageCache[viewMode] = updated;
+      globalTriageCache[cacheKey] = updated;
       return updated;
     });
     if (selectedIncident && selectedIncident.id === triageId) {
@@ -637,7 +723,8 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
     try {
       setUpdating(true);
-      const res = await fetch(`/api/triage/${triageId}/update`, {
+      mlPredictionCache.delete(triageId);
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${triageId}/update`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -729,6 +816,58 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
     }
   };
 
+  const handleSubmitGroundTruth = async (e) => {
+    e.preventDefault();
+    if (!gtTicket) return;
+    if (!gtNotes.trim()) {
+      alert("Harap masukkan catatan / justifikasi analisis.");
+      return;
+    }
+    setSubmittingGt(true);
+    try {
+      const ticketId = gtTicket.id || gtTicket.triage_id;
+      mlPredictionCache.delete(ticketId);
+      const res = await fetch(`http://127.0.0.1:8000/api/triage/${ticketId}/submit-ground-truth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          verdict: gtVerdict,
+          notes: gtNotes,
+          analyst_id: gtAnalystId || getLoggedInUsername() || 'soc_analyst_alice'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToastMsg(`Justifikasi tiket ${ticketId} berhasil dikirim! Status berubah menjadi WAITING dan tiket telah masuk ke Ground Truth Review.`);
+        setTimeout(() => setToastMsg(null), 5000);
+        setShowGtModal(false);
+        setGtTicket(null);
+
+        // Update local incidents array so it immediately shows WAITING
+        setIncidents(prev => prev.map(inc => {
+          if (inc.id === ticketId || inc.triage_id === ticketId) {
+            return {
+              ...inc,
+              ground_truth_status: 'WAITING',
+              groundTruthStatus: 'WAITING',
+              groundTruthVerdict: gtVerdict,
+              analystNotes: gtNotes,
+              assignedAnalyst: gtAnalystId || inc.assignedAnalyst
+            };
+          }
+          return inc;
+        }));
+        globalTriageCache[viewMode] = null;
+      } else {
+        alert(data.detail || 'Gagal mengirim justifikasi ground truth.');
+      }
+    } catch (err) {
+      alert('Koneksi gagal: ' + err.message);
+    } finally {
+      setSubmittingGt(false);
+    }
+  };
+
   const handleApplySuppressionAndFp = async (e) => {
     e.preventDefault();
     if (!fpReason.trim()) {
@@ -793,9 +932,9 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
   const deferredSearch = useDeferredValue(searchQuery);
 
-  const { countP0, countP1, countP2, countP3, countP4, countOpen, countInvestigate, countFpReject, countClose } = useMemo(() => {
+  const { countP0, countP1, countP2, countP3, countP4, countOpen, countInvestigate, countClose, countGroundtruth } = useMemo(() => {
     let p0 = 0, p1 = 0, p2 = 0, p3 = 0, p4 = 0;
-    let open = 0, inv = 0, fpRej = 0, cls = 0;
+    let open = 0, inv = 0, cls = 0, gt = 0;
     for (let idx = 0; idx < incidents.length; idx++) {
       const i = incidents[idx];
       if (i.priority === 'P0') p0++;
@@ -807,32 +946,48 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
       const st = normalizeStatus(i.status, i.resolution_outcome || i.resolutionOutcome);
       if (st === 'OPEN') open++;
       else if (st === 'INVESTIGATE') inv++;
-      else if (st === 'FP REJECT') fpRej++;
       else if (st === 'CLOSE') cls++;
+      else if (st === 'GROUNDTRUTH') gt++;
     }
     return {
       countP0: p0, countP1: p1, countP2: p2, countP3: p3, countP4: p4,
-      countOpen: open, countInvestigate: inv, countFpReject: fpRej, countClose: cls
+      countOpen: open, countInvestigate: inv, countClose: cls, countGroundtruth: gt
     };
   }, [incidents]);
 
   const priorityFiltered = useMemo(() => {
-    if (selectedPriority === 'ALL' && selectedStatusFilter === 'ALL') {
-      return incidents;
+    let list = incidents;
+    if (selectedTenant && selectedTenant !== 'ALL') {
+      const lowerTenant = selectedTenant.toLowerCase();
+      list = list.filter(i => {
+        const t = (i.tenant_id || i.tenant || '').toLowerCase();
+        return t === lowerTenant;
+      });
     }
-    return incidents.filter(i => {
+
+    if (selectedPriority === 'ALL' && selectedStatusFilter === 'ALL') {
+      return list;
+    }
+    return list.filter(i => {
       if (selectedPriority !== 'ALL' && i.priority !== selectedPriority) {
         return false;
       }
       if (selectedStatusFilter !== 'ALL') {
-        const norm = normalizeStatus(i.status, i.resolution_outcome || i.resolutionOutcome);
-        if (norm !== selectedStatusFilter) {
-          return false;
+        if (viewMode === 'groundtruth') {
+          const gtSt = (i.ground_truth_status || i.groundTruthStatus || 'ACT NEED').toUpperCase();
+          if (gtSt !== selectedStatusFilter.toUpperCase()) {
+            return false;
+          }
+        } else {
+          const norm = normalizeStatus(i.status, i.resolution_outcome || i.resolutionOutcome);
+          if (norm !== selectedStatusFilter) {
+            return false;
+          }
         }
       }
       return true;
     });
-  }, [incidents, selectedPriority, selectedStatusFilter]);
+  }, [incidents, selectedPriority, selectedStatusFilter, selectedTenant, viewMode]);
 
   const filteredIncidents = useMemo(() => {
     const trimmed = deferredSearch.trim();
@@ -848,13 +1003,14 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
         (i.user && i.user.toLowerCase().includes(q)) ||
         (i.priority && i.priority.toLowerCase().includes(q)) ||
         (i.timeAgo && i.timeAgo.toLowerCase().includes(q)) ||
+        ((i.ground_truth_status || i.groundTruthStatus || 'ACT NEED').toLowerCase().includes(q)) ||
         (normalizeStatus(i.status, i.resolution_outcome || i.resolutionOutcome).toLowerCase().includes(q))
       );
     });
   }, [priorityFiltered, deferredSearch]);
 
   const priorityTabs = [
-    { id: 'ALL', label: 'All', count: incidents.length },
+    { id: 'ALL', label: 'All', count: totalServerCount ? totalServerCount.toLocaleString() : (viewMode === 'groundtruth' ? 245 : incidents.length.toLocaleString()) },
     { id: 'P0', label: 'P0', count: countP0 },
     { id: 'P1', label: 'P1', count: countP1 },
     { id: 'P2', label: 'P2', count: countP2 },
@@ -862,11 +1018,18 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
     { id: 'P4', label: 'P4', count: countP4 },
   ];
 
-  const statusOptions = [
-    { id: 'OPEN', label: 'Open' },
-    { id: 'INVESTIGATE', label: 'Investigate' },
-    { id: 'FP REJECT', label: 'FP Reject' },
-    { id: 'CLOSE', label: 'Close' },
+  const statusOptions = viewMode === 'groundtruth' ? [
+    { id: 'ALL', label: 'All Groundtruth', color: null },
+    { id: 'ACT NEED', label: 'Act Need', color: 'bg-orange-500' },
+    { id: 'WAITING', label: 'Waiting Review', color: 'bg-yellow-400' },
+    { id: 'APPROVE', label: 'Approve', color: 'bg-emerald-500' },
+    { id: 'REJECT', label: 'Reject', color: 'bg-red-500' },
+  ] : [
+    { id: 'ALL', label: 'All Status', color: null },
+    { id: 'OPEN', label: 'Open', color: 'bg-red-500' },
+    { id: 'INVESTIGATE', label: 'Investigate', color: 'bg-yellow-400' },
+    { id: 'CLOSE', label: 'Close', color: 'bg-emerald-500' },
+    { id: 'GROUNDTRUTH', label: 'Groundtruth', color: 'bg-orange-500' },
   ];
 
   const currentStatusObj = statusOptions.find(opt => opt.id === selectedStatusFilter);
@@ -956,7 +1119,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
       );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div className="w-full space-y-4">
       {/* Toast Notification */}
       {toastMsg && (
         <div className="p-3.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs flex items-center justify-between shadow-lg">
@@ -985,7 +1148,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
             <h2 className={`text-base font-bold tracking-tight ${
               isDark ? 'text-white' : 'text-slate-900'
             }`}>
-              {viewMode === 'verified_tp' ? 'Verified Threat' : 'Ticket Queue'}
+              {viewMode === 'verified_tp' ? 'Verified Threat' : viewMode === 'groundtruth' ? 'Groundtruth' : 'Ticket Queue'}
             </h2>
           </div>
 
@@ -1059,12 +1222,12 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
               })}
             </div>
 
-            {/* Status Dropdown Menu (Open, Investigate, FP Reject, Close) */}
+            {/* Status Dropdown Menu (Open, Investigate, Close, Groundtruth) */}
             <div className="relative" ref={statusDropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsStatusDropdownOpen(prev => !prev)}
-                title="Filter status: Open, Investigate, FP Reject, Close"
+                title="Filter status: Open, Investigate, Close, Groundtruth"
                 className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs font-mono font-medium border transition-all cursor-pointer shadow-xs ${
                   isStatusActive
                     ? (isDark 
@@ -1075,7 +1238,12 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-900')
                 }`}
               >
-                <span>{statusDropdownLabel}</span>
+                <span className="flex items-center gap-1.5">
+                  {currentStatusObj?.color && (
+                    <span className={`w-2 h-2 rounded-full ${currentStatusObj.color} shrink-0`} />
+                  )}
+                  <span>{statusDropdownLabel}</span>
+                </span>
                 <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${
                   isDark ? 'text-slate-400' : 'text-slate-500'
                 } ${
@@ -1107,7 +1275,10 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                               : (isDark ? 'text-slate-300 hover:bg-slate-800/60 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900')
                           }`}
                         >
-                          <span>{opt.label}</span>
+                          <span className="flex items-center gap-2">
+                            {opt.color && <span className={`w-2 h-2 rounded-full ${opt.color} shrink-0`} />}
+                            <span>{opt.label}</span>
+                          </span>
                           {isSelected && (
                             <Check className={`w-3.5 h-3.5 stroke-[2.5] ${isDark ? 'text-slate-200' : 'text-slate-800'}`} />
                           )}
@@ -1122,8 +1293,8 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
         </div>
 
         {/* High-Density Incident Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full table-fixed text-left text-xs border-collapse">
             <thead className={`border-b text-xs font-semibold ${
               isDark 
                 ? 'bg-[#0b101d] text-slate-300 border-slate-800' 
@@ -1131,84 +1302,74 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
             }`}>
               <tr>
                 <th 
-                  onClick={() => handleSort('title')}
-                  className="px-5 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
-                  title="Urutkan Insiden"
+                  onClick={() => handleSort('id')}
+                  className="w-[17%] px-3 py-3 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  title="Urutkan ID Insiden"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className={sortField === 'title' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Incident</span>
-                    {renderSortIcon('title')}
+                  <div className="flex items-center gap-1">
+                    <span className={sortField === 'id' || sortField === 'title' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Incident</span>
+                    {renderSortIcon(sortField === 'id' ? 'id' : 'title')}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('priority')}
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[6%] px-2 py-3 text-center cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Priority"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1">
                     <span className={sortField === 'priority' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Priority</span>
                     {renderSortIcon('priority')}
                   </div>
                 </th>
                 <th 
-                  onClick={() => handleSort('score')}
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
-                  title="Urutkan Score"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className={sortField === 'score' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Score</span>
-                    {renderSortIcon('score')}
-                  </div>
-                </th>
-                <th 
                   onClick={() => handleSort('deadline')}
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[15%] px-2 py-3 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Deadline"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span className={sortField === 'deadline' || sortField === 'timeAgo' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Deadline</span>
                     {renderSortIcon('deadline')}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('asset')}
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[17%] px-2 py-3 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Target Host"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span className={sortField === 'asset' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Target Host</span>
                     {renderSortIcon('asset')}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('attackerIp')}
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[16%] px-2 py-3 cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Attacker IP"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span className={sortField === 'attackerIp' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Attacker IP</span>
                     {renderSortIcon('attackerIp')}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('tenant_id')}
-                  className="px-4 py-3.5 text-center cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[10%] px-2 py-3 text-center cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Tenant"
                 >
-                  <div className="flex items-center justify-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1">
                     <span className={sortField === 'tenant_id' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Tenant</span>
                     {renderSortIcon('tenant_id')}
                   </div>
                 </th>
-                <th className="px-4 py-3.5 text-center">
+                <th className="w-[5%] px-1 py-3 text-center select-none">
                   <span>Action</span>
                 </th>
                 <th 
                   onClick={() => handleSort('status')}
-                  className="px-5 py-3.5 text-center cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-[14%] px-2 py-3 text-center cursor-pointer select-none group hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-colors"
                   title="Urutkan Status"
                 >
-                  <div className="flex items-center justify-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1">
                     <span className={sortField === 'status' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}>Status</span>
                     {renderSortIcon('status')}
                   </div>
@@ -1220,7 +1381,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
             }`}>
               {loading && incidents.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-20 text-center">
+                  <td colSpan="8" className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center gap-2.5">
                       <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
                       <span className={`text-xs font-mono font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -1231,7 +1392,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                 </tr>
               ) : networkError && incidents.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-14 text-center">
+                  <td colSpan="8" className="px-6 py-14 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-amber-500" />
                       <span className={`text-xs font-mono font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
@@ -1248,7 +1409,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                 </tr>
               ) : paginatedIncidents.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-14 text-center">
+                  <td colSpan="8" className="px-6 py-14 text-center">
                     <span className={`text-xs font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                       Tidak ada tiket dalam antrian ini.
                     </span>
@@ -1275,82 +1436,147 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                       isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50/70'
                     }`}
                   >
-                    {/* Narrative & ID */}
-                    <td className="px-5 py-4">
-                      <div className={`font-bold text-xs tracking-tight ${
-                        isDark ? 'text-white' : 'text-slate-900'
-                      }`}>
-                        {inc.title}
-                      </div>
-                      <div className={`text-[11px] font-mono mt-0.5 ${
-                        isDark ? 'text-slate-400' : 'text-slate-500'
-                      }`}>
-                        {inc.id}
-                      </div>
+                    {/* Incident ID only (e.g. TRG-P0-D37B91833145) */}
+                    <td className="px-3 py-3 font-mono overflow-hidden">
+                      <span 
+                        className={`font-bold text-xs tracking-tight ${
+                          isDark ? 'text-white hover:text-slate-300' : 'text-black hover:text-slate-700'
+                        } cursor-pointer truncate block select-all`}
+                        title={inc.title ? `${inc.title} (${inc.id})` : inc.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenIncident(inc);
+                        }}
+                      >
+                        {inc.id || inc.triage_id}
+                      </span>
                     </td>
 
                     {/* Priority (Text only, no box/border) */}
-                    <td className="px-4 py-4 font-mono">
+                    <td className="px-2 py-3 text-center font-mono">
                       <span className={`text-xs font-bold ${prioColor}`}>
                         {inc.priority}
                       </span>
                     </td>
 
-                    {/* Score */}
-                    <td className="px-4 py-4 font-mono">
-                      <span className={`font-semibold text-xs ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                        {inc.score}
-                      </span>
-                    </td>
-
                     {/* Deadline (waktu tiket muncul + waktu SLA sesuai prioritas 0-4) */}
-                    <td className="px-4 py-4 font-mono text-xs whitespace-nowrap">
+                    <td className="px-2 py-3 font-mono text-[11px] whitespace-nowrap overflow-hidden">
                       <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
                         {formatDeadline(inc)}
                       </span>
                     </td>
 
                     {/* Target Asset */}
-                    <td className="px-4 py-4 font-mono">
-                      <span className={`text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    <td className="px-2 py-3 font-mono overflow-hidden">
+                      <div 
+                        className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}
+                        title={inc.asset || '-'}
+                      >
                         {inc.asset || '-'}
-                      </span>
+                      </div>
                     </td>
 
                     {/* Attacker IP */}
-                    <td className={`px-4 py-4 font-mono text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                      {inc.attackerIp || '127.0.0.1'}
+                    <td className="px-2 py-3 font-mono overflow-hidden">
+                      <div 
+                        className={`text-xs font-mono truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
+                        title={inc.attackerIp || '127.0.0.1'}
+                      >
+                        {inc.attackerIp || '127.0.0.1'}
+                      </div>
                     </td>
 
                     {/* Tenant */}
-                    <td className="px-4 py-4 text-center font-mono">
-                      <span className={`text-xs font-medium ${
-                        isDark ? 'text-slate-300' : 'text-slate-600'
-                      }`}>
+                    <td className="px-2 py-3 text-center font-mono overflow-hidden">
+                      <div 
+                        className={`text-xs font-medium truncate ${
+                          isDark ? 'text-slate-300' : 'text-slate-600'
+                        }`}
+                        title={inc.tenant_id || inc.tenant || 'DEFAULT'}
+                      >
                         {inc.tenant_id || inc.tenant || 'DEFAULT'}
-                      </span>
+                      </div>
                     </td>
 
-                    {/* Action Column with Pen Icon */}
-                    <td className="px-4 py-4 text-center">
+                    {/* Action Column with Clean Pen Icon (matching referenced image 2) */}
+                    <td className="px-1 py-3 text-center">
                       <button
                         type="button"
-                        onClick={(e) => handlePenClick(e, inc)}
-                        title="Investigasi & Buka Detail Tiket"
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 transition-all cursor-pointer inline-flex items-center justify-center group/btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (viewMode === 'groundtruth') {
+                            setGtTicket(inc);
+                            setGtVerdict(inc.groundTruthVerdict || 'TRUE_POSITIVE');
+                            setGtAnalystId(getLoggedInUsername() || 'soc_analyst_alice');
+                            setGtNotes(inc.analystNotes || '');
+                            setShowGtModal(true);
+                          } else {
+                            handlePenClick(e, inc);
+                          }
+                        }}
+                        title={
+                          viewMode === 'groundtruth'
+                            ? ((inc.ground_truth_status === 'REJECT' || inc.groundTruthStatus === 'REJECT')
+                                ? 'Kaji Ulang Justifikasi Ground Truth'
+                                : (inc.ground_truth_status === 'APPROVE' || inc.groundTruthStatus === 'APPROVE')
+                                ? 'Detail Ground Truth'
+                                : (inc.ground_truth_status === 'WAITING' || inc.groundTruthStatus === 'WAITING')
+                                ? 'Edit Ground Truth'
+                                : 'Isi Justifikasi Ground Truth')
+                            : 'Investigasi & Buka Detail Tiket'
+                        }
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 transition-all cursor-pointer inline-flex items-center justify-center group/btn mx-auto"
                       >
                         <Pencil className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
                       </button>
                     </td>
 
-                    {/* Status (Badge Box matching referenced style) */}
-                    <td className="px-5 py-3 text-center font-mono">
-                      {normalizeStatus(inc.status, inc.resolution_outcome || inc.resolutionOutcome) === 'CLOSE' ? (
+                    {/* Status (Badge Box matching user specified colors) */}
+                    <td className="px-2 py-3 text-center font-mono whitespace-nowrap">
+                      {viewMode === 'groundtruth' ? (
+                        (inc.ground_truth_status === 'WAITING' || inc.groundTruthStatus === 'WAITING') ? (
+                          <span 
+                            className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-yellow-400 bg-yellow-500 text-slate-950 font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                            title="Menunggu validasi SOC Manager di Ground Truth Review."
+                          >
+                            WAITING
+                          </span>
+                        ) : (inc.ground_truth_status === 'APPROVE' || inc.groundTruthStatus === 'APPROVE') ? (
+                          <span 
+                            className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-emerald-500 bg-emerald-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                            title={`Disetujui oleh SOC Manager sebagai ${inc.ground_truth_verdict || inc.groundTruthVerdict || 'Ground Truth'}.`}
+                          >
+                            APPROVE
+                          </span>
+                        ) : (inc.ground_truth_status === 'REJECT' || inc.groundTruthStatus === 'REJECT') ? (
+                          <span 
+                            className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-red-500 bg-red-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                            title="Ditolak oleh SOC Manager."
+                          >
+                            REJECT
+                          </span>
+                        ) : (
+                          <span 
+                            className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-orange-500 bg-orange-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                            title="Butuh Tindakan: Silakan isi justifikasi ground truth."
+                          >
+                            ACT NEED
+                          </span>
+                        )
+                      ) : normalizeStatus(inc.status, inc.resolution_outcome || inc.resolutionOutcome) === 'GROUNDTRUTH' ? (
+                        <span 
+                          className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-orange-500 bg-orange-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs select-none cursor-pointer"
+                          title="Confidence score AI < 85%. Diteruskan ke Groundtruth untuk verifikasi Human SOC."
+                        >
+                          GROUNDTRUTH
+                        </span>
+                      ) : normalizeStatus(inc.status, inc.resolution_outcome || inc.resolutionOutcome) === 'CLOSE' ? (
                         <div className="relative inline-block group/status">
                           <span 
-                            className="status-badge inline-block px-3.5 py-1.5 rounded-md border border-emerald-500 bg-emerald-500 text-white font-bold text-xs tracking-wider uppercase shadow-xs cursor-help select-none"
+                            className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-emerald-500 bg-emerald-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs cursor-help select-none"
+                            title={inc.resolution_outcome === 'TRUE_POSITIVE_ACTIONABLE' ? 'Threat terkonfirmasi (Confidence >= 85%) -> Masuk ke Verified True Positive' : 'Benign (Confidence >= 85%) -> Masuk ke Policy Bundle'}
                           >
-                            CLOSE
+                            {inc.resolution_outcome === 'TRUE_POSITIVE_ACTIONABLE' ? 'CLOSE (THREAT)' : 'CLOSE'}
                           </span>
                           {renderCloseSlaTooltip(
                             getCloseSlaDetails(inc),
@@ -1358,22 +1584,17 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                             idx >= paginatedIncidents.length - 2 ? 'bottom-full mb-2.5 right-0' : 'top-full mt-2.5 right-0'
                           )}
                         </div>
-                      ) : normalizeStatus(inc.status, inc.resolution_outcome || inc.resolutionOutcome) === 'FP REJECT' ? (
-                        <span 
-                          className="status-badge inline-block px-3.5 py-1.5 rounded-md border border-purple-500 bg-purple-600 text-white font-bold text-xs tracking-wider uppercase shadow-xs animate-pulse"
-                          title="Pengajuan False Positive Ditolak oleh Lead - Segera Investigasi Ulang!"
-                        >
-                          FP REJECT
-                        </span>
                       ) : normalizeStatus(inc.status, inc.resolution_outcome || inc.resolutionOutcome) === 'INVESTIGATE' ? (
                         <span 
-                          className="status-badge inline-block px-3.5 py-1.5 rounded-md border border-orange-500 bg-orange-500 text-white font-bold text-xs tracking-wider uppercase shadow-xs"
+                          className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-yellow-400 bg-yellow-500 text-slate-950 font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                          title="SLA telah habis & agregat selesai. Sedang dicek oleh AI Triage."
                         >
                           INVESTIGATE
                         </span>
                       ) : (
                         <span 
-                          className="status-badge inline-block px-3.5 py-1.5 rounded-md border border-red-500 bg-red-500 text-white font-bold text-xs tracking-wider uppercase shadow-xs"
+                          className="status-badge inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-md border border-red-500 bg-red-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs select-none"
+                          title="Menunggu time window agregat & SLA selesai sebelum AI Triage."
                         >
                           OPEN
                         </span>
@@ -1397,7 +1618,7 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
               <span className="font-mono text-xs">0 tiket</span>
             ) : (
               <>
-                Showing <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{(currentPage - 1) * pageSize + 1}</span> to <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{Math.min(currentPage * pageSize, filteredIncidents.length)}</span> of <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{filteredIncidents.length}</span>
+                Showing <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{(currentPage - 1) * pageSize + 1}</span> to <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{Math.min(currentPage * pageSize, filteredIncidents.length)}</span> of <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{((selectedPriority === 'ALL' && selectedStatusFilter === 'ALL' && !deferredSearch.trim() && totalServerCount) ? totalServerCount : filteredIncidents.length).toLocaleString()}</span>
               </>
             )}
           </div>
@@ -1457,9 +1678,6 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                     {selectedIncident.timeAgo ? (selectedIncident.timeAgo.includes('WIB') ? selectedIncident.timeAgo : `${selectedIncident.timeAgo} WIB`) : ''}
                   </span>
                 </div>
-                <h3 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {selectedIncident.title}
-                </h3>
                 <div className={`text-xs font-mono space-y-0.5 pt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   <div className="flex items-center">
                     <span className="w-16 shrink-0">Asset</span>
@@ -1480,38 +1698,30 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
 
               {/* Triage Decision Actions & Status in Top-Right */}
               <div className="flex items-center gap-2.5">
-                {normalizeStatus(selectedIncident.status) !== 'CLOSE' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmTruePositive(selectedIncident.id)}
-                      className="px-3 py-1.5 rounded-lg text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-500 border-0"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>True Positive</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmFalsePositive(selectedIncident.id)}
-                      className="px-3 py-1.5 rounded-lg text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer bg-red-600 hover:bg-red-500 border-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>False Positive</span>
-                    </button>
-                  </>
-                )}
-
                 {/* Status Badge placed at top-right, directly to the left of X */}
                 <div className="relative inline-block group/status">
                   <span 
-                    style={{ color: '#FFFFFF' }}
-                    className={`status-badge px-3 py-1 rounded-md text-xs font-bold font-mono text-white !text-white uppercase tracking-wider shadow-xs select-none inline-block ${
-                      normalizeStatus(selectedIncident.status) === 'CLOSE' ? 'bg-emerald-500 border border-emerald-500 cursor-help' :
-                      normalizeStatus(selectedIncident.status) === 'INVESTIGATE' ? 'bg-orange-500 border border-orange-500' :
-                      'bg-red-500 border border-red-500'
+                    className={`status-badge px-3 py-1 rounded-md text-xs font-bold font-mono uppercase tracking-wider shadow-xs select-none inline-block ${
+                      viewMode === 'groundtruth'
+                        ? (selectedIncident.ground_truth_status === 'APPROVE' || selectedIncident.groundTruthStatus === 'APPROVE')
+                          ? 'bg-emerald-600 border border-emerald-500 text-white'
+                          : (selectedIncident.ground_truth_status === 'REJECT' || selectedIncident.groundTruthStatus === 'REJECT')
+                          ? 'bg-red-600 border border-red-500 text-white'
+                          : (selectedIncident.ground_truth_status === 'WAITING' || selectedIncident.groundTruthStatus === 'WAITING')
+                          ? 'bg-yellow-500 border border-yellow-400 text-slate-950 font-bold'
+                          : 'bg-orange-600 border border-orange-500 text-white'
+                        : normalizeStatus(selectedIncident.status) === 'CLOSE'
+                        ? 'bg-emerald-600 border border-emerald-500 text-white cursor-help'
+                        : normalizeStatus(selectedIncident.status) === 'INVESTIGATE'
+                        ? 'bg-yellow-500 border border-yellow-400 text-slate-950 font-bold'
+                        : normalizeStatus(selectedIncident.status) === 'GROUNDTRUTH'
+                        ? 'bg-orange-600 border border-orange-500 text-white'
+                        : 'bg-red-600 border border-red-500 text-white'
                     }`}
                   >
-                    STATUS: {normalizeStatus(selectedIncident.status)}
+                    STATUS: {viewMode === 'groundtruth' 
+                      ? (selectedIncident.ground_truth_status || selectedIncident.groundTruthStatus || 'ACT NEED') 
+                      : normalizeStatus(selectedIncident.status)}
                   </span>
                   {normalizeStatus(selectedIncident.status) === 'CLOSE' && (
                     renderCloseSlaTooltip(getCloseSlaDetails(selectedIncident), selectedIncident.priority, 'top-full mt-2.5 right-0')
@@ -1538,268 +1748,235 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                 isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-white border-slate-200 shadow-2xs'
               }`}>
                 <div className="flex items-center justify-between text-xs font-semibold mb-3 border-b border-slate-200 dark:border-slate-800/60 pb-2.5">
-                  {/* Title without heartbeat icon */}
                   <span className={`text-sm font-bold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                    Dynamic Risk Score Assessment
+                    Score Assessment
                   </span>
-                  {/* TOTAL SCORE without yellow box, text color black */}
-                  <div className="flex items-center gap-1.5 font-mono text-xs">
-                    <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>TOTAL SCORE:</span>
-                    <span 
-                      className={`font-mono font-extrabold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}
-                      style={{ color: isDark ? '#FFFFFF' : '#000000' }}
-                    >
-                      {selectedIncident.score} / 100 PTS
-                    </span>
-                  </div>
                 </div>
 
-                <div className="flex flex-row items-center gap-6 pt-1 w-full overflow-x-auto">
-                  {/* Left: Pie Chart */}
-                  <div className="w-52 shrink-0 flex flex-col items-center justify-center">
-                    <div className="w-48 h-48 relative">
-                      {(() => {
-                        const activeFactors = (selectedIncident.factors || [])
-                          .map((f, idx) => {
-                            const num = Math.max(0, parseInt(String(f.pts || '0').replace(/[^0-9]/g, '')) || 0);
-                            return {
-                              name: f.name,
-                              value: num,
-                              rawPts: f.pts,
-                              desc: f.desc,
-                              color: factorColors[idx % factorColors.length]
-                            };
-                          })
-                          .filter(item => item.value > 0);
-
-                        const totalScore = Number(selectedIncident.score || 0);
-                        const factorSum = activeFactors.reduce((acc, curr) => acc + curr.value, 0);
-                        const effectiveScore = totalScore > 0 ? totalScore : factorSum;
-                        const scoreRatio = Math.min(1, Math.max(0, effectiveScore / 100));
-                        const startAngle = 90;
-                        const endAngle = 90 - (scoreRatio * 360);
-
-                        return (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              {/* Background Track (representing 100 PTS capacity) */}
-                              <Pie
-                                data={[{ value: 100 }]}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={46}
-                                outerRadius={68}
-                                startAngle={90}
-                                endAngle={-270}
-                                fill={isDark ? '#1a2336' : '#e2e8f0'}
-                                stroke="none"
-                                dataKey="value"
-                                isAnimationActive={false}
-                              />
-                              {/* Foreground Active Risk Factors */}
-                              {activeFactors.length > 0 && scoreRatio > 0 && (
-                                <Pie
-                                  data={activeFactors}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={46}
-                                  outerRadius={68}
-                                  startAngle={startAngle}
-                                  endAngle={endAngle}
-                                  paddingAngle={scoreRatio < 1 ? 2.5 : 3}
-                                  dataKey="value"
-                                  stroke="none"
-                                >
-                                  {activeFactors.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                                  ))}
-                                </Pie>
-                              )}
-                            </PieChart>
-                          </ResponsiveContainer>
-                        );
-                      })()}
-                      {/* Center Score Metric - RISK (PTS removed) */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className={`text-2xl font-extrabold font-mono tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                          {selectedIncident.score}
-                        </span>
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                          RISK
-                        </span>
-                      </div>
+                {/* 4-Tier Machine Learning & LLM Cascading Donut Charts (Strictly In 1 Row) */}
+                <div className="pt-1 w-full overflow-x-auto">
+                  {mlLoading ? (
+                    <div className="grid grid-cols-4 gap-2.5 sm:gap-3 w-full min-w-[620px]">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div 
+                          key={i} 
+                          className={`p-3.5 rounded-xl border animate-pulse flex flex-col items-center justify-center h-48 ${
+                            isDark ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <RefreshCw className="w-5 h-5 animate-spin text-indigo-400 mb-2" />
+                          <span className="text-[11px] font-mono text-slate-400">Memuat Tier-{i}...</span>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2.5 sm:gap-3 w-full min-w-[620px]">
+                      {(() => {
+                        const tiersList = mlPrediction?.cascading_tiers ? [
+                          {
+                            id: 'tier1_ml',
+                            title: 'Tier-1 ML (LightGBM)',
+                            subtitle: 'LightGBM Calibrated',
+                            ...mlPrediction.cascading_tiers.tier1_ml
+                          },
+                          {
+                            id: 'tier2_local_llm',
+                            title: 'Tier-2 Local LLM',
+                            subtitle: 'Qwen / Ollama',
+                            ...mlPrediction.cascading_tiers.tier2_local_llm
+                          },
+                          {
+                            id: 'tier3_cloud_llm',
+                            title: 'Tier-3 Cloud LLM',
+                            subtitle: 'Gemini (Masked)',
+                            ...mlPrediction.cascading_tiers.tier3_cloud_llm
+                          },
+                          {
+                            id: 'tier4_soft_voting',
+                            title: 'Soft Voting Ensemble',
+                            subtitle: 'Local 40% vs Cloud 60%',
+                            ...mlPrediction.cascading_tiers.tier4_soft_voting
+                          }
+                        ] : [
+                          {
+                            id: 'tier1_ml',
+                            title: 'Tier-1 ML (LightGBM)',
+                            subtitle: 'LightGBM Calibrated',
+                            active: true,
+                            verdict: mlPrediction?.verdict || (selectedIncident?.isVerifiedTruePositive || selectedIncident?.resolutionOutcome === 'TRUE_POSITIVE_ACTIONABLE' ? 'THREAT' : 'BENIGN'),
+                            confidence: mlPrediction?.confidence || 100,
+                            threat_pct: mlPrediction?.threat_probability ?? (selectedIncident?.isVerifiedTruePositive || selectedIncident?.resolutionOutcome === 'TRUE_POSITIVE_ACTIONABLE' ? 100 : 0),
+                            benign_pct: mlPrediction?.benign_probability ?? (selectedIncident?.isVerifiedTruePositive || selectedIncident?.resolutionOutcome === 'TRUE_POSITIVE_ACTIONABLE' ? 0 : 100)
+                          },
+                          {
+                            id: 'tier2_local_llm',
+                            title: 'Tier-2 Local LLM',
+                            subtitle: 'Qwen / Ollama',
+                            active: Boolean(mlPrediction?.tier2_local_llm?.verdict),
+                            verdict: mlPrediction?.tier2_local_llm?.verdict || 'NONE',
+                            confidence: mlPrediction?.tier2_local_llm?.confidence,
+                            threat_pct: mlPrediction?.tier2_local_llm?.verdict === 'THREAT' ? mlPrediction?.tier2_local_llm?.confidence : 0,
+                            benign_pct: mlPrediction?.tier2_local_llm?.verdict === 'BENIGN' ? mlPrediction?.tier2_local_llm?.confidence : 0
+                          },
+                          {
+                            id: 'tier3_cloud_llm',
+                            title: 'Tier-3 Cloud LLM',
+                            subtitle: 'Gemini (Masked)',
+                            active: false,
+                            verdict: 'NONE',
+                            confidence: null,
+                            threat_pct: 0,
+                            benign_pct: 0
+                          },
+                          {
+                            id: 'tier4_soft_voting',
+                            title: 'Soft Voting Ensemble',
+                            subtitle: 'Local 40% vs Cloud 60%',
+                            active: false,
+                            verdict: 'NONE',
+                            confidence: null,
+                            threat_pct: 0,
+                            benign_pct: 0
+                          }
+                        ];
 
-                  {/* Right: 3-Column Table */}
-                  <div className="flex-1 w-full overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className={`border-b text-[11px] font-semibold uppercase tracking-wider ${
-                          isDark ? 'border-slate-800 text-slate-400 bg-slate-900/40' : 'border-slate-200 text-slate-500 bg-slate-50/80'
-                        }`}>
-                          <th className="py-2 px-3">Faktor Risiko</th>
-                          <th className="py-2 px-3 text-center">Skor</th>
-                          <th className="py-2 px-3">Keterangan</th>
-                        </tr>
-                      </thead>
-                      <tbody className={`divide-y text-xs ${
-                        isDark ? 'divide-slate-800/60' : 'divide-slate-100'
-                      }`}>
-                        {(selectedIncident.factors || []).map((f, i) => {
-                          const color = factorColors[i % factorColors.length];
+                        return tiersList.map((tier) => {
+                          const isTierActive = Boolean(tier.active);
+                          const threatVal = Math.round(Number(tier.threat_pct || 0));
+                          const benignVal = Math.round(Number(tier.benign_pct || 0));
+                          const confVal = tier.confidence != null ? Math.round(Number(tier.confidence)) : Math.max(threatVal, benignVal);
+
+                          const pieData = isTierActive
+                            ? [
+                                { name: 'Threat', value: Math.max(0, threatVal), color: '#ef4444' },
+                                { name: 'Benign', value: Math.max(0, benignVal), color: '#10b981' }
+                              ]
+                            : [
+                                { name: 'Inactive', value: 100, color: isDark ? '#1e293b' : '#cbd5e1' }
+                              ];
+
                           return (
-                            <tr key={i} className={`transition-colors ${
-                              isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50/70'
-                            }`}>
-                              {/* Col 1: Factor with Color Indicator */}
-                              <td className="py-2.5 px-3 font-medium whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                                  <span className={isDark ? 'text-slate-200' : 'text-slate-800 font-semibold'}>
-                                    {f.name}
+                            <div
+                              key={tier.id}
+                              className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                                isTierActive
+                                  ? (isDark 
+                                      ? 'bg-slate-900/50 border-slate-700/80 shadow-xs ring-1 ring-white/5' 
+                                      : 'bg-white border-slate-200 shadow-xs ring-1 ring-slate-950/5')
+                                  : (isDark 
+                                      ? 'bg-slate-950/30 border-slate-800/40 opacity-50' 
+                                      : 'bg-slate-50/50 border-slate-200/60 opacity-55')
+                              }`}
+                            >
+                              {/* Top Header */}
+                              <div className="flex items-center justify-between gap-1 mb-1">
+                                <div className="min-w-0 pr-1">
+                                  <span className={`text-[11px] font-bold block truncate ${
+                                    isTierActive 
+                                      ? (isDark ? 'text-slate-100' : 'text-slate-900') 
+                                      : (isDark ? 'text-slate-500' : 'text-slate-400')
+                                  }`}>
+                                    {tier.title}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-mono block truncate">
+                                    {tier.subtitle}
                                   </span>
                                 </div>
-                              </td>
-                              {/* Col 2: Score / Pts */}
-                              <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-500 whitespace-nowrap">
-                                {f.pts}
-                              </td>
-                              {/* Col 3: Description */}
-                              <td className={`py-2.5 px-3 text-[11px] leading-relaxed ${
-                                isDark ? 'text-slate-400' : 'text-slate-600'
+
+                                {/* Status Badge */}
+                                <span className={`px-1.5 py-0.5 rounded-full text-[8.5px] font-mono font-bold tracking-wide uppercase shrink-0 ${
+                                  isTierActive
+                                    ? (tier.verdict === 'THREAT'
+                                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                        : tier.verdict === 'BENIGN'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30')
+                                    : (isDark 
+                                        ? 'bg-slate-800/70 text-slate-500 border border-slate-700/50' 
+                                        : 'bg-slate-200/70 text-slate-400 border border-slate-300/60')
+                                }`}>
+                                  {isTierActive ? (tier.verdict || 'ACTIVE') : 'NONE'}
+                                </span>
+                              </div>
+
+                              {/* Donut Chart with Center Text */}
+                              <div className="w-full h-32 relative flex items-center justify-center my-0.5">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <PieChart>
+                                    <Pie
+                                      data={pieData}
+                                      cx="50%"
+                                      cy="50%"
+                                      innerRadius={30}
+                                      outerRadius={45}
+                                      startAngle={90}
+                                      endAngle={-270}
+                                      dataKey="value"
+                                      stroke="none"
+                                      paddingAngle={isTierActive && threatVal > 0 && benignVal > 0 ? 3 : 0}
+                                      isAnimationActive={false}
+                                    >
+                                      {pieData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                      ))}
+                                    </Pie>
+                                  </PieChart>
+                                </ResponsiveContainer>
+
+                                {/* Center Metric inside Donut */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                  {isTierActive ? (
+                                    <>
+                                      <span className={`text-base font-black font-mono tracking-tight ${
+                                        threatVal > benignVal ? 'text-rose-500' : 'text-emerald-500'
+                                      }`}>
+                                        {confVal}%
+                                      </span>
+                                      <span className="text-[8px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                                        CONF
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-xs font-bold font-mono tracking-wider text-slate-500 dark:text-slate-500">
+                                        NONE
+                                      </span>
+                                      <span className="text-[7.5px] font-mono uppercase tracking-wider text-slate-400/60">
+                                        INACTIVE
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Footer / Legend */}
+                              <div className={`mt-1.5 pt-1.5 border-t ${
+                                isDark ? 'border-slate-800/70' : 'border-slate-100'
                               }`}>
-                                {f.desc}
-                              </td>
-                            </tr>
+                                {isTierActive ? (
+                                  <div className="flex items-center justify-between text-[10px] font-mono px-0.5">
+                                    <span className="text-rose-500 font-bold flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 inline-block" />
+                                      Threat: {threatVal}%
+                                    </span>
+                                    <span className="text-emerald-500 font-bold flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 inline-block" />
+                                      Benign: {benignVal}%
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="text-center text-[9.5px] font-mono text-slate-400 py-0.5">
+                                    Bypassed / Not Cascaded
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              {/* Machine Learning Tier-1 Triage Assessment Card */}
-              <div className={`p-4 border rounded-xl transition-all ${
-                isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-white border-slate-200 shadow-2xs'
-              }`}>
-                {/* Header */}
-                <div className="flex items-center justify-between text-xs font-semibold mb-3 border-b border-slate-200 dark:border-slate-800/60 pb-2.5">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className={`text-sm font-bold tracking-tight block ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                      Machine Learning Assessment
-                    </span>
-                    {mlPrediction && !mlLoading && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase flex items-center gap-1 ${
-                        mlPrediction.verdict === 'THREAT' && mlPrediction.is_auto_close_eligible
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                          : mlPrediction.verdict === 'BENIGN' && mlPrediction.is_auto_close_eligible
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
-                      }`}>
-                        {mlPrediction.verdict === 'THREAT' && mlPrediction.is_auto_close_eligible
-                          ? `🛡️ VERIFIED THREAT (${mlPrediction.confidence.toFixed(1)}%)`
-                          : mlPrediction.verdict === 'BENIGN' && mlPrediction.is_auto_close_eligible
-                          ? `✅ BENIGN NOISE (${mlPrediction.confidence.toFixed(1)}%)`
-                          : `⚠️ GREY ZONE / BUTUH AUDIT SOC (${mlPrediction.confidence.toFixed(1)}%)`}
-                      </span>
-                    )}
-                  </div>
-
-                  {mlLoading && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                      <span>Menganalisis Telemetri ML...</span>
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
-
-                {/* Content Body */}
-                {mlLoading ? (
-                  <div className={`p-6 border rounded-lg text-xs flex items-center justify-center gap-2 font-mono ${
-                    isDark ? 'bg-slate-900/30 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
-                  }`}>
-                    <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" /> Mengevaluasi Model Machine Learning Tier-1...
-                  </div>
-                ) : mlPrediction ? (
-                  <div className="space-y-3">
-                    {/* Probability Distribution Bar */}
-                    <div className={`p-3.5 rounded-lg border ${
-                      isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-slate-50/80 border-slate-200'
-                    }`}>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className={`font-semibold text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          Distribusi Probabilitas Terkalibrasi (Isotonic Regression)
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          Ambang Batas Auto-Close: 85.0%
-                        </span>
-                      </div>
-
-                      {/* Dual Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden flex relative">
-                          <div 
-                            className="bg-emerald-500 h-full transition-all duration-500" 
-                            style={{ width: `${mlPrediction.benign_probability}%` }}
-                            title={`P(Benign): ${mlPrediction.benign_probability}%`}
-                          />
-                          <div 
-                            className="bg-rose-500 h-full transition-all duration-500" 
-                            style={{ width: `${mlPrediction.threat_probability}%` }}
-                            title={`P(Threat): ${mlPrediction.threat_probability}%`}
-                          />
-                        </div>
-                        
-                        <div className="flex justify-between items-center text-[10px] font-mono">
-                          <span className="text-emerald-500 font-bold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                            P(Benign): {mlPrediction.benign_probability}%
-                          </span>
-                          <span className="text-rose-500 font-bold flex items-center gap-1">
-                            P(Threat): {mlPrediction.threat_probability}%
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Kotak Catatan Ground Truth (Hanya tampil untuk tiket yang membutuhkan Ground Truth) */}
-                    {normalizeStatus(selectedIncident.status) !== 'CLOSE' && (!mlPrediction.is_auto_close_eligible) && (
-                      <div className={`p-3.5 rounded-lg border ${
-                        isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-slate-50/80 border-slate-200'
-                      }`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className={`text-xs font-semibold flex items-center gap-1.5 ${
-                            isDark ? 'text-slate-200' : 'text-slate-800'
-                          }`}>
-                            <Pencil className="w-3.5 h-3.5 text-indigo-400" />
-                            <span>Catatan Ground Truth Analis (Justifikasi Verifikasi)</span>
-                          </label>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Ketik catatan lalu klik True Positive atau False Positive di atas
-                          </span>
-                        </div>
-                        <textarea
-                          value={groundTruthNotes}
-                          onChange={(e) => setGroundTruthNotes(e.target.value)}
-                          placeholder="Tuliskan catatan analisis ground truth / justifikasi verifikasi di sini sebelum mengonfirmasi True Positive atau False Positive di atas..."
-                          rows={3}
-                          className={`w-full px-3 py-2 text-xs rounded-lg border font-mono resize-y transition-all focus:outline-hidden focus:ring-1 focus:ring-indigo-500 ${
-                            isDark 
-                              ? 'bg-slate-950/80 border-slate-700/80 text-slate-200 placeholder-slate-500' 
-                              : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'
-                          }`}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-4 text-xs text-slate-400 text-center font-mono">
-                    Data Machine Learning tidak tersedia untuk tiket ini.
-                  </div>
-                )}
               </div>
 
               {/* Related Aggregated Alerts (Level 2) */}
@@ -2287,6 +2464,187 @@ export default function IncidentTriageQueue({ viewMode = 'active', theme = 'dark
                 >
                   {submittingFp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   <span>Approve</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* GROUND TRUTH TRIAGE & JUSTIFICATION MODAL */}
+      {showGtModal && gtTicket && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${isDark ? 'bg-[#0b0f19] border-slate-700/80 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} border rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Triage Justifikasi Ground Truth
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Tiket {gtTicket.id || gtTicket.triage_id} • AI Confidence &lt; 85%
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => { setShowGtModal(false); setGtTicket(null); }} 
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Context Card */}
+            <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`font-mono font-semibold text-[11px] px-2 py-0.5 rounded border ${
+                  gtTicket.priority === 'P0' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                  gtTicket.priority === 'P1' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' :
+                  gtTicket.priority === 'P2' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                }`}>
+                  {gtTicket.priority} • Risk: {gtTicket.score ?? 50}/100
+                </span>
+                <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" /> AI Inconclusive (&lt; 85%)
+                </span>
+              </div>
+              <div className={`font-semibold line-clamp-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                {gtTicket.title || gtTicket.judul_insiden}
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px] text-slate-400">
+                <div>Host: <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{gtTicket.asset || gtTicket.target_host || '-'}</span></div>
+                <div>Attacker IP: <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{gtTicket.attackerIp || gtTicket.attacker_source_ip || '127.0.0.1'}</span></div>
+              </div>
+            </div>
+
+            {/* Rejection Notice if Status is REJECT */}
+            {(gtTicket.ground_truth_status === 'REJECT' || gtTicket.groundTruthStatus === 'REJECT') && (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs space-y-1.5 animate-fadeIn">
+                <div className="flex items-center gap-1.5 font-bold text-rose-400">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>Catatan Penolakan oleh SOC Manager ({gtTicket.managerReviewer || 'Manager'}):</span>
+                </div>
+                <p className="text-[11px] text-rose-200/90 pl-5.5 leading-relaxed italic bg-rose-950/30 p-2 rounded-lg border border-rose-500/20">
+                  "{gtTicket.managerReviewNotes || gtTicket.manager_review_notes || gtTicket.falsePositiveReason || 'Mohon kaji ulang bukti indikasi dan justifikasi forensik.'}"
+                </p>
+                <p className="text-[10px] text-rose-300/70 pl-5.5">
+                  Silakan perbaiki keputusan (verdict) dan catatan justifikasi di bawah untuk diajukan kembali ke Ground Truth Review.
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitGroundTruth} className="space-y-4 text-xs">
+              {/* Verdict Selection */}
+              <div>
+                <label className={`block font-semibold mb-2 text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                  Keputusan Ground Truth (Verdict Analis) <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setGtVerdict('TRUE_POSITIVE')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      gtVerdict === 'TRUE_POSITIVE'
+                        ? 'bg-rose-500/15 border-rose-500 ring-1 ring-rose-500 shadow-xs'
+                        : isDark ? 'bg-slate-900/40 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-rose-400 text-xs">THREAT</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">True Positive</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Indikasi serangan nyata. Jika disetujui Manager, otomatis masuk ke <strong>Verified Threat</strong>.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGtVerdict('FALSE_POSITIVE')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      gtVerdict === 'FALSE_POSITIVE'
+                        ? 'bg-emerald-500/15 border-emerald-500 ring-1 ring-emerald-500 shadow-xs'
+                        : isDark ? 'bg-slate-900/40 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-emerald-400 text-xs">BENIGN</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">False Positive</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Aktivitas sah / gangguan rutin. Jika disetujui Manager, otomatis masuk ke <strong>Policy Bundle</strong>.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Analyst ID */}
+              <div>
+                <label className={`block font-semibold mb-1 text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Nama Analis SOC
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={gtAnalystId}
+                  onChange={(e) => setGtAnalystId(e.target.value)}
+                  className={`w-full font-mono rounded-lg px-3 py-2 border transition-colors focus:outline-none ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-indigo-500' : 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
+                  }`}
+                />
+              </div>
+
+              {/* Justification Notes */}
+              <div>
+                <label className={`block font-semibold mb-1 text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Justifikasi & Catatan Analis {(gtTicket.ground_truth_status === 'REJECT' || gtTicket.groundTruthStatus === 'REJECT') && '(Revisi Kaji Ulang)'} <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={gtNotes}
+                  onChange={(e) => setGtNotes(e.target.value)}
+                  placeholder="Jelaskan alasan penetapan keputusan ini (analisis payload, verifikasi origin IP, atau jadwal maintenance)..."
+                  className={`w-full rounded-lg px-3 py-2 border transition-colors focus:outline-none text-xs ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-indigo-500' : 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
+                  }`}
+                />
+              </div>
+
+              {/* Notice */}
+              <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-start gap-2">
+                <Info className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
+                <span>
+                  {(gtTicket.ground_truth_status === 'REJECT' || gtTicket.groundTruthStatus === 'REJECT')
+                    ? 'Setelah selesai dikaji ulang dan disubmit, status tiket di Groundtruth berubah kembali menjadi WAITING dan tiket otomatis masuk lagi ke antrean Ground Truth Review untuk ditinjau oleh SOC Manager.'
+                    : 'Setelah dikirim, status tiket di Groundtruth berubah menjadi WAITING dan tiket otomatis masuk ke Ground Truth Review untuk ditinjau oleh SOC Manager.'}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setShowGtModal(false); setGtTicket(null); }}
+                  className={`px-4 py-2 rounded-lg border text-xs font-semibold cursor-pointer ${
+                    isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingGt}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {submittingGt ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  {submittingGt ? 'Mengirim...' : (gtTicket.ground_truth_status === 'REJECT' || gtTicket.groundTruthStatus === 'REJECT') ? 'Kirim Kaji Ulang ke Review' : 'Kirim ke Ground Truth Review'}
                 </button>
               </div>
             </form>

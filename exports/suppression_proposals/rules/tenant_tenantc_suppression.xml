@@ -1,0 +1,331 @@
+<!-- Auto-Generated Wazuh Upstream Suppression Rules for Tenant: TenantC -->
+<group name="tenant_tuning,suppression,tenantc,">
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 202 -->
+  <rule id="112370" level="0">
+    <if_sid>202</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 203 -->
+  <rule id="112371" level="0">
+    <if_sid>203</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 205 -->
+  <rule id="112372" level="0">
+    <if_sid>205</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 503 -->
+  <rule id="112373" level="0">
+    <if_sid>503</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 506 -->
+  <rule id="112374" level="0">
+    <if_sid>506</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 533 -->
+  <rule id="112375" level="0">
+    <if_sid>533</if_sid>
+    <hostname>automation\-parallel\-243|hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 550 -->
+  <rule id="112376" level="0">
+    <if_sid>550</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 553 -->
+  <rule id="112377" level="0">
+    <if_sid>553</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 554 -->
+  <rule id="112378" level="0">
+    <if_sid>554</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 591 -->
+  <rule id="112379" level="0">
+    <if_sid>591</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 2901 -->
+  <rule id="112380" level="0">
+    <if_sid>2901</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 2902 -->
+  <rule id="112381" level="0">
+    <if_sid>2902</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 2903 -->
+  <rule id="112382" level="0">
+    <if_sid>2903</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 2904 -->
+  <rule id="112383" level="0">
+    <if_sid>2904</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5402 -->
+  <rule id="112384" level="0">
+    <if_sid>5402</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5501 -->
+  <rule id="112385" level="0">
+    <if_sid>5501</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5502 -->
+  <rule id="112386" level="0">
+    <if_sid>5502</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5503 -->
+  <rule id="112387" level="0">
+    <if_sid>5503</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5715 -->
+  <rule id="112388" level="0">
+    <if_sid>5715</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5901 -->
+  <rule id="112389" level="0">
+    <if_sid>5901</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 5902 -->
+  <rule id="112390" level="0">
+    <if_sid>5902</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19003 -->
+  <rule id="112391" level="0">
+    <if_sid>19003</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19004 -->
+  <rule id="112392" level="0">
+    <if_sid>19004</if_sid>
+    <hostname>leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19010 -->
+  <rule id="112393" level="0">
+    <if_sid>19010</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19011 -->
+  <rule id="112394" level="0">
+    <if_sid>19011</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19014 -->
+  <rule id="112395" level="0">
+    <if_sid>19014</if_sid>
+    <hostname>leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 19015 -->
+  <rule id="112396" level="0">
+    <if_sid>19015</if_sid>
+    <hostname>leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23502 -->
+  <rule id="112397" level="0">
+    <if_sid>23502</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23503 -->
+  <rule id="112398" level="0">
+    <if_sid>23503</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23504 -->
+  <rule id="112399" level="0">
+    <if_sid>23504</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23505 -->
+  <rule id="112400" level="0">
+    <if_sid>23505</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23506 -->
+  <rule id="112401" level="0">
+    <if_sid>23506</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 23508 -->
+  <rule id="112402" level="0">
+    <if_sid>23508</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 31101 -->
+  <rule id="112403" level="0">
+    <if_sid>31101</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 31122 -->
+  <rule id="112404" level="0">
+    <if_sid>31122</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 31151 -->
+  <rule id="112405" level="0">
+    <if_sid>31151</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 31410 -->
+  <rule id="112406" level="0">
+    <if_sid>31410</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 40704 -->
+  <rule id="112407" level="0">
+    <if_sid>40704</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|automation\-parallel\-243|hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 52002 -->
+  <rule id="112408" level="0">
+    <if_sid>52002</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 52004 -->
+  <rule id="112409" level="0">
+    <if_sid>52004</if_sid>
+    <hostname>Learning\-acadcsirt\-dimas\-123|leaning\-sgu\-dimas\-124</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantC: Suppress benign noise for Wazuh Rule 100050 -->
+  <rule id="112410" level="0">
+    <if_sid>100050</if_sid>
+    <hostname>hportal\-prod\-159</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantC</description>
+    <options>no_log</options>
+  </rule>
+</group>

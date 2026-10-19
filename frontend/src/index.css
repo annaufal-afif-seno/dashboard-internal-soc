@@ -1737,11 +1737,25 @@ html.light .status-badge,
   color: #ffffff !important;
 }
 
-/* Console / Code blocks remain dark terminal in light mode for high forensic readability */
-[data-theme="light"] pre,
-html.light pre {
+/* Console / Code blocks remain dark terminal in light mode for high forensic readability, except raw-log-viewer */
+[data-theme="light"] pre:not(.raw-log-viewer),
+html.light pre:not(.raw-log-viewer) {
   background-color: #0f172a !important;
   color: #38bdf8 !important;
+}
+
+[data-theme="light"] pre.raw-log-viewer,
+html.light pre.raw-log-viewer {
+  background-color: #f8fafc !important;
+  color: #000000 !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] pre.raw-log-viewer,
+html.dark pre.raw-log-viewer {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
 }
 
 
@@ -1848,4 +1862,24 @@ html.light .custom-pie-tooltip .tooltip-desc {
 }
 .custom-feed-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
+}
+
+/* Custom sleek visible scrollbar for dropdown menus and modals */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.4) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.7);
 }

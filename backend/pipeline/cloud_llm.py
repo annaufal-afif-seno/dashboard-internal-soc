@@ -56,12 +56,21 @@ class CloudLLMTriageClient:
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         )
 
+    _cached_available: Optional[bool] = None
+    _last_check_ts: float = 0.0
+
     def is_available(self) -> bool:
-        """Check if Gemini API Key is configured and accessible."""
+        """Check if Gemini API Key is configured and accessible (cached for 300s)."""
+        now = time.time()
+        if CloudLLMTriageClient._cached_available is not None and (now - CloudLLMTriageClient._last_check_ts) < 300.0:
+            return CloudLLMTriageClient._cached_available
+
         if not self.api_key or len(self.api_key.strip()) < 10:
+            CloudLLMTriageClient._cached_available = False
+            CloudLLMTriageClient._last_check_ts = now
             return False
+
         try:
-            # Lightweight connectivity check
             url = f"{self.endpoint_url}?key={self.api_key}"
             payload = {
                 "contents": [{"parts": [{"text": "ping"}]}],
@@ -72,10 +81,15 @@ class CloudLLMTriageClient:
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return resp.status == 200
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                is_ok = (resp.status == 200)
+                CloudLLMTriageClient._cached_available = is_ok
+                CloudLLMTriageClient._last_check_ts = now
+                return is_ok
         except Exception as e:
-            logger.warning(f"[CloudLLM] Gemini check failed: {e}")
+            logger.warning(f"[CloudLLM] Gemini check failed ({e}). Marking offline for 300s.")
+            CloudLLMTriageClient._cached_available = False
+            CloudLLMTriageClient._last_check_ts = now
             return False
 
     def sanitize_incident(self, incident: Dict[str, Any]) -> Dict[str, Any]:

@@ -271,11 +271,11 @@ class TicketDeduplicationGuard:
                           AND i.target_host = %s
                           AND (i.tenant_id = %s OR %s IS NULL)
                           AND (
-                            (q.priority = 'P0' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '15 minutes') > %s) OR
-                            (q.priority = 'P1' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '60 minutes') > %s) OR
-                            (q.priority = 'P2' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '4 hours') > %s) OR
-                            (q.priority = 'P3' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '1 day') > %s) OR
-                            (q.priority = 'P4' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '7 days') > %s)
+                            (q.priority = 'P0' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '15 minutes') > %s) OR
+                            (q.priority = 'P1' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '60 minutes') > %s) OR
+                            (q.priority = 'P2' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '4 hours') > %s) OR
+                            (q.priority = 'P3' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '1 day') > %s) OR
+                            (q.priority = 'P4' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '7 days') > %s)
                           )
                         ORDER BY q.created_at DESC
                         LIMIT 1;
@@ -1181,11 +1181,11 @@ class CorrelationEngine:
                           AND i.target_host = %s
                           AND (i.tenant_id = %s OR %s IS NULL)
                           AND (
-                            (q.priority = 'P0' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '15 minutes') > %s) OR
-                            (q.priority = 'P1' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '60 minutes') > %s) OR
-                            (q.priority = 'P2' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '4 hours') > %s) OR
-                            (q.priority = 'P3' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '1 day') > %s) OR
-                            (q.priority = 'P4' AND (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '7 days') > %s)
+                            (q.priority = 'P0' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '15 minutes') > %s) OR
+                            (q.priority = 'P1' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '60 minutes') > %s) OR
+                            (q.priority = 'P2' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '4 hours') > %s) OR
+                            (q.priority = 'P3' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '1 day') > %s) OR
+                            (q.priority = 'P4' AND (COALESCE(q.priority_changed_at, q.priority_established_at, q.created_at) + INTERVAL '7 days') > %s)
                           )
                         ORDER BY q.created_at DESC LIMIT 1;
                     """
@@ -1217,18 +1217,21 @@ class CorrelationEngine:
             return False
         score_map = {"P0": 95, "P1": 75, "P2": 55, "P3": 35, "P4": 15}
         new_score = score_map.get(new_priority, 50)
-        ts_now = escalated_at or datetime.now(timezone.utc)
+        sla_mins = SLA_MATRIX_MINUTES.get(new_priority, 10080)
+        new_deadline = ts_now + timedelta(minutes=sla_mins)
         try:
             with self._db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         UPDATE soc_ops.soc_triage_queue
                         SET priority = %s,
+                            priority_changed_at = %s,
                             priority_established_at = %s,
+                            sla_deadline = %s,
                             triage_status = CASE WHEN triage_status = 'HOLDING_P4' THEN 'OPEN' ELSE triage_status END,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE incident_id = %s;
-                    """, (new_priority, ts_now, incident_id))
+                    """, (new_priority, ts_now, ts_now, new_deadline, incident_id))
                     cur.execute("""
                         UPDATE risk_engine.calculated_risk_scores
                         SET total_score = %s, soc_priority = %s, calculated_at = CURRENT_TIMESTAMP
@@ -1304,6 +1307,23 @@ class CorrelationEngine:
             incident_id=incident_id, current_agg=aggregate, reference_time=ref_time
         )
 
+        # Determine priority across Induk and 24h correlated child stages
+        prio, reason, sla_mins = self._risk_scorer.determine_priority({"stages": stages})
+
+        # Build ticket_aggregates tracking (1 Induk + 24h correlated children)
+        curr_agg_id = str(aggregate.get("aggregation_id") or "")
+        ticket_aggs = []
+        for stg in stages:
+            if stg.get("evidence_type") == "AGGREGATED_ALERT":
+                ref_id = str(stg.get("reference_id") or "")
+                is_induk = (ref_id == curr_agg_id)
+                ticket_aggs.append({
+                    "aggregation_id": ref_id,
+                    "is_induk": is_induk,
+                    "is_escalation_trigger": False,
+                    "added_at": ref_time
+                })
+
         return {
             "action": "CREATED_NEW_TICKET",
             "incident_id": incident_id,
@@ -1316,12 +1336,16 @@ class CorrelationEngine:
             "target_severity": prio,
             "priority": prio,
             "first_seen_at": earliest_seen or w_start,
+            "first_detected_at": earliest_seen or w_start or ref_time,
             "last_seen_at": w_end,
             "priority_established_at": ref_time,
+            "priority_changed_at": ref_time,
             "sla_minutes": sla_mins,
+            "sla_deadline": (ref_time + timedelta(minutes=sla_mins)) if isinstance(ref_time, datetime) else None,
             "related_incident_ids": [],
             "burst_count": 1,
             "stages": stages,
+            "ticket_aggregates": ticket_aggs,
         }
 
     # =========================================================================
@@ -1590,11 +1614,14 @@ class CorrelationEngine:
             "target_host": standalone.get("target_host") or agg.get("target"),
             "incident_status": "DETECTED",
             "first_seen_at": earliest_seen or agg.get("window_start"),
+            "first_detected_at": earliest_seen or agg.get("window_start") or ref_dt,
             "last_seen_at": agg.get("window_end"),
             "target_severity": p_val,
             "priority": p_val,
             "priority_established_at": ref_dt,
+            "priority_changed_at": ref_dt,
             "sla_minutes": standalone.get("sla_minutes", 10080),
+            "sla_deadline": (ref_dt + timedelta(minutes=standalone.get("sla_minutes", 10080))) if isinstance(ref_dt, datetime) else None,
             "stages": stages,
             "related_incident_ids": standalone.get("related_incident_ids", []),
             "events_count": agg.get("event_count", 1),
@@ -1606,6 +1633,8 @@ class CorrelationEngine:
             "dominant_http_status": agg.get("dominant_http_status"),
             "is_scanner_ua": agg.get("is_scanner_ua", False),
             "triage_status": standalone.get("triage_status", "NEW"),
+            "ticket_aggregates": standalone.get("ticket_aggregates", []),
+            "triage_id": standalone.get("triage_id"),
         }
 
     def _append_to_existing_ticket(
@@ -1710,7 +1739,8 @@ class CorrelationEngine:
                         {"stages": [{"stage_name": s} for s in all_stage_names]}
                     )
 
-                    if PRIORITY_RANK.get(new_p, 0) > PRIORITY_RANK.get(curr_priority, 0):
+                    is_escalation = PRIORITY_RANK.get(new_p, 0) > PRIORITY_RANK.get(curr_priority, 0)
+                    if is_escalation:
                         # IN-PLACE ELEVATION: Reset SLA stopwatch to the arrival timestamp of this elevating aggregate!
                         self.upgrade_ticket_in_place(
                             incident_id=incident_id,
@@ -1718,6 +1748,27 @@ class CorrelationEngine:
                             justification=f"In-place escalation ({curr_priority} -> {new_p}): {justification}",
                             escalated_at=last_seen
                         )
+
+                    # Track appended aggregate in soc_ops.ticket_aggregates
+                    cur.execute("""
+                        SELECT triage_id FROM soc_ops.soc_triage_queue WHERE incident_id = %s;
+                    """, (incident_id,))
+                    row_trg = cur.fetchone()
+                    triage_id_for_agg = row_trg[0] if row_trg else incident_id
+
+                    cur.execute("""
+                        INSERT INTO soc_ops.ticket_aggregates
+                            (ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at)
+                        VALUES (%s, %s, FALSE, %s, %s)
+                        ON CONFLICT (ticket_id, aggregation_id) DO NOTHING;
+                    """, (
+                        triage_id_for_agg,
+                        agg_id,
+                        is_escalation,
+                        last_naive
+                    ))
+
+                    if is_escalation:
                         return new_p
                     return curr_priority
 

@@ -143,7 +143,7 @@ export default function PolicyBundlesView({
   const fetchGroups = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/suppression/groups');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/groups');
       if (res.ok) {
         const data = await res.json();
         setGroups(data.groups || []);
@@ -157,7 +157,7 @@ export default function PolicyBundlesView({
 
   const fetchSharedLists = async () => {
     try {
-      const res = await fetch('/api/suppression/shared-lists');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/shared-lists');
       if (res.ok) {
         const data = await res.json();
         setSharedLists(data.lists || []);
@@ -169,7 +169,7 @@ export default function PolicyBundlesView({
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('/api/suppression/tuning-requests');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/tuning-requests');
       if (res.ok) {
         const data = await res.json();
         setInternalTuningRequests(data.requests || []);
@@ -181,7 +181,7 @@ export default function PolicyBundlesView({
 
   const fetchApiTenants = async () => {
     try {
-      const res = await fetch('/api/suppression/tenants');
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/tenants');
       if (res.ok) {
         const data = await res.json();
         if (data.tenants && Array.isArray(data.tenants)) {
@@ -209,7 +209,7 @@ export default function PolicyBundlesView({
     if (!groupDetails[groupId]) {
       try {
         setDetailLoading(true);
-        const res = await fetch(`/api/suppression/groups/${groupId}`);
+        const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${groupId}`);
         if (res.ok) {
           const detail = await res.json();
           setGroupDetails(prev => ({ ...prev, [groupId]: detail }));
@@ -226,7 +226,7 @@ export default function PolicyBundlesView({
     try {
       setSyncLoading(true);
       setShowSyncModal(true);
-      const res = await fetch(`/api/suppression/groups/${groupId}/sync-wazuh`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${groupId}/sync-wazuh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +260,7 @@ export default function PolicyBundlesView({
         ? newGroupForm.mitre_tactics.split(',').map(t => t.trim()).filter(Boolean)
         : [];
 
-      const res = await fetch('/api/suppression/groups', {
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/groups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -318,7 +318,7 @@ export default function PolicyBundlesView({
     e.preventDefault();
     if (!targetGroupForReview) return;
     try {
-      const res = await fetch(`/api/suppression/groups/${targetGroupForReview.group_id}/review`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${targetGroupForReview.group_id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -366,7 +366,7 @@ export default function PolicyBundlesView({
   const handleExecuteEditGroup = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`/api/suppression/groups/${editGroupForm.group_id}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${editGroupForm.group_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -395,7 +395,7 @@ export default function PolicyBundlesView({
   const handleArchiveGroup = async (group) => {
     if (!window.confirm(`Nonaktifkan / Hapus supresi bundle ${group.group_id} (${group.group_name}) beserta semua aturan di dalamnya?`)) return;
     try {
-      const res = await fetch(`/api/suppression/groups/${group.group_id}/review`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${group.group_id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,7 +423,7 @@ export default function PolicyBundlesView({
   const handleUnlinkRule = async (ruleId, groupId) => {
     if (!window.confirm(`Lepas aturan ${ruleId} dari bundle ini agar kembali menjadi aturan mandiri?`)) return;
     try {
-      const res = await fetch(`/api/suppression/rules/${ruleId}/unlink-group`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}/unlink-group`, {
         method: 'POST',
         headers: {
           'X-API-Key': 'wazuh-soc-secure-key-2026'
@@ -454,7 +454,7 @@ export default function PolicyBundlesView({
         .map(v => v.trim())
         .filter(Boolean);
 
-      const res = await fetch('/api/suppression/shared-lists', {
+      const res = await fetch('http://127.0.0.1:8000/api/suppression/shared-lists', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -492,7 +492,7 @@ export default function PolicyBundlesView({
   const handleExecuteMerge = async () => {
     if (!targetGroupForMerge || selectedRulesForMerge.length === 0) return;
     try {
-      const res = await fetch(`/api/suppression/groups/${targetGroupForMerge.group_id}/merge`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/groups/${targetGroupForMerge.group_id}/merge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -543,30 +543,30 @@ export default function PolicyBundlesView({
     ? tuningRequests
     : internalTuningRequests;
 
-  // Dynamic discovery of ALL tenants present in API, tuningRequests, rules, and groups
+  // Dynamic discovery of ALL tenants present in API, tuningRequests, rules, and groups (2x2 Grid)
   const discoveredTenants = useMemo(() => {
-    const tenantSet = new Set(['TenantA', 'TenantB', 'TenantC', 'TenantD', 'SOC_CORE']);
+    const tenantSet = new Set(['TenantA', 'TenantB', 'TenantC', 'TenantD']);
 
     apiTenants.forEach(t => {
-      if (t && t !== 'DEFAULT' && t !== 'ALL') tenantSet.add(t);
+      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     activeTuningRequests.forEach(req => {
       const t = req.tenant_id || req.tenant;
-      if (t && t !== 'DEFAULT' && t !== 'ALL') tenantSet.add(t);
+      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     rules.forEach(r => {
       const t = r.tenantId || r.tenant_id;
-      if (t && t !== 'DEFAULT' && t !== 'ALL') tenantSet.add(t);
+      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     groups.forEach(g => {
       const t = g.tenant_id;
-      if (t && t !== 'DEFAULT' && t !== 'ALL') tenantSet.add(t);
+      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
-    const priorityOrder = { 'TenantA': 1, 'TenantB': 2, 'TenantC': 3, 'TenantD': 4, 'SOC_CORE': 5 };
+    const priorityOrder = { 'TenantA': 1, 'TenantB': 2, 'TenantC': 3, 'TenantD': 4 };
     return Array.from(tenantSet).sort((a, b) => {
       const pA = priorityOrder[a] || 99;
       const pB = priorityOrder[b] || 99;
@@ -865,7 +865,7 @@ export default function PolicyBundlesView({
         if (customCodeSnippets[tenantName].cdb) payload.custom_cdb = customCodeSnippets[tenantName].cdb;
       }
 
-      const res = await fetch(`/api/suppression/tenants/${tenantName}/apply`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/suppression/tenants/${tenantName}/apply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -962,7 +962,7 @@ export default function PolicyBundlesView({
     const ruleId = item.isRule ? item.id : (item.raw?.existing_suppression_id || item.raw?.suppression_id || (item.id && String(item.id).startsWith('SUP-') ? item.id : null));
     if (ruleId) {
       try {
-        await fetch(`/api/suppression/rules/${ruleId}`, {
+        await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -1002,7 +1002,7 @@ export default function PolicyBundlesView({
         : (extendModalItem.raw?.existing_suppression_id || extendModalItem.raw?.suppression_id || (extendModalItem.id && String(extendModalItem.id).startsWith('SUP-') ? extendModalItem.id : null));
 
       if (ruleId) {
-        const res = await fetch(`/api/suppression/rules/${ruleId}`, {
+        const res = await fetch(`http://127.0.0.1:8000/api/suppression/rules/${ruleId}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -1075,8 +1075,8 @@ export default function PolicyBundlesView({
       {/* ===================================================================== */}
       {!selectedTenantView && (
         <div className="space-y-4">
-          {/* Dynamic Grid of Tenant Boxes matching Sketch */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+          {/* Dynamic 2x2 Grid of Tenant Boxes */}
+          <div className="grid grid-cols-2 gap-5 pt-1">
             {discoveredTenants.map(tenantName => {
               const stats = getTenantStats(tenantName);
               const displayName = formatTenantDisplay(tenantName);
@@ -1084,16 +1084,18 @@ export default function PolicyBundlesView({
                 <div
                   key={tenantName}
                   onClick={() => setSelectedTenantView(tenantName)}
-                  className={`group rounded-2xl border p-6 transition-all cursor-pointer shadow-lg hover:shadow-2xl relative ${
+                  className={`group rounded-2xl border p-5 transition-all cursor-pointer shadow-md hover:shadow-xl relative ${
                     isDark 
                       ? 'bg-[#0a0f1d] border-slate-800 hover:border-indigo-500/70 hover:bg-[#0c1224]' 
-                      : 'bg-white border-slate-200 hover:border-indigo-400 shadow-sm'
+                      : 'bg-white border-slate-200/90 hover:border-indigo-400 shadow-sm'
                   }`}
                 >
                   {/* Card Header: Title on Left, detail button on Right */}
-                  <div className="flex items-center justify-between border-b pb-4 mb-5 border-slate-800/80">
+                  <div className={`flex items-center justify-between border-b pb-3.5 mb-4 ${
+                    isDark ? 'border-slate-800/80' : 'border-slate-200/80'
+                  }`}>
                     <div className="flex items-center gap-2.5">
-                      <h3 className={`text-xl font-black tracking-wider uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <h3 className={`text-lg font-black tracking-wider uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {displayName.toUpperCase()}
                       </h3>
                       {tenantName === 'SOC_CORE' && (
@@ -1108,52 +1110,62 @@ export default function PolicyBundlesView({
                         e.stopPropagation();
                         setSelectedTenantView(tenantName);
                       }}
-                      className="text-xs font-semibold px-3 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-400 border border-indigo-500/30 transition-all flex items-center gap-1.5 group-hover:scale-105 cursor-pointer"
+                      className={`text-xs font-semibold px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 group-hover:scale-105 cursor-pointer ${
+                        isDark 
+                          ? 'bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-400 border-indigo-500/30' 
+                          : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200/80'
+                      }`}
                     >
                       <span>detail</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* Card Body: 4 rows with real numbers replacing x */}
-                  <div className="space-y-3.5 font-mono text-sm">
-                    <div className="flex items-center justify-between py-1 border-b border-slate-800/40">
+                  {/* Card Body: 4 rows with real numbers */}
+                  <div className="space-y-3 font-mono text-xs sm:text-sm">
+                    <div className={`flex items-center justify-between py-1 border-b ${
+                      isDark ? 'border-slate-800/40' : 'border-slate-100'
+                    }`}>
                       <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         suppression ticket
                       </span>
-                      <span className={`text-base font-black px-2.5 py-0.5 rounded ${
+                      <span className={`text-sm sm:text-base font-black px-2.5 py-0.5 rounded ${
                         isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-900'
                       }`}>
                         {stats.totalTickets}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between py-1 border-b border-slate-800/40">
-                      <span className="font-semibold text-blue-400 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                    <div className={`flex items-center justify-between py-1 border-b ${
+                      isDark ? 'border-slate-800/40' : 'border-slate-100'
+                    }`}>
+                      <span className="font-semibold text-blue-500 dark:text-blue-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400"></span>
                         DEPLOY
                       </span>
-                      <span className="text-base font-black text-blue-400 px-2.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                      <span className="text-sm sm:text-base font-black text-blue-500 dark:text-blue-400 px-2.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
                         {stats.deployCount}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between py-1 border-b border-slate-800/40">
-                      <span className="font-semibold text-emerald-400 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <div className={`flex items-center justify-between py-1 border-b ${
+                      isDark ? 'border-slate-800/40' : 'border-slate-100'
+                    }`}>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                         APPROVE
                       </span>
-                      <span className="text-base font-black text-emerald-400 px-2.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                         {stats.approveCount}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-1">
-                      <span className="font-medium text-rose-400 flex items-center gap-2">
+                      <span className="font-medium text-rose-500 dark:text-rose-400 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                         EXPIRED
                       </span>
-                      <span className="text-base font-black text-rose-400 px-2.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">
+                      <span className="text-sm sm:text-base font-black text-rose-500 dark:text-rose-400 px-2.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">
                         {stats.expiredCount}
                       </span>
                     </div>

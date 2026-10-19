@@ -208,8 +208,8 @@ class AlertStreamReader:
     Streams records in buffered chunks using Python generators to prevent OOM.
     """
 
-    def __init__(self, filepath: str, chunk_size: int = CHUNK_SIZE, skip_lines: int = 0):
-        self.filepath = filepath
+    def __init__(self, filepath: Optional[str] = None, chunk_size: int = CHUNK_SIZE, skip_lines: int = 0):
+        self.filepath = filepath or ""
         self.chunk_size = chunk_size
         self.skip_lines = skip_lines
         self.total_lines_read = 0
@@ -229,6 +229,8 @@ class AlertStreamReader:
 
     def stream_raw_lines(self) -> Generator[str, None, None]:
         """Yield raw non-empty lines from the file, skipping initial lines if skip_lines > 0."""
+        if not self.filepath or not os.path.exists(self.filepath):
+            return
         with open(self.filepath, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
                 line_str = line.strip()
@@ -265,285 +267,295 @@ class AlertStreamReader:
                 except Exception:
                     self.total_corrupt_lines += 1
 
+    def normalize_record(self, record: Dict[str, Any]) -> Optional[CommonEventModel]:
+        """Normalize a single raw dictionary record into CommonEventModel."""
+        try:
+            alert = WazuhRawAlert.model_validate(record)
+            return self.normalize_alert_object(alert)
+        except Exception:
+            self.total_corrupt_lines += 1
+            return None
+
+    def normalize_alert_object(self, alert: WazuhRawAlert) -> CommonEventModel:
+        """Standardize a WazuhRawAlert object into CommonEventModel with context enrichment and plugin chain."""
+        data = alert.data or {}
+        win_data = data.get("win", {}).get("eventdata", {}) if isinstance(data.get("win"), dict) else {}
+        audit_data = data.get("audit", {}) if isinstance(data.get("audit"), dict) else {}
+
+        # Multi-layer source and destination IP extraction (Syslog, Windows EventChannel, Linux Auditd, and ECS Aliases)
+        src_ip = (
+            data.get("srcip")
+            or data.get("src_ip")
+            or win_data.get("ipAddress")
+            or win_data.get("sourceIp")
+            or audit_data.get("srcip")
+            or audit_data.get("addr")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["source_ip"])
+        )
+        dst_ip = (
+            data.get("dstip")
+            or data.get("dst_ip")
+            or win_data.get("destinationIp")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["destination_ip"])
+        )
+        user = (
+            data.get("dstuser")
+            or data.get("srcuser")
+            or data.get("user")
+            or win_data.get("targetUserName")
+            or win_data.get("subjectUserName")
+            or audit_data.get("acct")
+            or audit_data.get("auid")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["username"])
+        )
+        
+        # Multi-layer process information
+        proc_name = (
+            data.get("process_name")
+            or data.get("image")
+            or win_data.get("image")
+            or audit_data.get("exe")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["process_name"])
+        )
+        proc_path = data.get("process_path") or win_data.get("image") or extract_aliased_field(data, ECS_FIELD_ALIASES["process_path"])
+        cmd_line = (
+            data.get("command_line")
+            or data.get("cmd")
+            or win_data.get("commandLine")
+            or audit_data.get("command")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["command_line"])
+        )
+        parent_proc = data.get("parent_process") or data.get("parent") or win_data.get("parentImage")
+
+        # Ports & Network Protocol extraction
+        raw_src_port = data.get("srcport") or data.get("src_port") or win_data.get("sourcePort") or extract_aliased_field(data, ECS_FIELD_ALIASES["source_port"])
+        raw_dst_port = data.get("dstport") or data.get("dst_port") or win_data.get("destinationPort") or extract_aliased_field(data, ECS_FIELD_ALIASES["destination_port"])
+        protocol = data.get("proto") or data.get("protocol") or extract_aliased_field(data, ECS_FIELD_ALIASES["protocol"])
+        
+        src_port_int = None
+        if raw_src_port is not None:
+            try:
+                src_port_int = int(raw_src_port)
+            except (ValueError, TypeError):
+                pass
+
+        dst_port_int = None
+        if raw_dst_port is not None:
+            try:
+                dst_port_int = int(raw_dst_port)
+            except (ValueError, TypeError):
+                pass
+
+        # Extract MITRE IDs & Tactics if present, with fallback to rule_classification_mapping
+        mitre_ids = []
+        mitre_tactics = []
+        mitre_techs = []
+        if alert.rule.mitre:
+            if "id" in alert.rule.mitre:
+                m_id = alert.rule.mitre["id"]
+                if isinstance(m_id, list):
+                    mitre_ids.extend(m_id)
+                elif isinstance(m_id, str):
+                    mitre_ids.append(m_id)
+            if "tactic" in alert.rule.mitre:
+                m_tac = alert.rule.mitre["tactic"]
+                if isinstance(m_tac, list):
+                    mitre_tactics.extend(m_tac)
+                elif isinstance(m_tac, str):
+                    mitre_tactics.append(m_tac)
+
+        rule_id_str = str(alert.rule.id)
+        rc_entry = _get_rule_classification_map().get(rule_id_str, {})
+        if not mitre_tactics and rc_entry.get("tactic"):
+            mitre_tactics.append(rc_entry["tactic"])
+        if not mitre_ids and rc_entry.get("tech"):
+            mitre_ids.append(rc_entry["tech"])
+        if rc_entry.get("tech"):
+            mitre_techs.append(rc_entry["tech"])
+
+        # Asset Resolver Auto-Discovery: register incoming observation
+        raw_agent_id = alert.agent.id if alert.agent else "000"
+        raw_agent_name = alert.agent.name if alert.agent else None
+        raw_agent_ip = alert.agent.ip if alert.agent else None
+        self.asset_resolver.register_observation(raw_agent_id, raw_agent_name, raw_agent_ip)
+        _GLOBAL_ASSET_RESOLVER.register_observation(raw_agent_id, raw_agent_name, raw_agent_ip)
+
+        # Resolve canonical target endpoint host (immune to collector hostnames)
+        data_dsthost = data.get("dsthost") or data.get("vhost")
+        canonical_host = self.asset_resolver.resolve_target_host(
+            agent_id=raw_agent_id,
+            agent_name=raw_agent_name,
+            dst_ip=dst_ip,
+            raw_host=alert.host,
+            data_dsthost=data_dsthost
+        )
+
+        # Context Enrichment (Asset Criticality & Identity Privilege)
+        asset_info = self.assets_config.get(canonical_host, self.assets_config.get(raw_agent_name or "", {}))
+        host_criticality = asset_info.get("criticality", "STANDARD")
+        is_internet_exposed = asset_info.get("internet_exposed", False)
+
+        user_str = str(user).lower() if user else ""
+        is_privileged = user_str in ["root", "administrator", "admin", "system"]
+        is_svc = user_str.startswith("svc_") or user_str.endswith("$")
+
+        # [Semantic Normalization] Extract 4 canonical dimensions: Category, Actor, Target, Duration
+        cat, actor, target, win_class, win_dur = classify_event_archetype(
+            groups=alert.rule.groups,
+            rule_id=rule_id_str,
+            rule_level=alert.rule.level,
+            source_ip=src_ip,
+            destination_host=canonical_host,
+            destination_ip=dst_ip,
+            username=user,
+            process_name=proc_name,
+            agent_name=canonical_host,
+            rule_description=alert.rule.description,
+            mitre_tactics=mitre_tactics,
+        )
+
+        # [OS Platform Extraction] Determine agent OS for aggregation dimension
+        raw_labels = alert.agent.labels if alert.agent and alert.agent.labels else {}
+        decoder_name_str = alert.decoder.name if alert.decoder else None
+        os_platform = extract_os_platform(
+            alert_agent_labels=raw_labels,
+            data=data,
+            decoder_name=decoder_name_str,
+            location=alert.location,
+            groups=alert.rule.groups,
+        )
+
+        # [HTTP & Scanner Forensics Extraction]
+        http_status_int = None
+        raw_status = data.get("status") or data.get("http_status")
+        if not raw_status and data.get("id") and str(data.get("id")).isdigit() and len(str(data.get("id"))) == 3:
+            raw_status = data.get("id")
+        if raw_status:
+            try:
+                http_status_int = int(raw_status)
+            except (ValueError, TypeError):
+                pass
+
+        user_agent_str = data.get("http_user_agent") or data.get("user_agent")
+        full_log_str = alert.full_log or ""
+        if full_log_str and (http_status_int is None or user_agent_str is None):
+            m_http = _RE_HTTP_STATUS_UA.search(full_log_str)
+            if m_http:
+                if http_status_int is None:
+                    try:
+                        http_status_int = int(m_http.group(1))
+                    except (ValueError, TypeError):
+                        pass
+                if user_agent_str is None:
+                    user_agent_str = m_http.group(2)
+            elif http_status_int is None:
+                m_fb = _RE_HTTP_STATUS_FALLBACK.search(full_log_str)
+                if m_fb:
+                    try:
+                        http_status_int = int(m_fb.group(1))
+                    except (ValueError, TypeError):
+                        pass
+
+        is_scanner = bool(_RE_SCANNER_UA.search(user_agent_str or ""))
+
+        # [Indicator of Attack Context Extraction] Generate human-readable context summary
+        mitre_meta = getattr(alert.rule, "mitre", None)
+        mitre_ids = []
+        if isinstance(mitre_meta, dict):
+            mitre_ids = mitre_meta.get("id") or []
+        elif hasattr(mitre_meta, "id"):
+            mitre_ids = mitre_meta.id or []
+        decoder_name = alert.decoder.name if alert.decoder else None
+
+        ioa_summary = generate_ioa_summary(
+            category=cat,
+            rule_id=rule_id_str,
+            rule_description=alert.rule.description,
+            actor=actor,
+            target=target,
+            data=data,
+            decoder=decoder_name,
+            mitre_ids=mitre_ids,
+            http_status=http_status_int,
+            is_scanner=is_scanner,
+        )
+
+        # [GAP 1 FIX] Extract compliance framework tags from Wazuh rule metadata
+        compliance = {}
+        for fw in ("pci_dss", "nist_800_53", "gdpr", "hipaa", "tsc"):
+            val = getattr(alert.rule, fw, None)
+            if val:
+                compliance[fw] = val
+
+        # [Multi-Tenancy Dynamic Extraction] Support Wazuh Agent Labels or Payload Tenant Tag
+        raw_labels = alert.agent.labels if alert.agent and alert.agent.labels else {}
+        raw_tenant = raw_labels.get("tenant") or raw_labels.get("tenant_id") or data.get("tenant") or data.get("tenant_id") or "DEFAULT"
+        tenant_str = str(raw_tenant).strip()
+        if tenant_str.lower().startswith("tenant"):
+            tenant = "Tenant" + tenant_str[6:].upper()
+        else:
+            tenant = tenant_str
+
+        # Check if this rule is explicitly mapped or if it requires autonomous classification review
+        is_explicitly_mapped = rule_id_str in _get_rule_classification_map()
+        needs_review = (not is_explicitly_mapped) or (cat == "SYSTEM_HEALTH" and alert.rule.level >= 6)
+
+        cem = CommonEventModel(
+            event_id=alert.id or alert.event_id or f"evt_{self.total_valid_records}",
+            timestamp=alert.timestamp,
+            source_ip=src_ip,
+            source_host=canonical_host if alert.agent else None,
+            source_port=src_port_int,
+            destination_ip=dst_ip,
+            destination_host=canonical_host,
+            destination_port=dst_port_int,
+            protocol=str(protocol) if protocol else None,
+            username=user,
+            agent_id=raw_agent_id,
+            agent_name=canonical_host,
+            tenant_id=str(tenant),
+            host_criticality=host_criticality,
+            is_internet_exposed=is_internet_exposed,
+            is_privileged_user=is_privileged,
+            is_service_account=is_svc,
+            process_name=proc_name,
+            process_path=proc_path,
+            command_line=cmd_line,
+            parent_process=parent_proc,
+            rule_id=alert.rule.id,
+            rule_level=alert.rule.level,
+            rule_description=alert.rule.description,
+            classification_groups=alert.rule.groups,
+            mitre_attack_ids=mitre_ids,
+            mitre_tactics=mitre_tactics,
+            mitre_techniques=mitre_techs,
+            raw_payload=alert.full_log,
+            location=alert.location,
+            decoder_name=decoder_name_str,
+            event_category=cat,
+            dedup_actor=actor,
+            dedup_target=target,
+            window_class=win_class,
+            window_duration_seconds=win_dur,
+            compliance_frameworks=compliance,
+            ioa_summary=ioa_summary,
+            needs_classification_review=needs_review,
+            os_platform=os_platform,
+            http_status=http_status_int,
+            user_agent=user_agent_str,
+            is_scanner_ua=is_scanner,
+        )
+
+        # ── Plugin Chain: OCSF fields + MITRE supplement + Inline Risk Score ──
+        cem = _get_plugin_chain()(cem, alert)
+        return cem
+
     def stream_normalized_events(self) -> Generator[CommonEventModel, None, None]:
         """Yield standardized CommonEventModel objects with multi-layer field extraction and context enrichment."""
         for alert in self.stream_validated_alerts():
-            data = alert.data or {}
-            win_data = data.get("win", {}).get("eventdata", {}) if isinstance(data.get("win"), dict) else {}
-            audit_data = data.get("audit", {}) if isinstance(data.get("audit"), dict) else {}
-
-            # Multi-layer source and destination IP extraction (Syslog, Windows EventChannel, Linux Auditd, and ECS Aliases)
-            src_ip = (
-                data.get("srcip")
-                or data.get("src_ip")
-                or win_data.get("ipAddress")
-                or win_data.get("sourceIp")
-                or audit_data.get("srcip")
-                or audit_data.get("addr")
-                or extract_aliased_field(data, ECS_FIELD_ALIASES["source_ip"])
-            )
-            dst_ip = (
-                data.get("dstip")
-                or data.get("dst_ip")
-                or win_data.get("destinationIp")
-                or extract_aliased_field(data, ECS_FIELD_ALIASES["destination_ip"])
-            )
-            user = (
-                data.get("dstuser")
-                or data.get("srcuser")
-                or data.get("user")
-                or win_data.get("targetUserName")
-                or win_data.get("subjectUserName")
-                or audit_data.get("acct")
-                or audit_data.get("auid")
-                or extract_aliased_field(data, ECS_FIELD_ALIASES["username"])
-            )
-            
-            # Multi-layer process information
-            proc_name = (
-                data.get("process_name")
-                or data.get("image")
-                or win_data.get("image")
-                or audit_data.get("exe")
-                or extract_aliased_field(data, ECS_FIELD_ALIASES["process_name"])
-            )
-            proc_path = data.get("process_path") or win_data.get("image") or extract_aliased_field(data, ECS_FIELD_ALIASES["process_path"])
-            cmd_line = (
-                data.get("command_line")
-                or data.get("cmd")
-                or win_data.get("commandLine")
-                or audit_data.get("command")
-                or extract_aliased_field(data, ECS_FIELD_ALIASES["command_line"])
-            )
-            parent_proc = data.get("parent_process") or data.get("parent") or win_data.get("parentImage")
-
-            # Ports & Network Protocol extraction
-            raw_src_port = data.get("srcport") or data.get("src_port") or win_data.get("sourcePort") or extract_aliased_field(data, ECS_FIELD_ALIASES["source_port"])
-            raw_dst_port = data.get("dstport") or data.get("dst_port") or win_data.get("destinationPort") or extract_aliased_field(data, ECS_FIELD_ALIASES["destination_port"])
-            protocol = data.get("proto") or data.get("protocol") or extract_aliased_field(data, ECS_FIELD_ALIASES["protocol"])
-            
-            src_port_int = None
-            if raw_src_port is not None:
-                try:
-                    src_port_int = int(raw_src_port)
-                except (ValueError, TypeError):
-                    pass
-
-            dst_port_int = None
-            if raw_dst_port is not None:
-                try:
-                    dst_port_int = int(raw_dst_port)
-                except (ValueError, TypeError):
-                    pass
-
-            # Extract MITRE IDs & Tactics if present, with fallback to rule_classification_mapping
-            mitre_ids = []
-            mitre_tactics = []
-            mitre_techs = []
-            if alert.rule.mitre:
-                if "id" in alert.rule.mitre:
-                    m_id = alert.rule.mitre["id"]
-                    if isinstance(m_id, list):
-                        mitre_ids.extend(m_id)
-                    elif isinstance(m_id, str):
-                        mitre_ids.append(m_id)
-                if "tactic" in alert.rule.mitre:
-                    m_tac = alert.rule.mitre["tactic"]
-                    if isinstance(m_tac, list):
-                        mitre_tactics.extend(m_tac)
-                    elif isinstance(m_tac, str):
-                        mitre_tactics.append(m_tac)
-
-            rule_id_str = str(alert.rule.id)
-            rc_entry = _get_rule_classification_map().get(rule_id_str, {})
-            if not mitre_tactics and rc_entry.get("tactic"):
-                mitre_tactics.append(rc_entry["tactic"])
-            if not mitre_ids and rc_entry.get("tech"):
-                mitre_ids.append(rc_entry["tech"])
-            if rc_entry.get("tech"):
-                mitre_techs.append(rc_entry["tech"])
-
-            # Asset Resolver Auto-Discovery: register incoming observation
-            raw_agent_id = alert.agent.id if alert.agent else "000"
-            raw_agent_name = alert.agent.name if alert.agent else None
-            raw_agent_ip = alert.agent.ip if alert.agent else None
-            self.asset_resolver.register_observation(raw_agent_id, raw_agent_name, raw_agent_ip)
-            _GLOBAL_ASSET_RESOLVER.register_observation(raw_agent_id, raw_agent_name, raw_agent_ip)
-
-            # Resolve canonical target endpoint host (immune to collector hostnames)
-            data_dsthost = data.get("dsthost") or data.get("vhost")
-            canonical_host = self.asset_resolver.resolve_target_host(
-                agent_id=raw_agent_id,
-                agent_name=raw_agent_name,
-                dst_ip=dst_ip,
-                raw_host=alert.host,
-                data_dsthost=data_dsthost
-            )
-            agent_name = canonical_host
-
-            # Context Enrichment (Asset Criticality & Identity Privilege)
-            asset_info = self.assets_config.get(canonical_host, self.assets_config.get(raw_agent_name or "", {}))
-            host_criticality = asset_info.get("criticality", "STANDARD")
-            is_internet_exposed = asset_info.get("internet_exposed", False)
-
-            user_str = str(user).lower() if user else ""
-            is_privileged = user_str in ["root", "administrator", "admin", "system"]
-            is_svc = user_str.startswith("svc_") or user_str.endswith("$")
-
-            # [Semantic Normalization] Extract 4 canonical dimensions: Category, Actor, Target, Duration
-            cat, actor, target, win_class, win_dur = classify_event_archetype(
-                groups=alert.rule.groups,
-                rule_id=rule_id_str,
-                rule_level=alert.rule.level,
-                source_ip=src_ip,
-                destination_host=canonical_host,
-                destination_ip=dst_ip,
-                username=user,
-                process_name=proc_name,
-                agent_name=canonical_host,
-                rule_description=alert.rule.description,
-                mitre_tactics=mitre_tactics,
-            )
-
-            # [OS Platform Extraction] Determine agent OS for aggregation dimension
-            raw_labels = alert.agent.labels if alert.agent and alert.agent.labels else {}
-            decoder_name_str = alert.decoder.name if alert.decoder else None
-            os_platform = extract_os_platform(
-                alert_agent_labels=raw_labels,
-                data=data,
-                decoder_name=decoder_name_str,
-                location=alert.location,
-                groups=alert.rule.groups,
-            )
-
-            # [HTTP & Scanner Forensics Extraction]
-            http_status_int = None
-            raw_status = data.get("status") or data.get("http_status")
-            if not raw_status and data.get("id") and str(data.get("id")).isdigit() and len(str(data.get("id"))) == 3:
-                raw_status = data.get("id")
-            if raw_status:
-                try:
-                    http_status_int = int(raw_status)
-                except (ValueError, TypeError):
-                    pass
-
-            user_agent_str = data.get("http_user_agent") or data.get("user_agent")
-            full_log_str = alert.full_log or ""
-            if full_log_str and (http_status_int is None or user_agent_str is None):
-                m_http = _RE_HTTP_STATUS_UA.search(full_log_str)
-                if m_http:
-                    if http_status_int is None:
-                        try:
-                            http_status_int = int(m_http.group(1))
-                        except (ValueError, TypeError):
-                            pass
-                    if user_agent_str is None:
-                        user_agent_str = m_http.group(2)
-                elif http_status_int is None:
-                    m_fb = _RE_HTTP_STATUS_FALLBACK.search(full_log_str)
-                    if m_fb:
-                        try:
-                            http_status_int = int(m_fb.group(1))
-                        except (ValueError, TypeError):
-                            pass
-
-            is_scanner = bool(_RE_SCANNER_UA.search(user_agent_str or ""))
-
-            # [Indicator of Attack Context Extraction] Generate human-readable context summary
-            mitre_meta = getattr(alert.rule, "mitre", None)
-            mitre_ids = []
-            if isinstance(mitre_meta, dict):
-                mitre_ids = mitre_meta.get("id") or []
-            elif hasattr(mitre_meta, "id"):
-                mitre_ids = mitre_meta.id or []
-            decoder_name = alert.decoder.name if alert.decoder else None
-
-            ioa_summary = generate_ioa_summary(
-                category=cat,
-                rule_id=rule_id_str,
-                rule_description=alert.rule.description,
-                actor=actor,
-                target=target,
-                data=data,
-                decoder=decoder_name,
-                mitre_ids=mitre_ids,
-                http_status=http_status_int,
-                is_scanner=is_scanner,
-            )
-
-            # [GAP 1 FIX] Extract compliance framework tags from Wazuh rule metadata
-            compliance = {}
-            for fw in ("pci_dss", "nist_800_53", "gdpr", "hipaa", "tsc"):
-                val = getattr(alert.rule, fw, None)
-                if val:
-                    compliance[fw] = val
-
-            # [Multi-Tenancy Dynamic Extraction] Support Wazuh Agent Labels or Payload Tenant Tag
-            raw_labels = alert.agent.labels if alert.agent and alert.agent.labels else {}
-            raw_tenant = raw_labels.get("tenant") or raw_labels.get("tenant_id") or data.get("tenant") or data.get("tenant_id") or "DEFAULT"
-            tenant_str = str(raw_tenant).strip()
-            if tenant_str.lower().startswith("tenant"):
-                tenant = "Tenant" + tenant_str[6:].upper()
-            else:
-                tenant = tenant_str
-
-            # Check if this rule is explicitly mapped or if it requires autonomous classification review
-            is_explicitly_mapped = rule_id_str in _get_rule_classification_map()
-            needs_review = (not is_explicitly_mapped) or (cat == "SYSTEM_HEALTH" and alert.rule.level >= 6)
-
-            cem = CommonEventModel(
-                event_id=alert.id or alert.event_id or f"evt_{self.total_valid_records}",
-                timestamp=alert.timestamp,
-                source_ip=src_ip,
-                source_host=canonical_host if alert.agent else None,
-                source_port=src_port_int,
-                destination_ip=dst_ip,
-                destination_host=canonical_host,
-                destination_port=dst_port_int,
-                protocol=str(protocol) if protocol else None,
-                username=user,
-                agent_id=raw_agent_id,
-                agent_name=canonical_host,
-                tenant_id=str(tenant),
-                host_criticality=host_criticality,
-                is_internet_exposed=is_internet_exposed,
-                is_privileged_user=is_privileged,
-                is_service_account=is_svc,
-                process_name=proc_name,
-                process_path=proc_path,
-                command_line=cmd_line,
-                parent_process=parent_proc,
-                rule_id=alert.rule.id,
-                rule_level=alert.rule.level,
-                rule_description=alert.rule.description,
-                classification_groups=alert.rule.groups,
-                mitre_attack_ids=mitre_ids,
-                mitre_tactics=mitre_tactics,
-                mitre_techniques=mitre_techs,
-                raw_payload=alert.full_log,
-                location=alert.location,
-                decoder_name=decoder_name_str,
-                event_category=cat,
-                dedup_actor=actor,
-                dedup_target=target,
-                window_class=win_class,
-                window_duration_seconds=win_dur,
-                compliance_frameworks=compliance,       # [GAP 1 FIX]
-                ioa_summary=ioa_summary,
-                needs_classification_review=needs_review,
-                os_platform=os_platform,
-                http_status=http_status_int,
-                user_agent=user_agent_str,
-                is_scanner_ua=is_scanner,
-            )
-
-            # ── Plugin Chain: OCSF fields + MITRE supplement + Inline Risk Score ──
-            # All enrichment is config-driven via JSON files in /config/.
-            # New plugins can be added in pipeline/normalization_plugins.py without
-            # modifying this file.
-            cem = _get_plugin_chain()(cem, alert)
-
-            yield cem
+            cem = self.normalize_alert_object(alert)
+            if cem is not None:
+                yield cem
 
 
 # [REMOVED F-6] is_stateless_pure_noise was removed.
@@ -817,11 +829,25 @@ def classify_event_archetype(
         elif raw_cat == "NETWORK_WEB":
             if groups_lower & {"web_attack", "sqli", "xss", "rfi", "lfi", "attack", "web_exploit"}:
                 internal_cat = "WEB_ATTACK"
+            else:
+                internal_cat = "WEB_OPERATIONAL"
         elif raw_cat == "DATA_ACCESS":
             if "exfiltration" in tactics_lower:
                 internal_cat = "EXFILTRATION"
         elif raw_cat == "NETWORK_ANOMALY":
-            if "initial access" in tactics_lower:
+            web_op_subcats = {
+                "MALFORMED_HTTP_PROBE", "MALFORMED_HTTP", "HTTP_SERVER_ERROR",
+                "WEB_SERVER_GATEWAY_ERROR", "APPLICATION_EXCEPTION", "SCANNER_PROBE"
+            }
+            web_op_rules = {
+                "31101", "31102", "31120", "31121", "31122", "31123", "31141",
+                "31161", "31162", "31163", "31300", "31301", "31302", "31410",
+                "31412", "31413", "31420", "31421", "31430", "35008", "35009",
+                "35057", "35058"
+            }
+            if rule_id_str in web_op_rules or entry.get("subcat") in web_op_subcats:
+                internal_cat = "WEB_OPERATIONAL"
+            elif "initial access" in tactics_lower:
                 internal_cat = "INITIAL_ACCESS"
         win_class, win_dur = _CATEGORY_WINDOW_MAP.get(internal_cat, ("STANDARD", 900))
         if internal_cat in ("AUTH_FAILURE", "AUTH_SUCCESS"):

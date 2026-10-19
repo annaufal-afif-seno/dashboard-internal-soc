@@ -1,0 +1,30 @@
+{
+  "alerts_raw_week1_20260628_20260704.json": {
+    "status": "COMPLETED",
+    "lines_processed": 0
+  },
+  "alerts_raw_week2_20260705_20260711.json": {
+    "status": "COMPLETED",
+    "lines_processed": 0
+  },
+  "alerts_raw_week3_20260712_20260718.json": {
+    "status": "COMPLETED",
+    "lines_processed": 0
+  },
+  "alerts_raw_week4_20260719_20260725.json": {
+    "status": "COMPLETED",
+    "lines_processed": 0
+  },
+  "alerts_raw_week5_20260726_20260801.json": {
+    "status": "COMPLETED",
+    "lines_processed": 0
+  },
+  "alerts_asoc_august_raw.json": {
+    "status": "COMPLETED",
+    "lines_processed": 2011352
+  },
+  "alerts_asoc_sept_raw.json": {
+    "status": "COMPLETED",
+    "lines_processed": 2669378
+  }
+}

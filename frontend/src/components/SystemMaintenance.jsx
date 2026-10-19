@@ -7,7 +7,7 @@ import {
   Search, ArrowDownRight, ArrowUpRight, Gauge, Cpu, BarChart2, Radio
 } from 'lucide-react';
 
-// 9 RBAC Matrix Items mapped directly to Application Sidebar Navigation & Separation of Duties (SoD)
+// 11 RBAC Matrix Items mapped directly to Application Sidebar Navigation & Separation of Duties (SoD)
 export const initialRbacMatrixData = [
   // 1. Modul MAIN
   {
@@ -15,6 +15,19 @@ export const initialRbacMatrixData = [
     category: 'MAIN',
     action: 'Analytics',
     description: 'Melihat funnel metrik telemetri, tren deteksi serangan, reduksi alert IOA, dan performa pipeline real-time.',
+    roles: {
+      SOC_ANALYST: 'READ_WRITE',
+      SOC_DEVELOPER: 'READ_WRITE',
+      SOC_LEAD: 'READ_WRITE',
+      SOC_MANAGER: 'READ_WRITE',
+      ADMIN: 'READ_WRITE',
+    }
+  },
+  {
+    id: 'raw_alerts',
+    category: 'MAIN',
+    action: 'Raw Alert',
+    description: 'Monitoring telemetri log mentah real-time, status decoder agen Wazuh, filtering pesan alert, dan inspeksi payload.',
     roles: {
       SOC_ANALYST: 'READ_WRITE',
       SOC_DEVELOPER: 'READ_WRITE',
@@ -42,7 +55,20 @@ export const initialRbacMatrixData = [
     id: 'verified_tp',
     category: 'INCIDENT TRIAGE',
     action: 'Verified Threat',
-    description: 'Analisis forensik insiden ancaman terkonfirmasi, inspeksi payload mentah, korelasi multi-tahap, dan konfirmasi ancaman nyata.',
+    description: 'Analisis forensik insiden ancaman terkonfirmasi, inspeksi payload mentah, korelasi multi-tahap, dan pembuatan case IRIS.',
+    roles: {
+      SOC_ANALYST: 'READ_WRITE',
+      SOC_DEVELOPER: 'READ_ONLY',
+      SOC_LEAD: 'READ_WRITE',
+      SOC_MANAGER: 'READ_ONLY',
+      ADMIN: 'READ_WRITE',
+    }
+  },
+  {
+    id: 'groundtruth_queue',
+    category: 'INCIDENT TRIAGE',
+    action: 'Groundtruth',
+    description: 'Antrean verifikasi manual tiket AI triage low confidence (< 85%), konfirmasi ground truth dataset, dan labeling True/False Positive.',
     roles: {
       SOC_ANALYST: 'READ_WRITE',
       SOC_DEVELOPER: 'READ_ONLY',
@@ -54,10 +80,10 @@ export const initialRbacMatrixData = [
 
   // 3. Modul SUPPRESSION & TUNING
   {
-    id: 'suppression_proposal',
+    id: 'ground_truth_review',
     category: 'SUPPRESSION & TUNING',
     action: 'Ground Truth Review',
-    description: 'Identifikasi noise alert berulang dari tiket investigasi dan inisiasi proposal formulasi supresi False Positive (FP) baru.',
+    description: 'Identifikasi noise alert berulang dari tiket investigasi, inisiasi proposal formulasi supresi False Positive (FP) baru, dan validasi rule.',
     roles: {
       SOC_ANALYST: 'READ_WRITE',
       SOC_DEVELOPER: 'READ_WRITE',
@@ -254,7 +280,7 @@ const getCategoryBadge = (category, isDark) => {
   );
 };
 
-export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' }) {
+export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark', isReadOnly = false, currentUser = null }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const isDark = theme === 'dark';
 
@@ -265,19 +291,40 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   // Separation of Duties Matrix State
   const [matrixData, setMatrixData] = useState(() => {
     try {
-      const saved = localStorage.getItem('wazuh_rbac_permissions_matrix');
+      const saved = localStorage.getItem('wazuh_rbac_permissions_matrix_v2') || localStorage.getItem('wazuh_rbac_permissions_matrix');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map(row => ({
-            ...row,
-            roles: Object.fromEntries(
-              Object.entries(row.roles || {}).map(([r, val]) => [
-                r,
-                (val === 'READ_WRITE' || val === 'READ_ONLY') ? val : 'NO_ACCESS'
-              ])
-            )
-          }));
+          const savedRoleMap = {};
+          parsed.forEach(row => {
+            const key = row.id || row.action;
+            if (key) savedRoleMap[key] = row.roles;
+            // Legacy name and id mappings
+            if (row.action === 'Verified True Positives' || row.id === 'verified_tp') savedRoleMap['verified_tp'] = row.roles;
+            if (row.action === 'Suppression Proposal' || row.id === 'suppression_proposal' || row.id === 'ground_truth_review') savedRoleMap['ground_truth_review'] = row.roles;
+            if (row.action === 'Audit Log Supresi (GRC)' || row.id === 'audit_log_grc') savedRoleMap['audit_log_grc'] = row.roles;
+          });
+
+          // Re-map with initialRbacMatrixData as canonical blueprint so action names & new features are always 100% current
+          const synced = initialRbacMatrixData.map(def => {
+            const savedRoles = savedRoleMap[def.id] || savedRoleMap[def.action];
+            return {
+              ...def,
+              roles: savedRoles ? Object.fromEntries(
+                Object.entries({ ...def.roles, ...savedRoles }).map(([r, val]) => [
+                  r,
+                  (val === 'READ_WRITE' || val === 'READ_ONLY') ? val : 'NO_ACCESS'
+                ])
+              ) : def.roles
+            };
+          });
+
+          try {
+            localStorage.setItem('wazuh_rbac_permissions_matrix', JSON.stringify(synced));
+            localStorage.setItem('wazuh_rbac_permissions_matrix_v2', JSON.stringify(synced));
+          } catch (_) {}
+
+          return synced;
         }
       }
     } catch (e) {
@@ -329,6 +376,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const handleApplyEditMatrix = () => {
     try {
       localStorage.setItem('wazuh_rbac_permissions_matrix', JSON.stringify(matrixData));
+      localStorage.setItem('wazuh_rbac_permissions_matrix_v2', JSON.stringify(matrixData));
     } catch (e) {
       console.warn('Failed to save matrix to localStorage:', e);
     }
@@ -413,7 +461,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
 
     try {
       setSubmittingEdit(true);
-      const res = await fetch(`/api/system/rbac/users/${editingUser.user_id}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/system/rbac/users/${editingUser.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -516,7 +564,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchRbacUsers = async () => {
     try {
       setRbacLoading(true);
-      const res = await fetch('/api/system/rbac/users');
+      const res = await fetch('http://127.0.0.1:8000/api/system/rbac/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
@@ -537,7 +585,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchDbHealth = async (isBackground = false) => {
     try {
       if (!isBackground) setDbLoading(true);
-      const res = await fetch('/api/system/database/health');
+      const res = await fetch('http://127.0.0.1:8000/api/system/database/health');
       if (res.ok) {
         const data = await res.json();
         setDbHealth(data);
@@ -565,7 +613,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const fetchQuotas = async () => {
     try {
       setQuotaLoading(true);
-      const res = await fetch('/api/system/integrations/quota');
+      const res = await fetch('http://127.0.0.1:8000/api/system/integrations/quota');
       if (res.ok) {
         const data = await res.json();
         setQuotaData(data);
@@ -596,7 +644,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
 
     try {
       setSubmittingUser(true);
-      const res = await fetch('/api/system/rbac/users', {
+      const res = await fetch('http://127.0.0.1:8000/api/system/rbac/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUserForm)
@@ -631,7 +679,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
   const handleToggleUserStatus = async (userId, currentStatus) => {
     const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     try {
-      const res = await fetch(`/api/system/rbac/users/${userId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/system/rbac/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
@@ -650,7 +698,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
       return;
     }
     try {
-      const res = await fetch(`/api/system/rbac/users/${userId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/system/rbac/users/${userId}`, {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -669,7 +717,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
     try {
       setMaintenanceRunning(true);
       setMaintenanceResult(null);
-      const res = await fetch('/api/system/database/maintenance/vacuum', {
+      const res = await fetch('http://127.0.0.1:8000/api/system/database/maintenance/vacuum', {
         method: 'POST'
       });
       const data = await res.json();
@@ -891,14 +939,20 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
                 Personnel Directory & SOC Access Rights
               </h2>
 
-              <button
-                type="button"
-                onClick={() => setIsAddUserModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 transition-all cursor-pointer shadow-xs shrink-0"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Add User</span>
-              </button>
+              {!isReadOnly ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 transition-all cursor-pointer shadow-xs shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Add User</span>
+                </button>
+              ) : (
+                <span className="px-2.5 py-1 text-[11px] font-mono text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                  Mode Read Only
+                </span>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -1006,17 +1060,21 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
                       <td className="px-5 py-4">
                         {u.status === 'ACTIVE' ? (
                           <span 
-                            onClick={() => handleToggleUserStatus(u.user_id, u.status)}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#E6F4EA] text-[#137333] dark:bg-emerald-950/60 dark:text-emerald-400 cursor-pointer hover:opacity-80 transition-opacity"
-                            title="Status: Aktif (Klik untuk ubah status ke Suspended)"
+                            onClick={!isReadOnly ? () => handleToggleUserStatus(u.user_id, u.status) : undefined}
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#E6F4EA] text-[#137333] dark:bg-emerald-950/60 dark:text-emerald-400 ${
+                              !isReadOnly ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                            } transition-opacity`}
+                            title={!isReadOnly ? "Status: Aktif (Klik untuk ubah status ke Suspended)" : "Status: Aktif"}
                           >
                             Aktif
                           </span>
                         ) : (
                           <span 
-                            onClick={() => handleToggleUserStatus(u.user_id, u.status)}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#FCE8E6] text-[#C5221F] dark:bg-rose-950/60 dark:text-rose-400 cursor-pointer hover:opacity-80 transition-opacity"
-                            title="Status: Suspended (Klik untuk Aktifkan)"
+                            onClick={!isReadOnly ? () => handleToggleUserStatus(u.user_id, u.status) : undefined}
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#FCE8E6] text-[#C5221F] dark:bg-rose-950/60 dark:text-rose-400 ${
+                              !isReadOnly ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                            } transition-opacity`}
+                            title={!isReadOnly ? "Status: Suspended (Klik untuk Aktifkan)" : "Status: Suspended"}
                           >
                             Suspended
                           </span>
@@ -1035,38 +1093,42 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
                             type="button"
                             onClick={() => handleOpenEditModal(u)}
                             className="text-sky-500 hover:text-sky-600 p-1 rounded-md hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
-                            title="Lihat Detail & Reset Password"
+                            title={!isReadOnly ? "Lihat Detail & Reset Password" : "Lihat Detail Akun"}
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(u)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                            title="Edit Profil Pengguna"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUserStatus(u.user_id, u.status)}
-                            className={`p-1 rounded-md transition-colors cursor-pointer ${
-                              u.status === 'ACTIVE'
-                                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                                : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-                            }`}
-                            title={u.status === 'ACTIVE' ? 'Suspend Akun' : 'Aktifkan Akun'}
-                          >
-                            {u.status === 'ACTIVE' ? <Ban className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteUser(u.user_id, u.username)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                            title="Hapus Akun Pengguna"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isReadOnly && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(u)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Edit Profil Pengguna"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleUserStatus(u.user_id, u.status)}
+                                className={`p-1 rounded-md transition-colors cursor-pointer ${
+                                  u.status === 'ACTIVE'
+                                    ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                    : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                }`}
+                                title={u.status === 'ACTIVE' ? 'Suspend Akun' : 'Aktifkan Akun'}
+                              >
+                                {u.status === 'ACTIVE' ? <Ban className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUser(u.user_id, u.username)}
+                                className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                                title="Hapus Akun Pengguna"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1094,15 +1156,22 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
               {/* Action Buttons Right-Aligned Strictly on the Same Line */}
               <div className="flex items-center gap-2 shrink-0">
                 {!isEditingMatrix ? (
-                  <button
-                    type="button"
-                    onClick={handleStartEditMatrix}
-                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title="Ubah konfigurasi hak akses per role"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Edit</span>
-                  </button>
+                  !isReadOnly ? (
+                    <button
+                      type="button"
+                      onClick={handleStartEditMatrix}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      title="Ubah konfigurasi hak akses per role"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-semibold text-slate-400 bg-slate-800/40 border border-slate-700/60 flex items-center gap-1.5">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Terkunci (Read Only)</span>
+                    </span>
+                  )
                 ) : (
                   <div className="flex items-center gap-2">
                     <button
@@ -1442,7 +1511,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
                   <span className={`font-mono font-semibold ${
                     dbHealth?.wazuh_ingestion?.is_realtime ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
-                    {dbHealth?.wazuh_ingestion?.is_realtime ? '✓ Real-time Sync' : 'Menunggu Aliran Vector'}
+                    {dbHealth?.wazuh_ingestion?.is_realtime ? '✓ Real-time Sync' : 'Menunggu Aliran Fluent Bit'}
                   </span>
                 </div>
               </div>
@@ -1483,7 +1552,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
                 </div>
                 <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
                   <span>Shipper Pipeline:</span>
-                  <span className="font-mono text-emerald-400 font-semibold">Vector (vector.dev)</span>
+                  <span className="font-mono text-emerald-400 font-semibold">{dbHealth?.wazuh_ingestion?.pipeline_shipper ? 'Fluent Bit (out_postgre)' : 'Fluent Bit (fluentbit.io)'}</span>
                 </div>
               </div>
             </div>
@@ -1493,7 +1562,7 @@ export default function SystemMaintenance({ initialTab = 'rbac', theme = 'dark' 
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
                 <span className="text-slate-300">
-                  <strong>Arsitektur Ingesti Real-Time:</strong> Wazuh Agent/Manager &rarr; Vector Shipper &rarr; PostgreSQL (<code className="text-blue-400 bg-slate-900 px-1 py-0.5 rounded font-mono text-[11px]">telemetry.raw_events</code>).
+                  <strong>Arsitektur Ingesti Real-Time:</strong> Wazuh Agent/Manager &rarr; Fluent Bit (out_postgre) &rarr; PostgreSQL (<code className="text-blue-400 bg-slate-900 px-1 py-0.5 rounded font-mono text-[11px]">telemetry.raw_events</code>).
                 </span>
               </div>
               <div className="text-slate-400 text-[11px] shrink-0 font-mono">

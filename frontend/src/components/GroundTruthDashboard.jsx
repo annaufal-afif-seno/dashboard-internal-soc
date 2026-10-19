@@ -22,7 +22,7 @@ export default function GroundTruthDashboard({ theme = 'dark' }) {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/ai/ground-truth-stats');
+      const res = await fetch('http://127.0.0.1:8000/api/ai/ground-truth-stats');
       if (res.ok) {
         const json = await res.json();
         setStats(json.stats);
@@ -35,7 +35,7 @@ export default function GroundTruthDashboard({ theme = 'dark' }) {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      let url = `/api/ai/ground-truth-records?page=${page}&limit=${limit}`;
+      let url = `http://127.0.0.1:8000/api/ai/ground-truth-records?page=${page}&limit=${limit}`;
       if (selectedLabel !== null) {
         url += `&label=${selectedLabel}`;
       }
@@ -68,7 +68,7 @@ export default function GroundTruthDashboard({ theme = 'dark' }) {
     setRetrainResult(null);
     setRetrainError('');
     try {
-      const res = await fetch('/api/ai/train-ml', { method: 'POST' });
+      const res = await fetch('http://127.0.0.1:8000/api/ai/train-ml', { method: 'POST' });
       const json = await res.json();
       if (res.ok && json.status === 'success') {
         setRetrainResult(json.metrics);

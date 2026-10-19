@@ -1,0 +1,307 @@
+<!-- Auto-Generated Wazuh Upstream Suppression Rules for Tenant: TenantD -->
+<group name="tenant_tuning,suppression,tenantd,">
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 11 -->
+  <rule id="112511" level="0">
+    <if_sid>11</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 503 -->
+  <rule id="112512" level="0">
+    <if_sid>503</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 504 -->
+  <rule id="112513" level="0">
+    <if_sid>504</if_sid>
+    <hostname>rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 506 -->
+  <rule id="112514" level="0">
+    <if_sid>506</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 533 -->
+  <rule id="112515" level="0">
+    <if_sid>533</if_sid>
+    <hostname>rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 550 -->
+  <rule id="112516" level="0">
+    <if_sid>550</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 553 -->
+  <rule id="112517" level="0">
+    <if_sid>553</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 554 -->
+  <rule id="112518" level="0">
+    <if_sid>554</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 591 -->
+  <rule id="112519" level="0">
+    <if_sid>591</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 2901 -->
+  <rule id="112520" level="0">
+    <if_sid>2901</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 2902 -->
+  <rule id="112521" level="0">
+    <if_sid>2902</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 2903 -->
+  <rule id="112522" level="0">
+    <if_sid>2903</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 2904 -->
+  <rule id="112523" level="0">
+    <if_sid>2904</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5402 -->
+  <rule id="112524" level="0">
+    <if_sid>5402</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5501 -->
+  <rule id="112525" level="0">
+    <if_sid>5501</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5502 -->
+  <rule id="112526" level="0">
+    <if_sid>5502</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5503 -->
+  <rule id="112527" level="0">
+    <if_sid>5503</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5551 -->
+  <rule id="112528" level="0">
+    <if_sid>5551</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5553 -->
+  <rule id="112529" level="0">
+    <if_sid>5553</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5557 -->
+  <rule id="112530" level="0">
+    <if_sid>5557</if_sid>
+    <hostname>rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5712 -->
+  <rule id="112531" level="0">
+    <if_sid>5712</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5715 -->
+  <rule id="112532" level="0">
+    <if_sid>5715</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5901 -->
+  <rule id="112533" level="0">
+    <if_sid>5901</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 5902 -->
+  <rule id="112534" level="0">
+    <if_sid>5902</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 19003 -->
+  <rule id="112535" level="0">
+    <if_sid>19003</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 19004 -->
+  <rule id="112536" level="0">
+    <if_sid>19004</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 19010 -->
+  <rule id="112537" level="0">
+    <if_sid>19010</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 19011 -->
+  <rule id="112538" level="0">
+    <if_sid>19011</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23502 -->
+  <rule id="112539" level="0">
+    <if_sid>23502</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23503 -->
+  <rule id="112540" level="0">
+    <if_sid>23503</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23504 -->
+  <rule id="112541" level="0">
+    <if_sid>23504</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23505 -->
+  <rule id="112542" level="0">
+    <if_sid>23505</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23506 -->
+  <rule id="112543" level="0">
+    <if_sid>23506</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 23508 -->
+  <rule id="112544" level="0">
+    <if_sid>23508</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 31101 -->
+  <rule id="112545" level="0">
+    <if_sid>31101</if_sid>
+    <hostname>rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 31301 -->
+  <rule id="112546" level="0">
+    <if_sid>31301</if_sid>
+    <hostname>isif\-rproxy\-155</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 40704 -->
+  <rule id="112547" level="0">
+    <if_sid>40704</if_sid>
+    <hostname>isif\-rproxy\-155|rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+
+  <!-- Tenant TenantD: Suppress benign noise for Wazuh Rule 80710 -->
+  <rule id="112548" level="0">
+    <if_sid>80710</if_sid>
+    <hostname>rocky10\-terminal\-196</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant TenantD</description>
+    <options>no_log</options>
+  </rule>
+</group>

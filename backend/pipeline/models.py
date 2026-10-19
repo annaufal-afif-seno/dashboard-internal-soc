@@ -644,18 +644,22 @@ class SocTriageQueueDB(BaseModel):
     misp_sync_status: str = "NOT_SYNCED"
     assigned_analyst: Optional[str] = None
     priority: str = "P3"  # Standard incident priority
-    triage_status: str = "OPEN"  # OPEN, INVESTIGATE, CLOSE, WAITING, APPROVE, REJECT, FP Reject, AUTO_CLOSED, ESCALATED_IRIS, WAITING_SLA
+    triage_status: str = "OPEN"  # OPEN, INVESTIGATE, CLOSE, GROUNDTRUTH, WAITING, APPROVE, REJECT, AUTO_CLOSED, ESCALATED_IRIS, WAITING_SLA
     resolution_outcome: Optional[str] = None
     false_positive_reason: Optional[str] = None
     mean_time_to_triage_seconds: Optional[int] = None
     is_verified_true_positive: bool = False
     ground_truth_verdict: Optional[str] = None  # BENIGN, THREAT
+    ground_truth_status: Optional[str] = "ACT NEED"  # ACT NEED, WAITING, APPROVE, REJECT
     analyst_notes: Optional[str] = None
     manager_review_notes: Optional[str] = None
     manager_reviewer: Optional[str] = None
     manager_reviewed_at: Optional[datetime] = None
     reject_count: int = 0
     parent_triage_id: Optional[str] = None
+    first_detected_at: Optional[datetime] = None
+    priority_changed_at: Optional[datetime] = None
+    priority_established_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
@@ -746,3 +750,60 @@ class OperationalMetricsDailyDB(BaseModel):
     avg_mean_time_to_triage_sec: float = 0.0
     alert_reduction_percentage: Optional[Decimal] = None
     created_at: Optional[datetime] = None
+
+
+# ============================================================================
+# 8. THREAT CAMPAIGN & MULTI-LAYER ATTACK GRAPH CLUSTERING (STAGE 4.5)
+# ============================================================================
+
+class ThreatCampaignClusterDB(BaseModel):
+    """Database model for table: correlation.threat_campaign_clusters"""
+    cluster_id: str
+    pivot_incident_id: str
+    pivot_triage_id: Optional[str] = None
+    tenant_id: str = "DEFAULT"
+    target_host: str
+    compromised_account: Optional[str] = None
+    campaign_title: str
+    campaign_risk_score: int = 50
+    priority: str = "P1"
+    mitre_tactics_chain: List[str] = Field(default_factory=list)
+    first_activity_at: datetime
+    last_activity_at: datetime
+    total_distinct_actors: int = 1
+    total_aggregates_count: int = 1
+    total_raw_events_count: int = 1
+    causality_dag: Dict[str, Any] = Field(default_factory=dict)
+    cluster_status: str = "CONFIRMED_THREAT"
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ClusterMemberDB(BaseModel):
+    """Database model for table: correlation.cluster_members"""
+    member_id: Optional[int] = None
+    cluster_id: str
+    aggregation_id: Optional[str] = None
+    raw_event_id: Optional[str] = None
+    layer_stage: int = 1
+    entity_role: str = "GENERAL_ACTIVITY"
+    actor_entity: str
+    target_entity: str
+    rule_id: Optional[int] = None
+    event_timestamp: datetime
+    temporal_offset_seconds: int = 0
+    confidence_weight: Decimal = Decimal("1.000")
+    prior_status: str = "OPEN"
+    evidence_summary: Optional[str] = None
+
+
+class ClusterCausalityEdgeDB(BaseModel):
+    """Database model for table: correlation.cluster_causality_edges"""
+    edge_id: Optional[int] = None
+    cluster_id: str
+    source_node: str
+    target_node: str
+    relation_type: str
+    weight: Decimal = Decimal("1.000")
+    evidence_timestamp: Optional[datetime] = None
+

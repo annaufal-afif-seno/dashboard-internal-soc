@@ -902,7 +902,11 @@ CREATE TABLE soc_ops.soc_triage_queue (
     reject_count integer DEFAULT 0,
     parent_triage_id character varying(64) DEFAULT NULL::character varying,
     priority_established_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_triage_status_user_flow_100pct CHECK (((triage_status)::text = ANY ((ARRAY['OPEN'::character varying, 'INVESTIGATE'::character varying, 'CLOSE'::character varying, 'WAITING'::character varying, 'APPROVE'::character varying, 'REJECT'::character varying, 'FP Reject'::character varying])::text[]))),
+    first_detected_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    priority_changed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    sla_deadline timestamp with time zone,
+    ground_truth_status character varying(50) DEFAULT 'ACT NEED'::character varying,
+    CONSTRAINT chk_triage_status_user_flow_100pct CHECK (((triage_status)::text = ANY ((ARRAY['OPEN'::character varying, 'INVESTIGATE'::character varying, 'CLOSE'::character varying, 'GROUNDTRUTH'::character varying, 'WAITING'::character varying, 'APPROVE'::character varying, 'REJECT'::character varying])::text[]))),
     CONSTRAINT soc_triage_queue_priority_check CHECK (((priority)::text = ANY ((ARRAY['P0'::character varying, 'P1'::character varying, 'P2'::character varying, 'P3'::character varying, 'P4'::character varying])::text[]))),
     CONSTRAINT soc_triage_queue_resolution_outcome_check CHECK (((resolution_outcome)::text = ANY ((ARRAY['TRUE_POSITIVE_ACTIONABLE'::character varying, 'TRUE_POSITIVE_NO_ACTION'::character varying, 'FALSE_POSITIVE_TUNING_REQ'::character varying, 'OPERATIONAL_NOISE'::character varying, 'BENIGN_AUTHORIZED'::character varying, 'REJECTED'::character varying, 'FALSE_POSITIVE_REJECTED'::character varying])::text[])))
 );

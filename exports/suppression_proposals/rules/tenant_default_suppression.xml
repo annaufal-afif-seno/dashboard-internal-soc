@@ -1,0 +1,11 @@
+<!-- Auto-Generated Wazuh Upstream Suppression Rules for Tenant: DEFAULT -->
+<group name="tenant_tuning,suppression,default,">
+
+  <!-- Tenant DEFAULT: Suppress benign noise for Wazuh Rule 5503 -->
+  <rule id="112001" level="0">
+    <if_sid>5503</if_sid>
+    <hostname>server\-01</hostname>
+    <description>FP-SUPPRESSION: Auto-suppressed verified operational noise for Tenant DEFAULT</description>
+    <options>no_log</options>
+  </rule>
+</group>
