@@ -1,0 +1,45 @@
+{
+  "_comment": "Cluster v1 Centralized Configuration (Linux Focus)",
+  "window_size_seconds": 900,
+  "grace_period_seconds": 120,
+  "late_arriving_cutoff_hours": 24,
+  "max_distinct_paths_per_prefix": 20,
+  "max_keys_per_actor_window": 200,
+  "rate_limit_routine_seconds": 60,
+  "max_new_ip_updates_per_min": 5,
+  "max_material_updates_per_min": 5,
+  "unparsed_threshold_pct": 5.0,
+  "pkg_context_window_seconds": 300,
+  "evidence_sample_cap": 50,
+  "cold_snapshot_enabled": true,
+  "os_target": "linux",
+  "trusted_proxies_by_tenant": {
+    "DEFAULT": ["127.0.0.1", "::1"]
+  },
+  "privileged_accounts_by_tenant": {
+    "DEFAULT": ["root", "admin", "administrator", "ubuntu", "wheel", "domain_admins", "svc-*"]
+  },
+  "known_admin_ips_by_tenant": {
+    "DEFAULT": []
+  },
+  "exploit_threat_categories": [
+    "SQLI",
+    "TRAVERSAL",
+    "WEBSHELL",
+    "COMMAND_INJECTION",
+    "CVE_EXPLOIT"
+  ],
+  "critical_fim_paths": [
+    "/bin",
+    "/sbin",
+    "/usr/bin",
+    "/usr/sbin",
+    "/etc/shadow",
+    "/etc/passwd",
+    "/etc/sudoers",
+    "/etc/ssh/sshd_config",
+    "/etc/crontab",
+    "/etc/cron.",
+    "/etc/systemd/system"
+  ]
+}

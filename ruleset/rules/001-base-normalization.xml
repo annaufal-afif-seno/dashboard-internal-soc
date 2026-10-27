@@ -1,0 +1,43 @@
+<!--
+  Wazuh Ruleset: 001-base-normalization.xml
+  Purpose: Normalizes diverse raw events into baseline classification groups
+  Rule Range: 100000 - 100009
+-->
+<group name="base_normalized,">
+  <!-- Base Normalization Anchors -->
+  <rule id="100000" level="0">
+    <decoded_as>windows_eventchannel</decoded_as>
+    <description>BASE: Windows event normalized anchor</description>
+    <group>base_normalized,source_windows,</group>
+  </rule>
+
+  <rule id="100001" level="0">
+    <category>syslog</category>
+    <description>BASE: Linux syslog normalized anchor</description>
+    <group>base_normalized,source_linux,</group>
+  </rule>
+
+  <rule id="100002" level="0">
+    <decoded_as>web-accesslog</decoded_as>
+    <description>BASE: Web access log normalized anchor</description>
+    <group>base_normalized,source_web,</group>
+  </rule>
+
+  <rule id="100003" level="0">
+    <decoded_as>apparmor</decoded_as>
+    <description>BASE: AppArmor security event normalized anchor</description>
+    <group>base_normalized,source_apparmor,</group>
+  </rule>
+
+  <rule id="100004" level="0">
+    <decoded_as>docker</decoded_as>
+    <description>BASE: Container Docker event normalized anchor</description>
+    <group>base_normalized,source_docker,</group>
+  </rule>
+
+  <rule id="100005" level="0">
+    <decoded_as>json</decoded_as>
+    <description>BASE: Generic JSON telemetry normalized anchor</description>
+    <group>base_normalized,source_json,</group>
+  </rule>
+</group>

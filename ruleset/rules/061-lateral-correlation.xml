@@ -1,0 +1,28 @@
+<!--
+  Wazuh Ruleset: 061-lateral-correlation.xml
+  Purpose: Cross-host lateral movement correlation sequences
+  Rule Range: 106100 - 106199
+-->
+<group name="lateral_correlation,">
+  <rule id="106100" level="11" frequency="3" timeframe="300">
+    <if_matched_sid>106000</if_matched_sid>
+    <same_user />
+    <different_agent />
+    <description>LATERAL-CORR: User accessing multiple remote admin shares across different hosts</description>
+    <group>lateral_correlation,attack_chain,p1_high,</group>
+    <mitre>
+      <id>T1021.002</id>
+    </mitre>
+  </rule>
+
+  <rule id="106101" level="12" frequency="4" timeframe="600">
+    <if_matched_sid>106001</if_matched_sid>
+    <same_source_ip />
+    <different_agent />
+    <description>LATERAL-CORR: WMI execution sweeping across multiple internal endpoints</description>
+    <group>lateral_correlation,attack_chain,p1_high,</group>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+</group>

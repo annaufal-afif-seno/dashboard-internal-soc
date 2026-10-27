@@ -1,0 +1,58 @@
+<!--
+  Wazuh Ruleset: 070-correlation.xml
+  Purpose: Multi-Stage Attack Chains (Brute Force -> Valid Login -> PrivEsc -> Persistence -> C2)
+  Rule Range: 107000 - 107999
+-->
+<group name="attack_chain,">
+  <!-- Attack Chain 1: Brute force followed by successful login from same source -->
+  <rule id="107000" level="12" frequency="1" timeframe="600">
+    <if_sid>100010, 100011</if_sid>
+    <if_matched_sid>100021</if_matched_sid>
+    <same_source_ip />
+    <description>ATTACK-CHAIN: Successful login following brute force attack from same source IP</description>
+    <group>attack_chain,account_compromise,priority_p1,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- Attack Chain 2: Successful Login followed by Sudo or Privileged command -->
+  <rule id="107001" level="13" frequency="1" timeframe="900">
+    <if_sid>100030, 100031</if_sid>
+    <if_matched_sid>107000</if_matched_sid>
+    <same_agent />
+    <description>ATTACK-CHAIN: Privilege escalation executed on compromised host</description>
+    <group>attack_chain,privilege_escalation,priority_p0,</group>
+    <mitre>
+      <id>T1078</id>
+      <id>T1548.003</id>
+    </mitre>
+  </rule>
+
+  <!-- Attack Chain 3: PrivEsc followed by Persistence mechanism -->
+  <rule id="107002" level="14" frequency="1" timeframe="1200">
+    <if_group>persistence</if_group>
+    <if_matched_sid>107001</if_matched_sid>
+    <same_agent />
+    <description>ATTACK-CHAIN: Full Intrusion Chain: Compromise -> PrivEsc -> Persistence</description>
+    <group>attack_chain,full_kill_chain,priority_p0,</group>
+    <mitre>
+      <id>T1547</id>
+      <id>T1053</id>
+    </mitre>
+  </rule>
+
+  <!-- Attack Chain 4: Web Exploit burst followed by shell execution -->
+  <rule id="107005" level="14" frequency="1" timeframe="300">
+    <if_sid>100104</if_sid>
+    <if_matched_group>web</if_matched_group>
+    <same_agent />
+    <description>ATTACK-CHAIN: Web server attack resulted in interactive shell execution</description>
+    <group>attack_chain,rce_web_shell,priority_p0,</group>
+    <mitre>
+      <id>T1190</id>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+</group>

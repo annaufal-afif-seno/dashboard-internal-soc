@@ -1,0 +1,90 @@
+<!--
+  Wazuh Ruleset: 010-authentication.xml
+  Purpose: Authentication success/failure normalization, brute-force & service account anomaly detection
+  Rule Range: 100010 - 100059
+-->
+<group name="authentication,">
+  <!-- Successful Authentication -->
+  <rule id="100010" level="3">
+    <if_group>base_normalized</if_group>
+    <match>Accepted password|Accepted publickey|session opened for user</match>
+    <description>AUTH: Successful user authentication</description>
+    <group>authentication,authentication_success,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <rule id="100011" level="5">
+    <if_sid>100010</if_sid>
+    <user>root|administrator|admin</user>
+    <description>AUTH: Privileged root/admin authentication success</description>
+    <group>authentication,authentication_success,privileged_access,</group>
+    <mitre>
+      <id>T1078.001</id>
+    </mitre>
+  </rule>
+
+  <!-- Failed Authentication -->
+  <rule id="100020" level="5">
+    <if_group>base_normalized</if_group>
+    <match>Failed password|authentication failure|Invalid user</match>
+    <description>AUTH: Single failed authentication attempt</description>
+    <group>authentication,authentication_failed,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- Brute Force Bursts -->
+  <rule id="100021" level="10" frequency="8" timeframe="120">
+    <if_matched_sid>100020</if_matched_sid>
+    <same_source_ip />
+    <description>AUTH: Multiple failed authentications from same source IP (Possible Brute Force)</description>
+    <group>authentication,authentication_failed,brute_force,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100022" level="12" frequency="20" timeframe="300">
+    <if_matched_sid>100020</if_matched_sid>
+    <same_source_ip />
+    <description>AUTH: High-volume brute-force attack detected</description>
+    <group>authentication,brute_force,attack_chain,</group>
+    <mitre>
+      <id>T1110.003</id>
+    </mitre>
+  </rule>
+
+  <!-- Password Spraying (Across multiple users) -->
+  <rule id="100025" level="10" frequency="10" timeframe="300">
+    <if_matched_sid>100020</if_matched_sid>
+    <same_source_ip />
+    <different_user />
+    <description>AUTH: Potential Password Spraying attack detected</description>
+    <group>authentication,password_spray,</group>
+    <mitre>
+      <id>T1110.003</id>
+    </mitre>
+  </rule>
+
+  <!-- Sudo & Privilege Escalation Attempt -->
+  <rule id="100030" level="6">
+    <match>sudo:.*COMMAND=</match>
+    <description>AUTH: Sudo command executed by standard user</description>
+    <group>authentication,privilege_escalation,sudo_usage,</group>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+  </rule>
+
+  <rule id="100031" level="9">
+    <match>sudo:.*NOT in sudoers|sudo:.*incorrect password attempt</match>
+    <description>AUTH: Unauthorized sudo attempt or sudo failure</description>
+    <group>authentication,privilege_escalation,sudo_failed,</group>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+  </rule>
+</group>

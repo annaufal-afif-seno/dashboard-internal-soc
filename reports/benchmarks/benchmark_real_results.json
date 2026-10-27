@@ -1,0 +1,38 @@
+[
+  {
+    "Model": "LightGBM",
+    "Waktu Training (s)": 0.135,
+    "Throughput (log/s)": 1703896,
+    "Latency (ms/log)": 0.0006,
+    "Peak RAM (MB)": 3.99,
+    "Ukuran Model (MB)": 0.151,
+    "Recall (Deteksi)": "100.00%",
+    "Precision": "100.00%",
+    "F1-Score": "100.00%",
+    "ROC-AUC": "1.0000"
+  },
+  {
+    "Model": "Random Forest",
+    "Waktu Training (s)": 0.69,
+    "Throughput (log/s)": 385617,
+    "Latency (ms/log)": 0.0026,
+    "Peak RAM (MB)": 35.18,
+    "Ukuran Model (MB)": 0.295,
+    "Recall (Deteksi)": "100.00%",
+    "Precision": "100.00%",
+    "F1-Score": "100.00%",
+    "ROC-AUC": "1.0000"
+  },
+  {
+    "Model": "Logistic Regression",
+    "Waktu Training (s)": 0.695,
+    "Throughput (log/s)": 11738467,
+    "Latency (ms/log)": 0.0001,
+    "Peak RAM (MB)": 6.11,
+    "Ukuran Model (MB)": 0.001,
+    "Recall (Deteksi)": "100.00%",
+    "Precision": "100.00%",
+    "F1-Score": "100.00%",
+    "ROC-AUC": "1.0000"
+  }
+]

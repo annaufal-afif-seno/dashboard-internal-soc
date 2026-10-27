@@ -1,0 +1,16 @@
+<!--
+  Wazuh Ruleset: 063-lateral-critical-assets.xml
+  Purpose: Severity elevation for lateral movement targeting critical assets
+  Rule Range: 106300 - 106399
+-->
+<group name="lateral_critical_assets,">
+  <rule id="106300" level="14">
+    <if_sid>106000, 106001, 106002, 106003</if_sid>
+    <list field="dstip" lookup="address_match_key">etc/lists/critical-assets-list</list>
+    <description>CRITICAL-ASSET: Lateral movement targeting Crown Jewel / Domain Controller</description>
+    <group>lateral_critical_assets,priority_p0,crown_jewel_alert,</group>
+    <mitre>
+      <id>T1021</id>
+    </mitre>
+  </rule>
+</group>

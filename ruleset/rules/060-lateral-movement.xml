@@ -1,0 +1,46 @@
+<!--
+  Wazuh Ruleset: 060-lateral-movement.xml
+  Purpose: Lateral Movement detection via SMB, WMI, WinRM, SSH, RDP
+  Rule Range: 106000 - 106099
+-->
+<group name="lateral_movement,">
+  <rule id="106000" level="7">
+    <if_group>base_normalized</if_group>
+    <regex>EventID 4624.*LogonType 3.*ADMIN\$|EventID 4624.*LogonType 3.*C\$</regex>
+    <description>LATERAL: Remote network logon accessing administrative share (ADMIN$, C$)</description>
+    <group>lateral_movement,smb_admin_share,</group>
+    <mitre>
+      <id>T1021.002</id>
+    </mitre>
+  </rule>
+
+  <rule id="106001" level="8">
+    <if_group>base_normalized</if_group>
+    <regex>wmiprvse\.exe.*process call create|wmic\.exe.*process call create</regex>
+    <description>LATERAL: WMI Remote process execution invoked across network</description>
+    <group>lateral_movement,wmi_execution,</group>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+
+  <rule id="106002" level="8">
+    <if_group>base_normalized</if_group>
+    <match>wsmprovhost\.exe|WinRM remote session initialized</match>
+    <description>LATERAL: WinRM Remote PowerShell session executed</description>
+    <group>lateral_movement,winrm_session,</group>
+    <mitre>
+      <id>T1021.006</id>
+    </mitre>
+  </rule>
+
+  <rule id="106003" level="8">
+    <if_group>base_normalized</if_group>
+    <match>psexesvc\.exe|winexesvc\.exe</match>
+    <description>LATERAL: PsExec / Remote execution service binary spawned</description>
+    <group>lateral_movement,psexec_execution,</group>
+    <mitre>
+      <id>T1569.002</id>
+    </mitre>
+  </rule>
+</group>

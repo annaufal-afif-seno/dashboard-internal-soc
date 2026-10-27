@@ -1,0 +1,46 @@
+<!--
+  Wazuh Ruleset: 040-network.xml
+  Purpose: Network anomaly, outbound C2 beaconing, port scans, DNS tunneling
+  Rule Range: 100300 - 100399
+-->
+<group name="network_anomaly,">
+  <rule id="100300" level="5">
+    <if_group>base_normalized</if_group>
+    <match>SYN scan|Port scan|nmap|masscan</match>
+    <description>NET: Network port scanning or reconnaissance activity detected</description>
+    <group>network_anomaly,network_scan,discovery,</group>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+  <rule id="100301" level="8" frequency="15" timeframe="60">
+    <if_matched_sid>100300</if_matched_sid>
+    <same_source_ip />
+    <description>NET: High-frequency port scan burst from single source IP</description>
+    <group>network_anomaly,network_scan,burst_scan,</group>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+  <rule id="100305" level="9">
+    <if_group>base_normalized</if_group>
+    <match>DNS request for.*\.onion|DNS request for.*\.top|DNS TXT high entropy</match>
+    <description>NET: Suspicious DNS query or possible DNS Tunneling C2</description>
+    <group>network_anomaly,command_and_control,dns_tunneling,</group>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+  </rule>
+
+  <rule id="100310" level="7">
+    <if_group>base_normalized</if_group>
+    <match>Outbound connection to.*:4444|Outbound connection to.*:1337</match>
+    <description>NET: Outbound connection to suspicious non-standard port</description>
+    <group>network_anomaly,command_and_control,</group>
+    <mitre>
+      <id>T1095</id>
+    </mitre>
+  </rule>
+</group>

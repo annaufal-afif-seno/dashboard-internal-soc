@@ -1,0 +1,27 @@
+<!--
+  Wazuh Ruleset: 095-governance-log.xml
+  Purpose: Suppression Rule Governance Audit Trail & SLA Expiration Logging
+  Rule Range: 110000 - 110999
+-->
+<group name="governance_log,">
+  <rule id="110000" level="4">
+    <if_group>base_normalized</if_group>
+    <match>SUPPRESSION_RULE_CREATED|SUPPRESSION_RULE_MODIFIED</match>
+    <description>GOVERNANCE: Suppression rule created or modified in GRC framework</description>
+    <group>governance_log,audit_trail,grc_compliance,</group>
+  </rule>
+
+  <rule id="110001" level="7">
+    <if_group>base_normalized</if_group>
+    <match>SUPPRESSION_RULE_EXPIRED|SUPPRESSION_RULE_REVOKED</match>
+    <description>GOVERNANCE: Suppression rule expired or revoked (Re-enabling detection)</description>
+    <group>governance_log,audit_trail,grc_compliance,</group>
+  </rule>
+
+  <rule id="110002" level="10">
+    <if_group>base_normalized</if_group>
+    <match>SUPPRESSION_ESCAPE_DETECTED</match>
+    <description>GOVERNANCE-ALERT: Suppression Escape Detected - Suppressed entity matched P0 incident</description>
+    <group>governance_log,suppression_escape,security_audit,</group>
+  </rule>
+</group>

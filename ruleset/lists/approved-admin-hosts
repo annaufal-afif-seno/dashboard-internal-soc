@@ -1,0 +1,9 @@
+10.20.100.10:admin-jump-01
+10.20.100.11:admin-jump-02
+10.20.100.15:ansible-controller
+admin-jump-01:10.20.100.10
+admin-jump-02:10.20.100.11
+ansible-controller:10.20.100.15
+192.168.30.114:admin-mgmt-internal
+192.168.30.117:admin-mgmt-portal
+192.168.1.100:admin-jump-internal

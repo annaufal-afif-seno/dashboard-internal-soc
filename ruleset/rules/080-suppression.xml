@@ -1,0 +1,58 @@
+<!--
+  Wazuh Ruleset: 080-suppression.xml
+  Purpose: 5-Class Suppression Taxonomy (S1 Known-Good, S2 Dedup, S3 Aggregate, S4 Maint, S5 Conditional)
+  Rule Range: 108000 - 108999
+-->
+<group name="suppression,">
+  <!-- S1: Known-Good Vulnerability Scanner Suppression -->
+  <rule id="108000" level="0">
+    <if_group>web,authentication</if_group>
+    <list field="srcip" lookup="address_match_key">etc/lists/approved-vulnerability-scanners</list>
+    <description>SUPPRESSION-S1: Benign vulnerability scanner traffic suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s1_known_good,alert_fatigue_control,</group>
+  </rule>
+
+  <!-- S4: Approved Maintenance Window Suppression -->
+  <rule id="108001" level="0">
+    <if_group>process_execution,persistence</if_group>
+    <list field="dstip" lookup="address_match_key">etc/lists/approved-maintenance-windows</list>
+    <description>SUPPRESSION-S4: Expected operational maintenance activity suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s4_maintenance,alert_fatigue_control,</group>
+  </rule>
+
+  <!-- S1: AppArmor & Docker Routine Benign Denials -->
+  <rule id="108002" level="0">
+    <if_sid>52002</if_sid>
+    <match>apparmor="DENIED" operation="ptrace"|apparmor="DENIED" operation="getattr"|apparmor="DENIED" operation="open"</match>
+    <description>SUPPRESSION-S1: Routine non-critical AppArmor ptrace and read denial suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s1_known_good,apparmor_filter,</group>
+  </rule>
+  <!-- S1: Docker Routine DNS Resolver Timeout Suppression -->
+  <rule id="108003" level="0">
+    <if_sid>86003</if_sid>
+    <match>[resolver] failed to query DNS server|telemetry.elastic.co|i/o timeout</match>
+    <description>SUPPRESSION-S1: Routine Docker daemon DNS resolver timeout suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s1_known_good,docker_filter,</group>
+  </rule>
+
+  <!-- S1: Internal Zabbix Dashboard Auto-Refresh Suppression (False Positive Bot POST) -->
+  <rule id="108004" level="0">
+    <if_sid>31530,31533</if_sid>
+    <match>/zabbix/zabbix.php|/zabbix/jsrpc.php</match>
+    <description>SUPPRESSION-S1: Benign internal Zabbix monitoring UI auto-refresh POST requests suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s1_known_good,zabbix_filter,</group>
+  </rule>
+
+  <!-- S1: Vulnerability Detector Informational Solved CVEs Suppression -->
+  <rule id="108005" level="0">
+    <if_sid>23502</if_sid>
+    <description>SUPPRESSION-S1: Informational vulnerability resolved notification suppressed</description>
+    <options>no_log</options>
+    <group>suppression,s1_known_good,vuln_filter,</group>
+  </rule>
+</group>

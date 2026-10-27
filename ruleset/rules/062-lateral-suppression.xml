@@ -1,0 +1,23 @@
+<!--
+  Wazuh Ruleset: 062-lateral-suppression.xml
+  Purpose: Known-good administrative & vulnerability scanner lateral noise suppression
+  Rule Range: 106200 - 106299
+-->
+<group name="lateral_suppression,">
+  <rule id="106200" level="0">
+    <if_sid>106000, 106001, 106002</if_sid>
+    <list field="srcip" lookup="address_match_key">etc/lists/approved-vulnerability-scanners</list>
+    <description>SUPPRESSION-S1: Approved vulnerability scanner remote probe suppressed</description>
+    <options>no_log</options>
+    <group>lateral_suppression,s1_known_good,</group>
+  </rule>
+
+  <rule id="106201" level="0">
+    <if_sid>106000, 106002</if_sid>
+    <list field="srcip" lookup="address_match_key">etc/lists/approved-admin-hosts</list>
+    <user>ansible|svc_deploy|terraform</user>
+    <description>SUPPRESSION-S1: Legitimate deployment/management tool activity suppressed</description>
+    <options>no_log</options>
+    <group>lateral_suppression,s1_known_good,</group>
+  </rule>
+</group>

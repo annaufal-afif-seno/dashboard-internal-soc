@@ -1,0 +1,46 @@
+<!--
+  Wazuh Ruleset: 030-persistence.xml
+  Purpose: Persistence via Registry Run Keys, Cron, Systemd, SSH authorized_keys
+  Rule Range: 100200 - 100299
+-->
+<group name="persistence,">
+  <rule id="100200" level="8">
+    <if_group>base_normalized</if_group>
+    <match>/etc/cron|/var/spool/cron|/etc/crontab</match>
+    <description>PERSIST: Cron table or scheduled task modified</description>
+    <group>persistence,scheduled_task,cron,</group>
+    <mitre>
+      <id>T1053.003</id>
+    </mitre>
+  </rule>
+
+  <rule id="100201" level="8">
+    <if_group>base_normalized</if_group>
+    <regex>\.ssh/(authorized_keys|id_rsa)</regex>
+    <description>PERSIST: SSH authorized_keys or private key modified</description>
+    <group>persistence,ssh_key_persistence,</group>
+    <mitre>
+      <id>T1098.004</id>
+    </mitre>
+  </rule>
+
+  <rule id="100202" level="8">
+    <if_group>base_normalized</if_group>
+    <match>Software\Microsoft\Windows\CurrentVersion\Run</match>
+    <description>PERSIST: Windows Registry Run / RunOnce key added or modified</description>
+    <group>persistence,registry_run_keys,</group>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100203" level="9">
+    <if_group>base_normalized</if_group>
+    <match>/etc/systemd/system/|sc create|sc.exe create</match>
+    <description>PERSIST: Systemd service or Windows service created for persistence</description>
+    <group>persistence,create_or_modify_system_process,</group>
+    <mitre>
+      <id>T1543.002</id>
+    </mitre>
+  </rule>
+</group>

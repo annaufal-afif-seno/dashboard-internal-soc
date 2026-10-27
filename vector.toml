@@ -1,0 +1,63 @@
+# ==============================================================================
+# Vector Configuration: Wazuh Alert Stream to PostgreSQL Ingestion Pipeline
+# Production-Grade • Zero Alert Drop • Disk Buffered • Offset Checkpointed
+# ==============================================================================
+
+# 1. Sources: Read Wazuh JSON Alert Stream
+[sources.wazuh_alerts]
+type = "file"
+include = [
+  "/var/ossec/logs/alerts/alerts.json",
+  "data alert/alert juli 2026/wazuh-alerts-2026-07-week*.json",
+  "data alert/alert agustus 2026/wazuh-alerts-2026-08-week*.json"
+]
+read_from = "beginning"
+ignore_older_secs = 2592000 # 30 days
+max_line_bytes = 1048576    # 1 MB per raw alert
+
+# 2. Transforms: Parse and Map Full JSON Alert Fields into Common Event Model
+[transforms.parse_wazuh_alert]
+type = "remap"
+inputs = ["wazuh_alerts"]
+source = '''
+  parsed, err = parse_json(.message)
+  if err != null {
+    abort
+  }
+
+  .event_id = to_string(parsed.id) ?? to_string(parsed._id) ?? uuid_v4()
+  .timestamp = to_string(parsed.timestamp) ?? to_string(parsed."@timestamp") ?? now()
+  .agent_id = to_string(parsed.agent.id) ?? "000"
+  .agent_name = to_string(parsed.agent.name) ?? "wazuh-manager"
+  .agent_ip = to_string(parsed.agent.ip) ?? null
+  .tenant_id = to_string(parsed.agent.labels.tenant) ?? "DEFAULT"
+
+  # Network & Actor Mapping
+  .source_ip = to_string(parsed.data.srcip) ?? to_string(parsed.data.src_ip) ?? null
+  .destination_ip = to_string(parsed.data.dstip) ?? to_string(parsed.data.dst_ip) ?? null
+  .source_port = to_int(parsed.data.srcport) ?? null
+  .destination_port = to_int(parsed.data.dstport) ?? null
+  .protocol = to_string(parsed.data.proto) ?? to_string(parsed.data.protocol) ?? null
+  .username = to_string(parsed.data.srcuser) ?? to_string(parsed.data.dstuser) ?? to_string(parsed.data.user) ?? null
+
+  .location = to_string(parsed.location) ?? null
+  .decoder_name = to_string(parsed.decoder.name) ?? null
+  .raw_payload = .message
+  .ingested_at = now()
+'''
+
+# 3. Sinks: Idempotent PostgreSQL Ingestion with Disk Buffering
+[sinks.postgres_raw_events]
+type = "postgres"
+inputs = ["parse_wazuh_alert"]
+endpoint = "postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-localhost}:${DB_PORT:-5432}/${DB_NAME:-wazuh_soc_db}"
+table = "telemetry.raw_events"
+
+# Batching & High-Throughput Stream Optimization
+batch.max_events = 5000
+batch.timeout_secs = 2
+
+# Disk Buffer Safeguard: Prevents RAM Exhaustion during Bursts
+buffer.type = "disk"
+buffer.max_size = 1073741824 # 1 GB
+buffer.when_full = "block"

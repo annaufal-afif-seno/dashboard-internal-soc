@@ -1,0 +1,38 @@
+<!--
+  Wazuh Ruleset: 090-critical-assets.xml
+  Purpose: Asset Criticality Context & Severity Elevation (Crown Jewels, DMZ, Production DBs)
+  Rule Range: 109000 - 109999
+-->
+<group name="critical_assets,">
+  <!-- Network targeting Crown Jewel via Destination IP -->
+  <rule id="109000" level="12">
+    <if_group>authentication_failed</if_group>
+    <list field="dstip" lookup="address_match_key">etc/lists/critical-assets-list</list>
+    <description>CRITICAL-ASSET: Security anomaly targeting Crown Jewel / Production DB (Network)</description>
+    <group>critical_assets,priority_p1,severity_boost,</group>
+  </rule>
+
+  <!-- Local Host Anomaly / Process Execution on Crown Jewel -->
+  <rule id="109002" level="12">
+    <if_group>process_execution</if_group>
+    <list field="hostname" lookup="match_key">etc/lists/critical-assets-list</list>
+    <description>CRITICAL-ASSET: Process anomaly executed locally on Crown Jewel</description>
+    <group>critical_assets,priority_p1,severity_boost,</group>
+  </rule>
+
+  <!-- Network persistence/malware targeting Crown Jewel -->
+  <rule id="109001" level="14">
+    <if_group>malware</if_group>
+    <list field="dstip" lookup="address_match_key">etc/lists/critical-assets-list</list>
+    <description>CRITICAL-ASSET: High severity malware connection to Crown Jewel</description>
+    <group>critical_assets,priority_p0,severity_boost,</group>
+  </rule>
+
+  <!-- Local persistence/malware on Crown Jewel -->
+  <rule id="109003" level="14">
+    <if_group>persistence,malware</if_group>
+    <list field="hostname" lookup="match_key">etc/lists/critical-assets-list</list>
+    <description>CRITICAL-ASSET: High severity persistence or malware detected locally on Crown Jewel</description>
+    <group>critical_assets,priority_p0,severity_boost,</group>
+  </rule>
+</group>

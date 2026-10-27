@@ -1,0 +1,58 @@
+<!--
+  Wazuh Ruleset: 020-process.xml
+  Purpose: Process anomalies, LOLBAS execution, encoded PowerShell, suspicious shells
+  Rule Range: 100100 - 100199
+-->
+<group name="process_execution,">
+  <rule id="100100" level="7">
+    <if_group>base_normalized</if_group>
+    <regex>(?i)powershell.*(\s+-(e|enc|encodedcommand))|pwsh.*(\s+-(e|enc|encodedcommand))</regex>
+    <description>PROC: Base64 Encoded PowerShell command execution detected</description>
+    <group>process_execution,defense_evasion,powershell,</group>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1027</id>
+    </mitre>
+  </rule>
+
+  <rule id="100101" level="8">
+    <if_group>base_normalized</if_group>
+    <match>certutil -urlcache|bitsadmin /transfer|curl -s http|wget -q http</match>
+    <description>PROC: LOLBAS Command-line download utility executed (Ingress Tool Transfer)</description>
+    <group>process_execution,ingress_tool_transfer,lolbas,</group>
+    <mitre>
+      <id>T1105</id>
+    </mitre>
+  </rule>
+
+  <rule id="100102" level="9">
+    <if_group>base_normalized</if_group>
+    <match>whoami /priv|vssadmin delete shadows|wbadmin delete catalog|nltest /dclist</match>
+    <description>PROC: Discovery or shadow copy deletion command executed</description>
+    <group>process_execution,discovery,inhibit_system_recovery,</group>
+    <mitre>
+      <id>T1490</id>
+      <id>T1033</id>
+    </mitre>
+  </rule>
+
+  <rule id="100103" level="8">
+    <if_group>base_normalized</if_group>
+    <regex>mimikatz|sekurlsa::logonpasswords|procdump.*lsass</regex>
+    <description>PROC: Credential dumping utility / LSASS access attempted</description>
+    <group>process_execution,credential_access,lsass_dump,</group>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100104" level="10">
+    <if_group>base_normalized</if_group>
+    <match>/bin/bash -i >&amp; /dev/tcp/|/bin/sh -i|nc -e /bin/bash|nc -e /bin/sh</match>
+    <description>PROC: Interactive Reverse Shell command execution detected</description>
+    <group>process_execution,command_and_control,reverse_shell,</group>
+    <mitre>
+      <id>T1059.004</id>
+    </mitre>
+  </rule>
+</group>

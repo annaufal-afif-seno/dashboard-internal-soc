@@ -117,13 +117,4 @@ MD5(category | actor | target | os_platform | tenant_id)
 | `ENDPOINT_PROCESS` | `EXECUTION` |
 | `FILE_INTEGRITY` | `FILE_INTEGRITY` |
 
----
-
-### 7. CORRELATION RULE CATEGORY UPDATES
-
-| Old Category | → New Category(s) |
-|-------------|-------------------|
-| `AUTH` | `AUTH_FAILURE`, `AUTH_SUCCESS`, `CREDENTIAL_ACCESS` |
-| `HOST` | `EXECUTION`, `PERSISTENCE`, `DEFENSE_EVASION`, `PRIVILEGE_ESCALATION` |
-| `NETWORK` | `WEB_ATTACK`, `INITIAL_ACCESS`, `COMMAND_AND_CONTROL`, `DISCOVERY` |
 

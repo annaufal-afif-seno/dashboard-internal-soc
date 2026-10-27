@@ -1,0 +1,3 @@
+zabbix-prod-214:10.20.100.214
+prometheus-prod:10.20.100.215
+wazuh-manager:10.20.100.200
