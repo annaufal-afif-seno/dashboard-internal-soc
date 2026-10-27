@@ -1484,24 +1484,29 @@ def get_raw_alerts(
             if start_dt and end_dt:
                 sev_where.append("bucket_hour >= %s AND bucket_hour <= %s")
                 sev_params.extend([start_dt, end_dt])
-            cur.execute(f"""
-                SELECT 
-                    COALESCE(SUM(total), 0) as total,
-                    COALESCE(SUM(critical), 0) as critical,
-                    COALESCE(SUM(high), 0) as high,
-                    COALESCE(SUM(medium), 0) as medium,
-                    COALESCE(SUM(low), 0) as low
-                FROM metrics.raw_severity_hourly
-                WHERE {' AND '.join(sev_where)};
-            """, sev_params)
-            lvl_row = cur.fetchone() or {}
-            level_counts = {
-                "ALL": int(lvl_row.get("total") or 0),
-                "CRITICAL": int(lvl_row.get("critical") or 0),
-                "HIGH": int(lvl_row.get("high") or 0),
-                "MEDIUM": int(lvl_row.get("medium") or 0),
-                "LOW": int(lvl_row.get("low") or 0),
-            }
+            try:
+                cur.execute(f"""
+                    SELECT 
+                        COALESCE(SUM(total), 0) as total,
+                        COALESCE(SUM(critical), 0) as critical,
+                        COALESCE(SUM(high), 0) as high,
+                        COALESCE(SUM(medium), 0) as medium,
+                        COALESCE(SUM(low), 0) as low
+                    FROM metrics.raw_severity_hourly
+                    WHERE {' AND '.join(sev_where)};
+                """, sev_params)
+                lvl_row = cur.fetchone() or {}
+                level_counts = {
+                    "ALL": int(lvl_row.get("total") or 0),
+                    "CRITICAL": int(lvl_row.get("critical") or 0),
+                    "HIGH": int(lvl_row.get("high") or 0),
+                    "MEDIUM": int(lvl_row.get("medium") or 0),
+                    "LOW": int(lvl_row.get("low") or 0),
+                }
+            except Exception as e:
+                logger.warning(f"Could not query metrics.raw_severity_hourly: {e}, falling back to defaults")
+                conn.rollback()
+                level_counts = dict(_GLOBAL_RAW_LEVEL_COUNTS)
             if level_counts["ALL"] == 0 and not (start_dt and end_dt):
                 level_counts = dict(_GLOBAL_RAW_LEVEL_COUNTS)
             _TIME_TENANT_LEVEL_COUNTS_CACHE[cache_key] = level_counts
