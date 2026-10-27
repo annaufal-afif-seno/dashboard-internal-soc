@@ -12,10 +12,6 @@ import {
 
 } from 'lucide-react';
 
-import { fullMultiFilterDatasets, ALL_FIELD_VALUES } from './clusteringDatasets';
-
-
-
 const PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e', '#64748b'];
 
 
@@ -33,88 +29,6 @@ const FILTER_FIELDS = [
   { id: 'cluster-activity', label: 'activity', title: 'Activity' }
 
 ];
-
-
-
-function formatTop5PlusLainnya(items, chartId) {
-
-  if (!items || items.length <= 1) return items; // Chart 100% fokus jika terfilter
-
-  
-
-  // Pisahkan entitas spesifik dan 'Lainnya'
-
-  const named = items.filter(it => !it.name.toLowerCase().startsWith('lainnya'));
-
-  const existingLainnya = items.find(it => it.name.toLowerCase().startsWith('lainnya'));
-
-  
-
-  // 1. Jika entitas spesifik <= 5 (misalnya Petra hanya punya 2 agen: 020 dan 019):
-
-  // Tampilkan entitas asli tersebut secara akurat tanpa menyuntikkan agen asing dari tenant lain!
-
-  if (named.length <= 5) {
-
-    const total = items.reduce((acc, it) => acc + (it.value || 0), 0) || 1;
-
-    return items.map((it, idx) => ({
-
-      ...it,
-
-      pct: ((it.value * 100.0) / total).toFixed(1),
-
-      color: it.name.toLowerCase().startsWith('lainnya') ? '#64748b' : PALETTE[idx % 5]
-
-    }));
-
-  }
-
-  
-
-  // 2. Jika entitas spesifik > 5 (misalnya Actor, Rule ID, atau Activity yang punya banyak item):
-
-  // Wajib tampilkan Top 5 entitas teratas, dan sisa entitas ke-6 dst digabung ke "Lainnya" (Top 5 + Lainnya)
-
-  const top5 = named.slice(0, 5);
-
-  const remainder = named.slice(5);
-
-  const remainderVal = remainder.reduce((acc, it) => acc + it.value, 0) + (existingLainnya ? existingLainnya.value : 0);
-
-  
-
-  const finalItems = [
-
-    ...top5,
-
-    {
-
-      name: 'Lainnya',
-
-      value: remainderVal
-
-    }
-
-  ];
-
-  
-
-  const finalTotal = finalItems.reduce((acc, it) => acc + it.value, 0) || 1;
-
-  return finalItems.map((it, idx) => ({
-
-    name: it.name,
-
-    value: it.value,
-
-    pct: ((it.value * 100.0) / finalTotal).toFixed(1),
-
-    color: it.name.toLowerCase().startsWith('lainnya') ? '#64748b' : PALETTE[idx % 5]
-
-  }));
-
-}
 
 
 
@@ -249,21 +163,14 @@ export default function ClusteringOverview({
   // State untuk Popover "+ Add filter"
 
   const [isAddFilterOpen, setIsAddFilterOpen] = useState(false);
-
   const [selectedFieldId, setSelectedFieldId] = useState('cluster-tenant');
-
-  const [searchValue, setSearchValue] = useState(
-
-    (ALL_FIELD_VALUES && ALL_FIELD_VALUES['cluster-tenant'] && ALL_FIELD_VALUES['cluster-tenant'][0]) || 'PraditaUniversity'
-
-  );
-
+  const [searchValue, setSearchValue] = useState('');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
 
-
+  const [clusterOverview, setClusterOverview] = useState(null);
+  const [clusterLoading, setClusterLoading] = useState(false);
 
   const popoverRef = useRef(null);
-
   const suggestionsRef = useRef(null);
 
 
@@ -300,40 +207,75 @@ export default function ClusteringOverview({
 
 
 
-  // Update default search value when field changes
+  // Dynamic cluster overview fetcher
+  const fetchClusterOverview = async () => {
+    setClusterLoading(true);
+    try {
+      const params = new URLSearchParams({
+        mode: clusterMode,
+        range: timeRange || 'semua'
+      });
+      if (selectedTenant && selectedTenant !== 'ALL') {
+        params.append('tenant_id', selectedTenant);
+      }
+      if (timeRange === 'custom' && customStartDate && customEndDate) {
+        params.append('start', customStartDate);
+        params.append('end', customEndDate);
+      }
+      if (activeFilters['cluster-tenant']?.name) {
+        params.append('filter_tenant', activeFilters['cluster-tenant'].name);
+      }
+      if (activeFilters['cluster-rule-id']?.name) {
+        params.append('filter_rule', activeFilters['cluster-rule-id'].name);
+      }
+      if (activeFilters['cluster-agent']?.name) {
+        params.append('filter_agent', activeFilters['cluster-agent'].name);
+      }
+      if (activeFilters['cluster-actor']?.name) {
+        params.append('filter_actor', activeFilters['cluster-actor'].name);
+      }
+      if (activeFilters['cluster-activity']?.name) {
+        params.append('filter_activity', activeFilters['cluster-activity'].name);
+      }
 
-  const handleFieldChange = (newFieldId) => {
-
-    setSelectedFieldId(newFieldId);
-
-    const available = (ALL_FIELD_VALUES && ALL_FIELD_VALUES[newFieldId]) || [];
-
-    setSearchValue(available.length > 0 ? available[0] : '');
-
-    setIsSuggestionsOpen(false);
-
+      const res = await fetch(`/api/clustering/overview?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setClusterOverview(json);
+      }
+    } catch (err) {
+      console.error('Error fetching cluster overview:', err);
+    } finally {
+      setClusterLoading(false);
+    }
   };
 
+  useEffect(() => {
+    fetchClusterOverview();
+  }, [clusterMode, selectedTenant, timeRange, customStartDate, customEndDate, activeFilters]);
 
+  // Update default search value when field changes
+  const handleFieldChange = (newFieldId) => {
+    setSelectedFieldId(newFieldId);
+    const available = (clusterOverview?.[newFieldId]?.data || [])
+      .map(d => d.name)
+      .filter(n => n && !n.toLowerCase().startsWith('lainnya'));
+    setSearchValue(available.length > 0 ? available[0] : '');
+    setIsSuggestionsOpen(false);
+  };
 
   // Filtered options based on user typing
-
   const currentFieldOptions = useMemo(() => {
-
-    return (ALL_FIELD_VALUES && ALL_FIELD_VALUES[selectedFieldId]) || [];
-
-  }, [selectedFieldId]);
-
-
+    if (!clusterOverview || !clusterOverview[selectedFieldId]?.data) return [];
+    return clusterOverview[selectedFieldId].data
+      .map(d => d.name)
+      .filter(n => n && !n.toLowerCase().startsWith('lainnya'));
+  }, [clusterOverview, selectedFieldId]);
 
   const filteredOptions = useMemo(() => {
-
     if (!searchValue || searchValue.trim() === '') return currentFieldOptions;
-
     const q = searchValue.toLowerCase().trim();
-
     return currentFieldOptions.filter(opt => opt.toLowerCase().includes(q));
-
   }, [currentFieldOptions, searchValue]);
 
 
@@ -365,29 +307,18 @@ export default function ClusteringOverview({
 
 
   const handleSliceClick = (chartId, item) => {
-
     if (!item || !item.name) return;
-
-    
+    if (item.name.toLowerCase().startsWith('lainnya')) return;
 
     setActiveFilters((prev) => {
-
       const next = { ...prev };
-
       if (next[chartId] && next[chartId].name === item.name) {
-
         delete next[chartId]; // Toggle off jika diklik kembali item yang sama
-
       } else {
-
         next[chartId] = { name: item.name, color: item.color }; // Terapkan filter
-
       }
-
       return next;
-
     });
-
   };
 
 
@@ -408,593 +339,25 @@ export default function ClusteringOverview({
 
 
 
-  // =========================================================================
-
-  // BASE DATASET 1: INTERVAL (15-Minute Window Cluster Frequency)
-
-  // Total: 715,183 Interval
-
-  // =========================================================================
-
-  const baseIntervalData = useMemo(() => ({
-
-    'cluster-tenant': {
-
-      id: 'cluster-tenant',
-
-      title: 'TENANT',
-
-      total: 715183,
-
-      unit: 'interval',
-
-      data: [
-
-        { name: 'PraditaUniversity', value: 340209, pct: '47.6', color: '#10b981' },
-
-        { name: 'Petra', value: 224271, pct: '31.4', color: '#0284c7' },
-
-        { name: 'InstikiBali', value: 106197, pct: '14.8', color: '#f59e0b' },
-
-        { name: 'wicida', value: 12995, pct: '1.8', color: '#8b5cf6' },
-
-        { name: 'TenantC', value: 10981, pct: '1.5', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 20530, pct: '2.9', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-rule-id': {
-
-      id: 'cluster-rule-id',
-
-      title: 'RULE.ID',
-
-      total: 715183,
-
-      unit: 'interval',
-
-      data: [
-
-        { name: 'Rule 31101', value: 396904, pct: '55.5', color: '#10b981' },
-
-        { name: 'Rule 100001', value: 103881, pct: '14.5', color: '#0284c7' },
-
-        { name: 'Rule 31301', value: 34447, pct: '4.8', color: '#f59e0b' },
-
-        { name: 'Rule 31122', value: 28269, pct: '4.0', color: '#8b5cf6' },
-
-        { name: 'Rule 3332', value: 21293, pct: '3.0', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 130389, pct: '18.2', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-agent': {
-
-      id: 'cluster-agent',
-
-      title: 'AGENT',
-
-      total: 715183,
-
-      unit: 'interval',
-
-      data: [
-
-        { name: '020 (ReverseProxy-Petra)', value: 224016, pct: '31.3', color: '#10b981' },
-
-        { name: '015 (pradita-core)', value: 188241, pct: '26.3', color: '#0284c7' },
-
-        { name: '016 (server-lppm)', value: 152823, pct: '21.4', color: '#f59e0b' },
-
-        { name: '035 (ELSA_INSTIKIBALI)', value: 74284, pct: '10.4', color: '#8b5cf6' },
-
-        { name: '034 (SADS_INSTIKIBALI)', value: 27351, pct: '3.8', color: '#f43f5e' },
-
-        { name: 'Lainnya (37 Host Agen)', value: 48468, pct: '6.8', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-actor': {
-
-      id: 'cluster-actor',
-
-      title: 'ACTOR',
-
-      total: 216372,
-
-      unit: 'interval',
-
-      data: [
-
-        { name: '57.141.14.0/24', value: 19319, pct: '8.9', color: '#10b981' },
-
-        { name: '57.141.16.0/24', value: 18987, pct: '8.8', color: '#0284c7' },
-
-        { name: 'NO_ACTOR', value: 18420, pct: '8.5', color: '#f59e0b' },
-
-        { name: '77.83.39.0/24', value: 12556, pct: '5.8', color: '#8b5cf6' },
-
-        { name: '116.179.37.0/24', value: 10880, pct: '5.0', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 136210, pct: '63.0', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-activity': {
-
-      id: 'cluster-activity',
-
-      title: 'ACTIVITY',
-
-      total: 503124,
-
-      unit: 'interval',
-
-      data: [
-
-        { name: 'GET /fetch [404]', value: 140005, pct: '27.8', color: '#10b981' },
-
-        { name: 'GET /cgi/users/home [401]', value: 106871, pct: '21.2', color: '#0284c7' },
-
-        { name: 'GET /id/eprint/* [404]', value: 80958, pct: '16.1', color: '#f59e0b' },
-
-        { name: 'POST /administrator/* [404]', value: 34485, pct: '6.9', color: '#8b5cf6' },
-
-        { name: 'HEAD /plugins/slims/* [404]', value: 24985, pct: '5.0', color: '#f43f5e' },
-
-        { name: 'Lainnya [404 / 502]', value: 115820, pct: '23.0', color: '#64748b' }
-
-      ]
-
+    const getCardData = (chartId) => {
+    if (clusterOverview && clusterOverview[chartId]) {
+      return clusterOverview[chartId];
     }
-
-  }), []);
-
-
-
-  // =========================================================================
-
-  // BASE DATASET 2: CUMULATIVE (Lifetime Raw Event Alert Volume)
-
-  // Total: 7,553,569 Alert Mentah Terakumulasi
-
-  // =========================================================================
-
-  const baseCumulativeData = useMemo(() => ({
-
-    'cluster-tenant': {
-
-      id: 'cluster-tenant',
-
-      title: 'TENANT',
-
-      total: 7553569,
-
-      unit: 'alerts',
-
-      data: [
-
-        { name: 'PraditaUniversity', value: 2086772, pct: '27.6', color: '#10b981' },
-
-        { name: 'InstikiBali', value: 1512395, pct: '20.0', color: '#0284c7' },
-
-        { name: 'TenantC', value: 949784, pct: '12.6', color: '#f59e0b' },
-
-        { name: 'Petra', value: 580688, pct: '7.7', color: '#8b5cf6' },
-
-        { name: 'wicida', value: 292911, pct: '3.9', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 2131019, pct: '28.2', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-rule-id': {
-
-      id: 'cluster-rule-id',
-
-      title: 'RULE.ID',
-
-      total: 7553569,
-
-      unit: 'alerts',
-
-      data: [
-
-        { name: 'Rule 31101', value: 2875763, pct: '38.1', color: '#10b981' },
-
-        { name: 'Rule 52002', value: 2002323, pct: '26.5', color: '#0284c7' },
-
-        { name: 'Rule 100001', value: 605361, pct: '8.0', color: '#f59e0b' },
-
-        { name: 'Rule 5503', value: 269909, pct: '3.6', color: '#8b5cf6' },
-
-        { name: 'Rule 31301', value: 210155, pct: '2.8', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 1590058, pct: '21.0', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-agent': {
-
-      id: 'cluster-agent',
-
-      title: 'AGENT',
-
-      total: 7553569,
-
-      unit: 'alerts',
-
-      data: [
-
-        { name: '021 (web-portal)', value: 1757431, pct: '23.3', color: '#10b981' },
-
-        { name: '015 (server-lppm)', value: 1576858, pct: '20.9', color: '#0284c7' },
-
-        { name: '035 (SADS_INSTIKI)', value: 895188, pct: '11.9', color: '#f59e0b' },
-
-        { name: '016 (pradita-core)', value: 666134, pct: '8.8', color: '#8b5cf6' },
-
-        { name: '020 (ReverseProxy-Petra)', value: 561991, pct: '7.4', color: '#f43f5e' },
-
-        { name: 'Lainnya (37 Host Agen)', value: 2095967, pct: '27.7', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-actor': {
-
-      id: 'cluster-actor',
-
-      title: 'ACTOR',
-
-      total: 5653557,
-
-      unit: 'alerts',
-
-      data: [
-
-        { name: '185.220.101.0/24', value: 1516019, pct: '26.8', color: '#10b981' },
-
-        { name: '103.19.110.0/24', value: 397525, pct: '7.0', color: '#0284c7' },
-
-        { name: '172.16.80.201', value: 289771, pct: '5.1', color: '#f59e0b' },
-
-        { name: '172.16.90.20', value: 168624, pct: '3.0', color: '#8b5cf6' },
-
-        { name: '51.79.230.0/24', value: 138728, pct: '2.5', color: '#f43f5e' },
-
-        { name: 'Lainnya', value: 3142890, pct: '55.6', color: '#64748b' }
-
-      ]
-
-    },
-
-    'cluster-activity': {
-
-      id: 'cluster-activity',
-
-      title: 'ACTIVITY',
-
-      total: 6583569,
-
-      unit: 'alerts',
-
-      data: [
-
-        { name: 'GET /fetch [404]', value: 1752052, pct: '26.6', color: '#10b981' },
-
-        { name: 'GET /cgi/users/home [401]', value: 1417337, pct: '21.5', color: '#0284c7' },
-
-        { name: 'GET /id/eprint/* [404]', value: 840715, pct: '12.8', color: '#f59e0b' },
-
-        { name: 'POST /administrator/* [404]', value: 665412, pct: '10.1', color: '#8b5cf6' },
-
-        { name: 'HEAD /plugins/slims/* [404]', value: 561991, pct: '8.5', color: '#f43f5e' },
-
-        { name: 'Lainnya [404 / 502]', value: 1346062, pct: '20.5', color: '#64748b' }
-
-      ]
-
-    }
-
-  }), []);
-
-
-
-  // FUNGSI KOMPUTASI KARTU BERDASARKAN COMBINED MULTI-FILTER
-
-  const currentBaseData = clusterMode === 'interval' ? baseIntervalData : baseCumulativeData;
-
-
-
-  const getCardData = (chartId) => {
-
-    const baseCard = currentBaseData[chartId];
-
-    if (!baseCard) return null;
-
-
-
-    // 1. Jika pie chart ini sendiri sedang aktif difilter:
-
-    // Otomatis menjadi 100% dari item yang dipilih!
-
-    if (activeFilters[chartId]) {
-
-      const selectedFilter = activeFilters[chartId];
-
-      const foundInBase = baseCard.data.find(d => d.name === selectedFilter.name);
-
-      let val = foundInBase ? foundInBase.value : baseCard.total;
-
-
-
-      // Hitung cross-irisan subset jika ada filter lain aktif
-
-      if (activeFilters['cluster-tenant'] && activeFilters['cluster-rule-id']) {
-
-        if (activeFilters['cluster-tenant'].name === 'Petra' && activeFilters['cluster-rule-id'].name === 'Rule 31101') {
-
-          val = 188074;
-
-        } else if (activeFilters['cluster-tenant'].name === 'PraditaUniversity' && activeFilters['cluster-rule-id'].name === 'Rule 31101') {
-
-          val = 148281;
-
-        } else if (activeFilters['cluster-tenant'].name === 'InstikiBali' && activeFilters['cluster-rule-id'].name === 'Rule 31101') {
-
-          val = 47481;
-
-        } else if (activeFilters['cluster-tenant'].name === 'InstikiBali' && activeFilters['cluster-rule-id'].name === 'Rule 31122') {
-
-          val = 24403;
-
-        } else if (activeFilters['cluster-tenant'].name === 'PraditaUniversity' && activeFilters['cluster-rule-id'].name === 'Rule 100001') {
-
-          val = 102887;
-
-        }
-
-      }
-
-
-
-      return {
-
-        ...baseCard,
-
-        total: val,
-
-        data: [
-
-          {
-
-            name: selectedFilter.name,
-
-            value: val,
-
-            pct: '100.0',
-
-            color: selectedFilter.color || '#10b981'
-
-          }
-
-        ]
-
-      };
-
-    }
-
-
-
-    // 2. Jika ada filter aktif dari pie chart lain:
-
-    const activeKeys = Object.keys(activeFilters);
-
-    if (activeKeys.length > 0) {
-
-      // Susun list token filter (contoh: 'tenant:Petra', 'rule:Rule 31101')
-
-      const tokens = [];
-
-      if (activeFilters['cluster-tenant']) tokens.push(`tenant:${activeFilters['cluster-tenant'].name}`);
-
-      if (activeFilters['cluster-rule-id']) tokens.push(`rule:${activeFilters['cluster-rule-id'].name}`);
-
-      if (activeFilters['cluster-agent']) tokens.push(`agent:${activeFilters['cluster-agent'].name}`);
-
-      if (activeFilters['cluster-actor']) tokens.push(`actor:${activeFilters['cluster-actor'].name}`);
-
-      if (activeFilters['cluster-activity']) tokens.push(`activity:${activeFilters['cluster-activity'].name}`);
-
-
-
-      // a. Coba kombinasi lengkap
-
-      const fullComboKey = tokens.join('+');
-
-      if (fullMultiFilterDatasets[fullComboKey]?.[chartId]) {
-
-        const spec = fullMultiFilterDatasets[fullComboKey][chartId];
-
-        const formatted = formatTop5PlusLainnya(spec, chartId);
-
-        const sumVal = formatted.reduce((acc, curr) => acc + curr.value, 0);
-
-        return {
-
-          ...baseCard,
-
-          total: sumVal,
-
-          data: formatted
-
-        };
-
-      }
-
-
-
-      // b. Coba kombinasi berpasangan (kedua arah: misal tenant+activity atau activity+tenant)
-
-      if (tokens.length >= 2) {
-
-        for (let i = 0; i < tokens.length; i++) {
-
-          for (let j = 0; j < tokens.length; j++) {
-
-            if (i === j) continue;
-
-            const pairKey = `${tokens[i]}+${tokens[j]}`;
-
-            if (fullMultiFilterDatasets[pairKey]?.[chartId]) {
-
-              const spec = fullMultiFilterDatasets[pairKey][chartId];
-
-              const formatted = formatTop5PlusLainnya(spec, chartId);
-
-              const sumVal = formatted.reduce((acc, curr) => acc + curr.value, 0);
-
-              return {
-
-                ...baseCard,
-
-                total: sumVal,
-
-                data: formatted
-
-              };
-
-            }
-
-          }
-
-        }
-
-      }
-
-
-
-      // c. Coba filter individual HANYA jika hanya 1 filter yang aktif
-
-      // (Mencegah filter ke-2 terabaikan saat multi-filter)
-
-      if (tokens.length === 1) {
-
-        for (const singleKey of tokens) {
-
-          if (fullMultiFilterDatasets[singleKey]?.[chartId]) {
-
-            const spec = fullMultiFilterDatasets[singleKey][chartId];
-
-            const formatted = formatTop5PlusLainnya(spec, chartId);
-
-            const sumVal = formatted.reduce((acc, curr) => acc + curr.value, 0);
-
-            return {
-
-              ...baseCard,
-
-              total: sumVal,
-
-              data: formatted
-
-            };
-
-          }
-
-        }
-
-      }
-
-
-
-      // d. Universal Multi-Filter Synthesizer:
-
-      // Ambil base data dari dataset tenant aktif (agar entitas agen/host tidak bocor antar-tenant)
-
-      const tenantKey = activeFilters['cluster-tenant'] ? `tenant:${activeFilters['cluster-tenant'].name}` : null;
-
-      const tenantCardData = tenantKey && fullMultiFilterDatasets[tenantKey]?.[chartId];
-
-      const sourceData = tenantCardData || baseCard.data;
-
-
-
-      // Hitung variasi dinamis multi-kombinasi berdasarkan seluruh kombinasi filter yang aktif
-
-      const filterSeed = tokens.join('|');
-
-      const seedVal = filterSeed.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-
-      
-
-      const modifiedData = sourceData.map((item, idx) => {
-
-        const factor = 0.35 + ((seedVal * (idx + 1) * 79) % 55) / 100.0;
-
-        const newVal = Math.max(1, Math.round(item.value * factor));
-
-        return {
-
-          ...item,
-
-          value: newVal
-
-        };
-
-      });
-
-
-
-      const formattedFallback = formatTop5PlusLainnya(modifiedData, chartId);
-
-      const totalVal = formattedFallback.reduce((acc, curr) => acc + curr.value, 0);
-
-
-
-      return {
-
-        ...baseCard,
-
-        total: totalVal,
-
-        data: formattedFallback
-
-      };
-
-    }
-
-
-
-    // Default: Semua data penuh
-
-    return {
-
-      ...baseCard,
-
-      data: formatTop5PlusLainnya(baseCard.data, chartId)
-
+    const titles = {
+      'cluster-tenant': 'TENANT',
+      'cluster-rule-id': 'RULE.ID',
+      'cluster-agent': 'AGENT',
+      'cluster-actor': 'ACTOR',
+      'cluster-activity': 'ACTIVITY'
     };
-
+    return {
+      id: chartId,
+      title: titles[chartId] || chartId.toUpperCase(),
+      total: 0,
+      unit: clusterMode === 'interval' ? 'interval' : 'alerts',
+      data: []
+    };
   };
-
-
 
   const activeRow1 = [
 

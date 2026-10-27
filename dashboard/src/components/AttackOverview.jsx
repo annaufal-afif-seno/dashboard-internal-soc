@@ -5,9 +5,9 @@ const PALETTE = ['#f43f5e', '#0284c7', '#f59e0b', '#8b5cf6', '#10b981', '#64748b
 
 // Master multi-tenant datasets for Intrusion & Attack (Derived from PostgreSQL 640,151 events)
 const TENANT_ATTACK_DATASETS = {
-  PraditaUniversity: {
-    tenantId: 'PraditaUniversity',
-    name: 'Pradita University',
+  DEFAULT: {
+    tenantId: 'DEFAULT',
+    name: 'Default Organization',
     hostsCount: 12,
     attackTotal: 184200,
     ipTotal: 240,
@@ -39,9 +39,9 @@ const TENANT_ATTACK_DATASETS = {
       { name: 'Whitelisted / Internal Probe', value: 4, pct: '1.6', color: '#64748b' }
     ]
   },
-  InstikiBali: {
-    tenantId: 'InstikiBali',
-    name: 'Instiki Bali',
+  TenantB: {
+    tenantId: 'TenantB',
+    name: 'Tenant B Operations',
     hostsCount: 8,
     attackTotal: 72400,
     ipTotal: 110,
@@ -70,9 +70,9 @@ const TENANT_ATTACK_DATASETS = {
       { name: 'Whitelisted / Internal Probe', value: 3, pct: '2.7', color: '#64748b' }
     ]
   },
-  Petra: {
-    tenantId: 'Petra',
-    name: 'Petra Christian University',
+  TenantC: {
+    tenantId: 'TenantC',
+    name: 'Tenant C Infrastructure',
     hostsCount: 10,
     attackTotal: 145800,
     ipTotal: 195,
@@ -102,9 +102,9 @@ const TENANT_ATTACK_DATASETS = {
       { name: 'Whitelisted / Internal Probe', value: 3, pct: '1.6', color: '#64748b' }
     ]
   },
-  wicida: {
-    tenantId: 'wicida',
-    name: 'STMIK Widya Cipta Dharma (Wicida)',
+  TenantD: {
+    tenantId: 'TenantD',
+    name: 'Tenant D Services',
     hostsCount: 6,
     attackTotal: 41200,
     ipTotal: 65,
@@ -166,36 +166,7 @@ const TENANT_ATTACK_DATASETS = {
       { name: 'Whitelisted / Internal Probe', value: 3, pct: '2.3', color: '#64748b' }
     ]
   },
-  sgu: {
-    tenantId: 'sgu',
-    name: 'Swiss German University (SGU)',
-    hostsCount: 4,
-    attackTotal: 28051,
-    ipTotal: 40,
-    blockRate: '95.0%',
-    vectorData: [
-      { name: 'Web 400 Bad Request (Rule 31101)', value: 23233, pct: '82.8', color: '#f43f5e' },
-      { name: 'High POST Bot Flood (Rule 31533)', value: 4413, pct: '15.7', color: '#f59e0b' },
-      { name: 'Web Exploit (CGI/SQLi Rule 31110)', value: 194, pct: '0.7', color: '#8b5cf6' },
-      { name: 'Recon / Multi-400 Scan (Rule 31151)', value: 156, pct: '0.6', color: '#0284c7' },
-      { name: 'SSH & Auth Brute Force (5710/5503)', value: 15, pct: '0.1', color: '#10b981' }
-    ],
-    geoData: [
-      { name: 'Global Public IPs (Asia/EU)', value: 32, pct: '80.0', color: '#0284c7' },
-      { name: 'Europe & Russia (VPS/Tor)', value: 4, pct: '10.0', color: '#f43f5e' },
-      { name: 'United States (Cloud VPS)', value: 3, pct: '7.5', color: '#f59e0b' },
-      { name: 'Indonesia (Public IP)', value: 1, pct: '2.5', color: '#10b981' }
-    ],
-    mitreData: [
-      { name: 'Initial Access (T1190 - Public Web)', value: 23427, pct: '83.5', color: '#f43f5e' },
-      { name: 'Impact / Botnet (T1499 - DoS POST)', value: 4413, pct: '15.7', color: '#f59e0b' },
-      { name: 'Reconnaissance (T1595 - Web Scan)', value: 156, pct: '0.6', color: '#0284c7' }
-    ],
-    statusData: [
-      { name: 'Auto-Blocked (Active Response / Drop)', value: 38, pct: '95.0', color: '#10b981' },
-      { name: 'Pending SOC Triage', value: 2, pct: '5.0', color: '#f43f5e' }
-    ]
-  }
+  
 };
 
 // Global aggregate dataset across all tenants for Attack (100% Exact to PostgreSQL 640,151 events)

@@ -4534,6 +4534,149 @@ def get_suppression_group_detail(group_id: str, conn = Depends(get_db_connection
         cur.close()
 
 
+@app.get("/api/clustering/overview")
+def get_clustering_overview(
+    tenant_id: Optional[str] = Query(None),
+    range: str = Query("semua"),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    mode: str = Query("interval"),
+    filter_tenant: Optional[str] = Query(None),
+    filter_rule: Optional[str] = Query(None),
+    filter_agent: Optional[str] = Query(None),
+    filter_actor: Optional[str] = Query(None),
+    filter_activity: Optional[str] = Query(None),
+    conn = Depends(get_db_connection)
+):
+    """Dynamically aggregates real telemetry data for the 5 Clustering Overview donut charts."""
+    cur = conn.cursor(cursor_factory=extras.RealDictCursor)
+    try:
+        start_dt, end_dt, _, _ = resolve_time_range(range, start, end)
+        
+        where_clauses = []
+        params = []
+        
+        # 1. Tenant Filter from Global Header
+        if tenant_id and tenant_id.strip().upper() not in ("ALL", "SEMUA"):
+            where_clauses.append("r.tenant_id = %s")
+            params.append(tenant_id.strip())
+            
+        # 2. Time range filter
+        if start_dt and end_dt:
+            where_clauses.append("r.timestamp >= %s AND r.timestamp <= %s")
+            params.extend([start_dt, end_dt])
+            
+        # 3. Interactive cross-filters from donut slices
+        if filter_tenant and filter_tenant.strip().upper() not in ("ALL", "LAINNYA"):
+            where_clauses.append("r.tenant_id = %s")
+            params.append(filter_tenant.strip())
+            
+        if filter_rule and filter_rule.strip().upper() not in ("ALL", "LAINNYA"):
+            clean_r = re.sub(r'^[^\d]*', '', filter_rule).strip()
+            if clean_r.isdigit():
+                where_clauses.append("n.rule_id = %s")
+                params.append(int(clean_r))
+                
+        if filter_agent and filter_agent.strip().upper() not in ("ALL", "LAINNYA"):
+            m_ag = re.search(r'\((.*?)\)', filter_agent)
+            ag_name = m_ag.group(1).strip() if m_ag else filter_agent.strip()
+            where_clauses.append("(r.agent_name ILIKE %s OR r.agent_id = %s)")
+            params.extend([f"%{ag_name}%", ag_name])
+            
+        if filter_actor and filter_actor.strip().upper() not in ("ALL", "LAINNYA"):
+            act_clean = filter_actor.strip()
+            if act_clean.upper() == "NO_ACTOR":
+                where_clauses.append("((r.source_ip IS NULL OR r.source_ip = '') AND (r.username IS NULL OR r.username = '' OR r.username = 'none'))")
+            elif "/" in act_clean:
+                prefix = act_clean.split("/")[0].rsplit(".", 1)[0] + "."
+                where_clauses.append("r.source_ip LIKE %s")
+                params.append(f"{prefix}%")
+            else:
+                where_clauses.append("(r.source_ip ILIKE %s OR r.username ILIKE %s)")
+                params.extend([f"%{act_clean}%", f"%{act_clean}%"])
+                
+        if filter_activity and filter_activity.strip().upper() not in ("ALL", "LAINNYA"):
+            where_clauses.append("n.rule_description ILIKE %s")
+            params.append(f"%{filter_activity.strip()}%")
+
+        where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        
+        PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
+        
+        def build_donut(dim_expr):
+            q = f"""
+                SELECT 
+                    {dim_expr} AS name,
+                    COUNT(*) AS val
+                FROM telemetry.raw_events r
+                LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id
+                {where_str}
+                GROUP BY 1
+                ORDER BY val DESC;
+            """
+            cur.execute(q, params)
+            rows = cur.fetchall()
+            total = sum(r["val"] for r in rows)
+            top5 = rows[:5]
+            rest = sum(r["val"] for r in rows[5:])
+            
+            data_items = []
+            for idx, r in enumerate(top5):
+                val = r["val"]
+                pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
+                data_items.append({
+                    "name": str(r["name"]),
+                    "value": val,
+                    "pct": pct,
+                    "color": PALETTE[idx % len(PALETTE)]
+                })
+            if rest > 0:
+                pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
+                data_items.append({
+                    "name": "Lainnya",
+                    "value": rest,
+                    "pct": pct,
+                    "color": "#64748b"
+                })
+            return {"total": total, "unit": mode, "data": data_items}
+
+        result = {
+            "status": "success",
+            "cluster-tenant": {
+                "id": "cluster-tenant",
+                "title": "TENANT",
+                **build_donut("COALESCE(r.tenant_id, 'DEFAULT')")
+            },
+            "cluster-rule-id": {
+                "id": "cluster-rule-id",
+                "title": "RULE.ID",
+                **build_donut("COALESCE('Rule ' || n.rule_id, 'Unknown')")
+            },
+            "cluster-agent": {
+                "id": "cluster-agent",
+                "title": "AGENT",
+                **build_donut("COALESCE(r.agent_name, 'unknown')")
+            },
+            "cluster-actor": {
+                "id": "cluster-actor",
+                "title": "ACTOR",
+                **build_donut("COALESCE(NULLIF(r.source_ip, ''), CASE WHEN r.username IS NOT NULL AND r.username != '' AND r.username != 'none' THEN 'user:' || r.username ELSE NULL END, 'NO_ACTOR')")
+            },
+            "cluster-activity": {
+                "id": "cluster-activity",
+                "title": "ACTIVITY",
+                **build_donut("COALESCE(n.rule_description, 'General Alert')")
+            }
+        }
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_clustering_overview: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+
+
 class AutoClusterRequest(BaseModel):
     """Request body for auto-suggest group clustering."""
     tenant_id: str = "ALL"
