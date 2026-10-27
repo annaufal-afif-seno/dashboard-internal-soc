@@ -1,3 +1,5 @@
 #!/bin/bash
-cd /opt/dashboard-internal-soc-v2/frontend
-exec npm run dev -- --host 0.0.0.0 --port 5174
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd "$DIR"
+PORT="${VITE_PORT:-5175}"
+exec npm run dev -- --host 0.0.0.0 --port "$PORT"
