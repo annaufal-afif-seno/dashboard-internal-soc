@@ -1210,20 +1210,19 @@ export default function ThreatCampaignsView({
 
 
 
-                    {/* Forensic Narrative Summary underneath Campaign ID (Unboxed, no title) */}
-
+                    {/* Executive Forensic Summary with distinct badge & container */}
                     {c.narrative_summary && (
-
-                      <p className={`my-2 text-justify text-xs leading-relaxed ${
-
-                        isDark ? 'text-slate-300' : 'text-slate-600'
-
+                      <div className={`my-2.5 p-3.5 rounded-xl border text-xs leading-relaxed transition-all ${
+                        isDark ? 'bg-slate-900/70 border-blue-900/40 text-slate-200' : 'bg-blue-50/60 border-blue-200 text-slate-700'
                       }`}>
-
-                        {c.narrative_summary}
-
-                      </p>
-
+                        <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400">
+                          <FileText className="w-3.5 h-3.5 shrink-0" />
+                          <span>Executive Forensic Summary</span>
+                        </div>
+                        <p className="text-justify font-sans leading-relaxed text-xs">
+                          {c.narrative_summary}
+                        </p>
+                      </div>
                     )}
 
 
