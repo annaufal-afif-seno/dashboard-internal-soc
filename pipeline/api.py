@@ -1647,6 +1647,15 @@ def get_raw_alerts(
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
             elif "Docker" in act_str:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
+            elif "CVE-" in act_str.upper():
+                m_cve = re.search(r'(CVE-\d{4}-\d+)', act_str, re.IGNORECASE)
+                if m_cve:
+                    cve_id = m_cve.group(1).upper()
+                    where_clauses.append("n.rule_description ILIKE %s")
+                    params.append(f"%{cve_id}%")
+                else:
+                    where_clauses.append("n.rule_description ILIKE %s")
+                    params.append(f"%{act_str}%")
             else:
                 m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
                 if m_act:
@@ -4680,6 +4689,15 @@ def get_clustering_overview(
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
             elif "Docker" in f_act:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
+            elif "CVE-" in f_act.upper():
+                m_cve = re.search(r'(CVE-\d{4}-\d+)', f_act, re.IGNORECASE)
+                if m_cve:
+                    cve_id = m_cve.group(1).upper()
+                    where_clauses.append("n.rule_description ILIKE %s")
+                    params.append(f"%{cve_id}%")
+                else:
+                    where_clauses.append("n.rule_description ILIKE %s")
+                    params.append(f"%{f_act}%")
             else:
                 m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', f_act, re.IGNORECASE)
                 if m_act:
@@ -4694,7 +4712,8 @@ def get_clustering_overview(
         
         PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
         
-        from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if is_all_range else "telemetry.raw_events r"
+        has_subfilters = bool(filter_tenant or filter_rule or filter_agent or filter_actor or filter_activity)
+        from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if (is_all_range and not has_subfilters) else "telemetry.raw_events r"
         
         def build_donut(dim_expr, needs_norm=True):
             join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp" if (needs_norm or "n." in where_str) else ""
@@ -4803,7 +4822,17 @@ def get_clustering_overview(
                              ELSE ''
                          END
 
-                    -- 4. System & Auth Events
+                    -- 4. CVE & Vulnerability Detector
+                    WHEN n.rule_description ~* 'CVE-\d{4}-\d+'
+                    THEN CASE 
+                        WHEN n.rule_description ILIKE '%%solved%%' OR n.rule_description ILIKE '%%mitigated%%'
+                            THEN (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1] || ' [SOLVED: ' || COALESCE((regexp_match(n.rule_description, '(?i)affected\s+([a-zA-Z0-9_\-\.\+]+)'))[1], 'pkg') || ']'
+                        WHEN n.rule_description ILIKE '%%affects%%'
+                            THEN (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1] || ' (affects ' || COALESCE((regexp_match(n.rule_description, '(?i)affects\s+([a-zA-Z0-9_\-\.\+]+)'))[1], 'pkg') || ')'
+                        ELSE (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1]
+                    END
+
+                    -- 5. System & Auth Events
                     WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'PAM Session Opened'
                     WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'PAM Session Closed'
                     WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH Authentication Success'
