@@ -1645,8 +1645,6 @@ def get_raw_alerts(
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
             elif "Sudo Privilege" in act_str:
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
-            elif "Debian Package" in act_str:
-                where_clauses.append("(n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%')")
             elif "Docker" in act_str:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
             else:
@@ -4679,8 +4677,6 @@ def get_clustering_overview(
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
             elif "Sudo Privilege" in f_act:
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
-            elif "Debian Package" in f_act:
-                where_clauses.append("(n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%')")
             elif "Docker" in f_act:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
             else:
@@ -4768,7 +4764,6 @@ def get_clustering_overview(
                     WHEN n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%' THEN 'SSH Authentication Failed'
                     WHEN n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd: service exited%%' THEN 'Systemd Process Execution'
                     WHEN n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo to root%%' THEN 'Sudo Privilege Escalation'
-                    WHEN n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%' THEN 'Debian Package Management'
                     WHEN n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%' THEN 'Docker Container Error'
                     WHEN n.rule_id IN (31101, 31108, 31151, 100001, 100009) AND r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
                     THEN (r.raw_payload::jsonb->'data'->>'protocol') || ' ' || 
