@@ -1068,6 +1068,25 @@ export default function IncidentTriageQueue({
 
           }));
 
+          try {
+            Object.keys(globalTriageCache).forEach(k => {
+              if (globalTriageCache[k] && Array.isArray(globalTriageCache[k])) {
+                globalTriageCache[k] = globalTriageCache[k].map(inc => {
+                  if (inc.id === triageId || inc.triage_id === triageId || inc.incident_id === triageId || inc.incident_id === data.incident_id) {
+                    return {
+                      ...inc,
+                      status: data.triage_status,
+                      resolution_outcome: data.resolution_outcome !== undefined ? data.resolution_outcome : inc.resolution_outcome
+                    };
+                  }
+                  return inc;
+                });
+              }
+            });
+          } catch (cErr) {
+            console.debug('Failed to sync globalTriageCache:', cErr);
+          }
+
         }
 
         if (data.ground_truth?.analyst_notes) {
@@ -3530,10 +3549,10 @@ export default function IncidentTriageQueue({
 
                       >
 
-                        STATUS: {viewMode === 'groundtruth' 
-
+                        STATUS: {viewMode === 'groundtruth' || effectiveStatus === 'GROUNDTRUTH' || normalizeStatus(selectedIncident.status) === 'GROUNDTRUTH'
                           ? (selectedIncident.ground_truth_status || selectedIncident.groundTruthStatus || 'ACT NEED') 
-
+                          : effectiveStatus === 'CLOSE' && (selectedIncident.resolution_outcome === 'TRUE_POSITIVE_ACTIONABLE' || mlPrediction?.resolution_outcome === 'TRUE_POSITIVE_ACTIONABLE')
+                          ? 'CLOSE (THREAT)'
                           : effectiveStatus}
 
                       </span>
