@@ -1633,16 +1633,33 @@ def get_raw_alerts(
 
         if activity and activity.strip() and activity.strip().upper() != "ALL":
             act_str = activity.strip()
-            m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
-            if m_act:
-                path_term = m_act.group(1).rstrip('*').rstrip('/')
-                where_clauses.append("r.raw_payload ILIKE %s")
-                params.append(f"%{path_term}%")
+            if "Nginx Error" in act_str:
+                where_clauses.append("(n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx%%')")
+            elif "PAM Session Opened" in act_str:
+                where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
+            elif "PAM Session Closed" in act_str:
+                where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
+            elif "SSH Authentication Success" in act_str:
+                where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
+            elif "Systemd Process Execution" in act_str:
+                where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
+            elif "Sudo Privilege" in act_str:
+                where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
+            elif "Debian Package" in act_str:
+                where_clauses.append("(n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%')")
+            elif "Docker" in act_str:
+                where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
             else:
-                clean_act = re.sub(r'\[.*?\]', '', act_str).replace('*', '').strip()
-                if clean_act:
+                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
+                if m_act:
+                    path_term = m_act.group(1).rstrip('*').rstrip('/')
                     where_clauses.append("r.raw_payload ILIKE %s")
-                    params.append(f"%{clean_act}%")
+                    params.append(f"%{path_term}%")
+                else:
+                    clean_act = re.sub(r'\[.*?\]', '', act_str).replace('*', '').strip()
+                    if clean_act:
+                        where_clauses.append("(n.rule_description ILIKE %s OR r.raw_payload ILIKE %s)")
+                        params.extend([f"%{clean_act}%", f"%{clean_act}%"])
 
         if level_filter and level_filter != "ALL":
             lvl_cond = "n.rule_level >= 15" if level_filter == "CRITICAL" else \
@@ -4649,8 +4666,32 @@ def get_clustering_overview(
                 params.extend([f"%{act_clean}%", f"%{act_clean}%"])
                 
         if filter_activity and filter_activity.strip().upper() not in ("ALL", "LAINNYA"):
-            where_clauses.append("n.rule_description ILIKE %s")
-            params.append(f"%{filter_activity.strip()}%")
+            f_act = filter_activity.strip()
+            if "Nginx Error" in f_act:
+                where_clauses.append("(n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx%%')")
+            elif "PAM Session Opened" in f_act:
+                where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
+            elif "PAM Session Closed" in f_act:
+                where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
+            elif "SSH Authentication Success" in f_act:
+                where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
+            elif "Systemd Process Execution" in f_act:
+                where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
+            elif "Sudo Privilege" in f_act:
+                where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
+            elif "Debian Package" in f_act:
+                where_clauses.append("(n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%')")
+            elif "Docker" in f_act:
+                where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
+            else:
+                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s\[\*]+)', f_act, re.IGNORECASE)
+                if m_act:
+                    path_term = m_act.group(1).rstrip('*').rstrip('/')
+                    where_clauses.append("r.raw_payload ILIKE %s")
+                    params.append(f"%{path_term}%")
+                else:
+                    where_clauses.append("n.rule_description ILIKE %s")
+                    params.append(f"%{f_act}%")
 
         where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         
@@ -4719,7 +4760,26 @@ def get_clustering_overview(
             "cluster-activity": {
                 "id": "cluster-activity",
                 "title": "ACTIVITY",
-                **build_donut("COALESCE(n.rule_description, 'General Alert')", needs_norm=True)
+                **build_donut("""CASE
+                    WHEN n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx error%%' THEN 'Web Traffic: Nginx Error'
+                    WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'PAM Session Opened'
+                    WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'PAM Session Closed'
+                    WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH Authentication Success'
+                    WHEN n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%' THEN 'SSH Authentication Failed'
+                    WHEN n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd: service exited%%' THEN 'Systemd Process Execution'
+                    WHEN n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo to root%%' THEN 'Sudo Privilege Escalation'
+                    WHEN n.rule_id IN (2901, 2902, 2903) OR n.rule_description ILIKE '%%dpkg%%' THEN 'Debian Package Management'
+                    WHEN n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%' THEN 'Docker Container Error'
+                    WHEN n.rule_id IN (31101, 31108, 31151, 100001, 100009) AND r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
+                    THEN (r.raw_payload::jsonb->'data'->>'protocol') || ' ' || 
+                         (CASE 
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE SPLIT_PART(r.raw_payload::jsonb->'data'->>'url', '?', 1)
+                          END) || ' [' || COALESCE(r.raw_payload::jsonb->'data'->>'id', '200') || ']'
+                    ELSE TRIM(TRAILING '.' FROM COALESCE(n.rule_description, 'General System Event'))
+                END""", needs_norm=True)
             }
         }
         _CLUSTERING_OVERVIEW_CACHE[cache_key] = (result, now_ts + 10.0)
