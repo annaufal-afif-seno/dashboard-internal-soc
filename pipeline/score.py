@@ -92,37 +92,102 @@ class PriorityEngine:
             desc = (stg.get("stage_description") or stg.get("description") or "").lower()
             rid = stg.get("rule_id")
 
-            # Resolve subcat fallback if not explicitly provided
+            # Resolve subcat fallback from database stage_name / category / description
+            stage_upper = (stg.get("stage_name") or pcat or "").upper()
             if not subcat:
-                if pcat == "Identity / Access":
-                    if rid in (5715, 5716, 5501) or ("success" in desc and "fail" not in desc and "invalid" not in desc):
-                        subcat = "Auth Success"
-                    elif rid in (100001, 5551) or "brute force" in desc:
+                if stage_upper in ("AUTH_SUCCESS", "LOGIN_SUCCESS"):
+                    subcat = "Auth Success"
+                elif stage_upper in ("AUTH_FAILURE", "AUTHENTICATION_FAILED"):
+                    if "brute force" in desc or "multiple failed" in desc or str(rid) in ("5551", "100001"):
                         subcat = "Auth Anomaly"
-                    elif rid in (5402, 5504, 5902) or "sudo" in desc or "privilege" in desc:
+                    else:
+                        subcat = "Auth Failure"
+                elif stage_upper in ("PRIVILEGE_ESCALATION", "PRIVILEGE"):
+                    subcat = "Privilege Escalation"
+                elif stage_upper in ("LATERAL_MOVEMENT", "LATERAL"):
+                    subcat = "Lateral Movement"
+                elif stage_upper in ("WEB_ATTACK", "INITIAL_ACCESS"):
+                    subcat = "Web Attack"
+                elif stage_upper in ("COMMAND_AND_CONTROL", "C2"):
+                    subcat = "Command & Control"
+                elif stage_upper == "MALWARE":
+                    subcat = "Virus / Trojan (YARA)"
+                elif stage_upper == "RANSOMWARE":
+                    subcat = "Ransomware"
+                elif stage_upper in ("VULNERABILITY", "CVE"):
+                    subcat = "CVE Detected"
+                elif stage_upper in ("COMPLIANCE", "CONFIGURATION / COMPLIANCE", "CONFIGURATION_ASSESSMENT", "CONFIGURATION_CHANGE"):
+                    subcat = "File Integrity (FIM)" if ("syscheck" in desc or "file" in desc or "fim" in desc) else "SCA / CIS Benchmark"
+                elif stage_upper in ("DISCOVERY", "RECONNAISSANCE"):
+                    subcat = "Recon / Scan"
+                elif stage_upper == "EXECUTION":
+                    subcat = "Exploitation / RCE"
+                elif stage_upper == "DEFENSE_EVASION":
+                    subcat = "Rootkit / Backdoor"
+                elif stage_upper == "SYSTEM_HEALTH":
+                    subcat = "Service Health / Error"
+                elif pcat == "Identity / Access":
+                    if str(rid) in ("5715", "5716", "5501") or ("success" in desc and "fail" not in desc and "invalid" not in desc):
+                        subcat = "Auth Success"
+                    elif str(rid) in ("100001", "5551") or "brute force" in desc:
+                        subcat = "Auth Anomaly"
+                    elif str(rid) in ("5402", "5504", "5902") or "sudo" in desc or "privilege" in desc:
                         subcat = "Privilege Escalation"
                     else:
                         subcat = "Auth Failure"
                 elif pcat == "Vulnerability":
                     subcat = "CVE Detected"
-                elif pcat == "Configuration / Compliance":
-                    subcat = "File Integrity (FIM)" if "syscheck" in desc or "file" in desc else "SCA / CIS Benchmark"
                 elif pcat in ("Attack", "Malware"):
                     subcat = "Web Attack" if "sql" in desc or "xss" in desc else "Exploitation / RCE"
                 else:
-                    subcat = "Web Operational" if "web" in desc or "404" in desc else "Service Health / Error"
+                    if "brute force" in desc:
+                        subcat = "Auth Anomaly"
+                    elif "sql" in desc or "xss" in desc or "bot" in desc:
+                        subcat = "Web Attack"
+                    elif "web" in desc or "400" in desc or "404" in desc:
+                        subcat = "Web Operational"
+                    else:
+                        subcat = "Service Health / Error"
 
-            if (subcat in VULN_SUBCATS or pcat in ("Vulnerability", "Configuration / Compliance")) and not cve_seen:
-                cve_seen, cve_idx = True, idx
-            if subcat in ATTACK_SUBCATS or pcat in ("Attack", "Malware"):
-                attack = True
-            if (subcat in BREACH_SUBCATS or subcat == "Auth Success") and not breach_seen:
-                breach_seen, breach_idx = True, idx
-            if subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control") or "privilege" in desc or "persistence" in desc:
-                post_exploit = True
+            # Benign system health or configuration changes should never trigger post_exploit or attack
+            is_benign_system = (
+                str(rid) in ("40704", "40700", "40701", "2904", "2932", "12109", "50120", "50520", "50521", "60746", "60969", "63105", "83202", "31301")
+                or pcat in ("SYSTEM_HEALTH", "System", "SYSTEM", "CONFIGURATION_CHANGE", "CONFIGURATION_ASSESSMENT")
+                or subcat in ("Service Health / Error", "Daemon / Service", "SYSTEM_EVENT", "PACKAGE_SETUP_STATE", "PACKAGE_INSTALLED")
+            )
 
-        # P0 (15 Menit): Terjadi Breach (AUTH_SUCCESS) diikuti aksi lanjutan apapun, atau Post-Exploit
-        if (breach_seen and (n - 1) > breach_idx) or post_exploit:
+            if not is_benign_system:
+                if (subcat in VULN_SUBCATS or pcat in ("Vulnerability", "Configuration / Compliance")) and not cve_seen:
+                    cve_seen, cve_idx = True, idx
+                if subcat in ATTACK_SUBCATS or pcat in ("Attack", "Malware"):
+                    attack = True
+                if (subcat in BREACH_SUBCATS or subcat == "Auth Success") and not breach_seen:
+                    breach_seen, breach_idx = True, idx
+                if subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control"):
+                    post_exploit = True
+                elif "privilege escalation" in desc or ("sudo" in desc and "root" in desc and "failed" not in desc):
+                    post_exploit = True
+
+        # Check if there is an attack / post-exploit action AFTER breach
+        subsequent_attack_seen = False
+        if breach_seen:
+            for later_idx in range(breach_idx + 1, n):
+                later_subcat = stages[later_idx].get("subcategory") or ""
+                later_stage = (stages[later_idx].get("stage_name") or "").upper()
+                later_desc = (stages[later_idx].get("stage_description") or "").lower()
+                if (
+                    later_subcat in ATTACK_SUBCATS 
+                    or later_subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control")
+                    or later_stage in ("PRIVILEGE_ESCALATION", "LATERAL_MOVEMENT", "EXECUTION", "COMMAND_AND_CONTROL")
+                    or ("sudo" in later_desc and "root" in later_desc and "fail" not in later_desc)
+                    or "exploit" in later_desc
+                    or "malware" in later_desc
+                ):
+                    subsequent_attack_seen = True
+                    break
+
+        # P0 (15 Menit): Terjadi Breach (AUTH_SUCCESS) diikuti aksi serangan lanjutan, atau Post-Exploit
+        if (breach_seen and subsequent_attack_seen) or post_exploit:
             return "P0", "Breach (Auth Success) Diikuti Aksi Lanjutan / Post-Exploit", SLA_MATRIX_MINUTES["P0"]
 
         # P1 (60 Menit): Terdeteksi Keberhasilan Masuk Perimeter

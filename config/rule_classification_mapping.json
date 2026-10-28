@@ -1545,10 +1545,10 @@
     {
       "rule_id": "2904",
       "desc": "Dpkg (Debian Package) half configured",
-      "cat": "PERSISTENCE",
+      "cat": "CONFIGURATION_CHANGE",
       "subcat": "PACKAGE_SETUP_STATE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "tactic": null,
+      "tech": null,
       "conf": "LOW"
     },
     {
@@ -1572,10 +1572,10 @@
     {
       "rule_id": "2932",
       "desc": "New Yum package installed.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "cat": "CONFIGURATION_CHANGE",
+      "subcat": "PACKAGE_INSTALLED",
+      "tactic": null,
+      "tech": null,
       "conf": "MEDIUM"
     },
     {
@@ -6585,10 +6585,10 @@
     {
       "rule_id": "12109",
       "desc": "Named fatal error. DNS service going down.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "HIGH"
     },
     {
@@ -12084,19 +12084,19 @@
     {
       "rule_id": "40700",
       "desc": "Systemd rules",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "cat": "CONFIGURATION_CHANGE",
+      "subcat": "SYSTEM_EVENT",
+      "tactic": null,
+      "tech": null,
       "conf": "LOW"
     },
     {
       "rule_id": "40701",
       "desc": "Systemd: Stale file handle.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "LOW"
     },
     {
@@ -12120,10 +12120,10 @@
     {
       "rule_id": "40704",
       "desc": "Systemd: Service exited due to a failure",
-      "cat": "PERSISTENCE",
-      "subcat": "DAEMON_SERVICE_FAILURE",
-      "tactic": "Persistence",
-      "tech": "T1543.002",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "LOW"
     },
     {
@@ -14298,10 +14298,10 @@
     {
       "rule_id": "50120",
       "desc": "MySQL: shutdown message.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1529",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "HIGH"
     },
     {
@@ -14451,19 +14451,19 @@
     {
       "rule_id": "50520",
       "desc": "PostgreSQL: Database shutdown message.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1529",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "HIGH"
     },
     {
       "rule_id": "50521",
       "desc": "PostgreSQL: Database shutdown message.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1529",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "HIGH"
     },
     {
@@ -17880,10 +17880,10 @@
     {
       "rule_id": "60746",
       "desc": "WMI service was unable to locate the repository files during the service startup.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1047",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "MEDIUM"
     },
     {
@@ -19887,10 +19887,10 @@
     {
       "rule_id": "60969",
       "desc": "The MS DTC Service is terminating because it didn't startup in a timely manner.",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543",
+      "cat": "SYSTEM_HEALTH",
+      "subcat": "Service Health / Error",
+      "tactic": null,
+      "tech": null,
       "conf": "MEDIUM"
     },
     {
@@ -22911,10 +22911,10 @@
     {
       "rule_id": "63105",
       "desc": "The Event log service was started",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543.003",
+      "cat": "CONFIGURATION_CHANGE",
+      "subcat": "SYSTEM_EVENT",
+      "tactic": null,
+      "tech": null,
       "conf": "MEDIUM"
     },
     {
@@ -28842,10 +28842,10 @@
     {
       "rule_id": "83202",
       "desc": "The Event log service was started",
-      "cat": "PERSISTENCE",
-      "subcat": "SERVICE_PERSISTENCE",
-      "tactic": "Persistence",
-      "tech": "T1543.003",
+      "cat": "CONFIGURATION_CHANGE",
+      "subcat": "SYSTEM_EVENT",
+      "tactic": null,
+      "tech": null,
       "conf": "MEDIUM"
     },
     {
