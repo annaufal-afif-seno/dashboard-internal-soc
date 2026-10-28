@@ -489,139 +489,177 @@ def get_metrics_overview(
         if is_specific_tenant:
             if (range or "").strip().lower() in ("hari", "today", "day"):
                 cur.execute("""
-                    WITH agg_hourly AS (
-                        SELECT 
-                            to_char(window_start AT TIME ZONE 'Asia/Jakarta', 'HH24:00') as hr,
-                            count(*) as aggs,
-                            COALESCE(sum(event_count), count(*)) as total_events,
-                            count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as suppressed,
-                            count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as actionable
+                    WITH hours AS (
+                        SELECT generate_series(
+                            (%s || ' 00:00:00')::timestamp,
+                            date_trunc('hour', (now() AT TIME ZONE 'Asia/Jakarta')),
+                            '1 hour'::interval
+                        ) AS h_wib
+                    ),
+                    raw_h AS (
+                        SELECT date_trunc('hour', timestamp AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt
+                        FROM telemetry.raw_events
+                        WHERE timestamp AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                          AND tenant_id = %s
+                        GROUP BY 1
+                    ),
+                    agg_h AS (
+                        SELECT date_trunc('hour', window_start AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt,
+                               count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as supp,
+                               count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as act
                         FROM suppression.aggregated_alerts
-                        WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s
-                        GROUP BY to_char(window_start AT TIME ZONE 'Asia/Jakarta', 'HH24:00')
+                        WHERE window_start AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                          AND tenant_id = %s
+                        GROUP BY 1
                     ),
-                    corr_hourly AS (
-                        SELECT 
-                            to_char(COALESCE(t.created_at, c.first_seen_at) AT TIME ZONE 'Asia/Jakarta', 'HH24:00') as hr,
-                            count(*) as corrs
-                        FROM correlation.correlated_incidents c
-                        LEFT JOIN soc_ops.soc_triage_queue t ON c.incident_id = t.incident_id
-                        WHERE COALESCE(t.created_at, c.first_seen_at) >= %s AND COALESCE(t.created_at, c.first_seen_at) <= %s AND c.tenant_id = %s
-                        GROUP BY to_char(COALESCE(t.created_at, c.first_seen_at) AT TIME ZONE 'Asia/Jakarta', 'HH24:00')
-                    ),
-                    raw_hourly AS (
-                        SELECT 
-                            to_char(bucket_hour AT TIME ZONE 'Asia/Jakarta', 'HH24:00') as hr,
-                            SUM(total) as raws
-                        FROM metrics.raw_severity_hourly
-                        WHERE bucket_hour >= %s AND bucket_hour <= %s AND tenant_id = %s
-                        GROUP BY to_char(bucket_hour AT TIME ZONE 'Asia/Jakarta', 'HH24:00')
+                    ticket_h AS (
+                        SELECT date_trunc('hour', q.created_at AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt
+                        FROM soc_ops.soc_triage_queue q
+                        WHERE q.created_at AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                          AND q.tenant_id = %s
+                        GROUP BY 1
                     )
                     SELECT 
-                        h.hr as day,
-                        GREATEST(COALESCE(r.raws, 0), COALESCE(a.total_events, 0), COALESCE(a.aggs, 0)) as ingested,
-                        COALESCE(a.suppressed, 0) as suppressed,
-                        COALESCE(a.aggs, 0) as aggregated,
-                        COALESCE(a.actionable, 0) as actionable,
-                        GREATEST(0, COALESCE(a.actionable, 0) - COALESCE(c.corrs, 0)) as standalone,
-                        COALESCE(c.corrs, 0) as correlated
-                    FROM (
-                        SELECT DISTINCT hr FROM (
-                            SELECT hr FROM agg_hourly UNION SELECT hr FROM corr_hourly UNION SELECT hr FROM raw_hourly
-                        ) u
-                    ) h
-                    LEFT JOIN agg_hourly a ON h.hr = a.hr
-                    LEFT JOIN corr_hourly c ON h.hr = c.hr
-                    LEFT JOIN raw_hourly r ON h.hr = r.hr
-                    ORDER BY h.hr ASC;
-                """, (start_dt, end_dt, t_filter, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
+                        to_char(h.h_wib, 'HH24:00') as day,
+                        COALESCE(r.cnt, 0) as ingested,
+                        COALESCE(a.supp, 0) as suppressed,
+                        COALESCE(a.cnt, 0) as aggregated,
+                        COALESCE(a.act, 0) as actionable,
+                        GREATEST(0, COALESCE(a.act, 0) - COALESCE(t.cnt, 0)) as standalone,
+                        COALESCE(t.cnt, 0) as correlated
+                    FROM hours h
+                    LEFT JOIN raw_h r ON h.h_wib = r.h_wib
+                    LEFT JOIN agg_h a ON h.h_wib = a.h_wib
+                    LEFT JOIN ticket_h t ON h.h_wib = t.h_wib
+                    ORDER BY h.h_wib ASC;
+                """, (s_date, s_date, t_filter, s_date, t_filter, s_date, t_filter))
                 daily_rows = cur.fetchall()
             else:
                 cur.execute("""
-                    WITH agg_daily AS (
-                        SELECT 
-                            window_start::date as d_date,
-                            to_char(window_start::date, 'Mon DD') as d_str,
-                            count(*) as aggs,
-                            COALESCE(sum(event_count), count(*)) as total_events,
-                            count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as suppressed,
-                            count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as actionable
+                    WITH dates AS (
+                        SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date AS d_date
+                    ),
+                    raw_d AS (
+                        SELECT (timestamp AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt
+                        FROM telemetry.raw_events
+                        WHERE timestamp >= %s AND timestamp <= %s AND tenant_id = %s
+                        GROUP BY 1
+                    ),
+                    agg_d AS (
+                        SELECT (window_start AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt,
+                               count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as supp,
+                               count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as act
                         FROM suppression.aggregated_alerts
                         WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s
-                        GROUP BY window_start::date
+                        GROUP BY 1
                     ),
-                    corr_daily AS (
-                        SELECT 
-                            COALESCE(t.created_at, c.first_seen_at)::date as d_date,
-                            count(*) as corrs
-                        FROM correlation.correlated_incidents c
-                        LEFT JOIN soc_ops.soc_triage_queue t ON c.incident_id = t.incident_id
-                        WHERE COALESCE(t.created_at, c.first_seen_at) >= %s AND COALESCE(t.created_at, c.first_seen_at) <= %s AND c.tenant_id = %s
-                        GROUP BY COALESCE(t.created_at, c.first_seen_at)::date
-                    ),
-                    raw_daily AS (
-                        SELECT 
-                            bucket_hour::date as d_date,
-                            SUM(total) as raws
-                        FROM metrics.raw_severity_hourly
-                        WHERE bucket_hour >= %s AND bucket_hour <= %s AND tenant_id = %s
-                        GROUP BY bucket_hour::date
-                    ),
-                    all_dates AS (
-                        SELECT d_date FROM agg_daily
-                        UNION
-                        SELECT d_date FROM corr_daily
-                        UNION
-                        SELECT d_date FROM raw_daily
+                    ticket_d AS (
+                        SELECT (q.created_at AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt
+                        FROM soc_ops.soc_triage_queue q
+                        WHERE q.created_at >= %s AND q.created_at <= %s AND q.tenant_id = %s
+                        GROUP BY 1
                     )
                     SELECT 
                         to_char(d.d_date, 'Mon DD') as day,
-                        GREATEST(COALESCE(r.raws, 0), COALESCE(a.total_events, 0), COALESCE(a.aggs, 0)) as ingested,
-                        COALESCE(a.suppressed, 0) as suppressed,
-                        COALESCE(a.aggs, 0) as aggregated,
-                        COALESCE(a.actionable, 0) as actionable,
-                        GREATEST(0, COALESCE(a.actionable, 0) - COALESCE(c.corrs, 0)) as standalone,
-                        COALESCE(c.corrs, 0) as correlated
-                    FROM all_dates d
-                    LEFT JOIN agg_daily a ON d.d_date = a.d_date
-                    LEFT JOIN corr_daily c ON d.d_date = c.d_date
-                    LEFT JOIN raw_daily r ON d.d_date = r.d_date
+                        COALESCE(r.cnt, 0) as ingested,
+                        COALESCE(a.supp, 0) as suppressed,
+                        COALESCE(a.cnt, 0) as aggregated,
+                        COALESCE(a.act, 0) as actionable,
+                        GREATEST(0, COALESCE(a.act, 0) - COALESCE(t.cnt, 0)) as standalone,
+                        COALESCE(t.cnt, 0) as correlated
+                    FROM dates d
+                    LEFT JOIN raw_d r ON d.d_date = r.d_date
+                    LEFT JOIN agg_d a ON d.d_date = a.d_date
+                    LEFT JOIN ticket_d t ON d.d_date = t.d_date
                     ORDER BY d.d_date ASC;
-                """, (start_dt, end_dt, t_filter, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
+                """, (s_date, e_date, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
                 daily_rows = cur.fetchall()
         else:
             if (range or "").strip().lower() in ("hari", "today", "day"):
-                # 24-Hour hourly breakdown
+                # Live 24-Hour hourly breakdown in WIB
                 cur.execute("""
+                    WITH hours AS (
+                        SELECT generate_series(
+                            (%s || ' 00:00:00')::timestamp,
+                            date_trunc('hour', (now() AT TIME ZONE 'Asia/Jakarta')),
+                            '1 hour'::interval
+                        ) AS h_wib
+                    ),
+                    raw_h AS (
+                        SELECT date_trunc('hour', timestamp AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt
+                        FROM telemetry.raw_events
+                        WHERE timestamp AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                        GROUP BY 1
+                    ),
+                    agg_h AS (
+                        SELECT date_trunc('hour', window_start AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt,
+                               count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as supp,
+                               count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as act
+                        FROM suppression.aggregated_alerts
+                        WHERE window_start AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                        GROUP BY 1
+                    ),
+                    ticket_h AS (
+                        SELECT date_trunc('hour', created_at AT TIME ZONE 'Asia/Jakarta') as h_wib, count(*) as cnt
+                        FROM soc_ops.soc_triage_queue
+                        WHERE created_at AT TIME ZONE 'Asia/Jakarta' >= (%s || ' 00:00:00')::timestamp
+                        GROUP BY 1
+                    )
                     SELECT 
-                        to_char(bucket_hour AT TIME ZONE 'Asia/Jakarta', 'HH24:00') as day,
-                        raw_events_count as ingested,
-                        suppressed_count as suppressed,
-                        aggregated_count as aggregated,
-                        actionable_count as actionable,
-                        GREATEST(0, actionable_count - correlated_count) as standalone,
-                        correlated_count as correlated
-                    FROM metrics.hourly_overview_rollup
-                    WHERE bucket_hour >= %s AND bucket_hour <= %s
-                    ORDER BY bucket_hour ASC;
-                """, (start_dt, end_dt))
+                        to_char(h.h_wib, 'HH24:00') as day,
+                        COALESCE(r.cnt, 0) as ingested,
+                        COALESCE(a.supp, 0) as suppressed,
+                        COALESCE(a.cnt, 0) as aggregated,
+                        COALESCE(a.act, 0) as actionable,
+                        GREATEST(0, COALESCE(a.act, 0) - COALESCE(t.cnt, 0)) as standalone,
+                        COALESCE(t.cnt, 0) as correlated
+                    FROM hours h
+                    LEFT JOIN raw_h r ON h.h_wib = r.h_wib
+                    LEFT JOIN agg_h a ON h.h_wib = a.h_wib
+                    LEFT JOIN ticket_h t ON h.h_wib = t.h_wib
+                    ORDER BY h.h_wib ASC;
+                """, (s_date, s_date, s_date, s_date))
                 daily_rows = cur.fetchall()
             else:
                 # Daily breakdown across selected date range
                 cur.execute("""
+                    WITH dates AS (
+                        SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date AS d_date
+                    ),
+                    raw_d AS (
+                        SELECT (timestamp AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt
+                        FROM telemetry.raw_events
+                        WHERE timestamp >= %s AND timestamp <= %s
+                        GROUP BY 1
+                    ),
+                    agg_d AS (
+                        SELECT (window_start AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt,
+                               count(CASE WHEN status = 'SUPPRESSED' THEN 1 END) as supp,
+                               count(CASE WHEN status = 'ACTIONABLE' THEN 1 END) as act
+                        FROM suppression.aggregated_alerts
+                        WHERE window_start >= %s AND window_start <= %s
+                        GROUP BY 1
+                    ),
+                    ticket_d AS (
+                        SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date as d_date, count(*) as cnt
+                        FROM soc_ops.soc_triage_queue
+                        WHERE created_at >= %s AND created_at <= %s
+                        GROUP BY 1
+                    )
                     SELECT 
-                        to_char(bucket_hour::date, 'Mon DD') as day,
-                        SUM(raw_events_count) as ingested,
-                        SUM(suppressed_count) as suppressed,
-                        SUM(aggregated_count) as aggregated,
-                        SUM(actionable_count) as actionable,
-                        GREATEST(0, SUM(actionable_count) - SUM(correlated_count)) as standalone,
-                        SUM(correlated_count) as correlated
-                    FROM metrics.hourly_overview_rollup
-                    WHERE bucket_hour >= %s AND bucket_hour <= %s
-                    GROUP BY bucket_hour::date
-                    ORDER BY bucket_hour::date ASC;
-                """, (start_dt, end_dt))
+                        to_char(d.d_date, 'Mon DD') as day,
+                        COALESCE(r.cnt, 0) as ingested,
+                        COALESCE(a.supp, 0) as suppressed,
+                        COALESCE(a.cnt, 0) as aggregated,
+                        COALESCE(a.act, 0) as actionable,
+                        GREATEST(0, COALESCE(a.act, 0) - COALESCE(t.cnt, 0)) as standalone,
+                        COALESCE(t.cnt, 0) as correlated
+                    FROM dates d
+                    LEFT JOIN raw_d r ON d.d_date = r.d_date
+                    LEFT JOIN agg_d a ON d.d_date = a.d_date
+                    LEFT JOIN ticket_d t ON d.d_date = t.d_date
+                    ORDER BY d.d_date ASC;
+                """, (s_date, e_date, start_dt, end_dt, start_dt, end_dt, start_dt, end_dt))
                 daily_rows = cur.fetchall()
         
         # Daily threats mapping for trend chart
