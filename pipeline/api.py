@@ -4630,7 +4630,8 @@ def get_clustering_overview(
             params.append(tenant_id.strip())
             
         # 2. Time range filter
-        if start_dt and end_dt:
+        is_all_range = (range or "").lower() in ("all", "semua")
+        if not is_all_range and start_dt and end_dt:
             where_clauses.append("r.timestamp >= %s AND r.timestamp <= %s")
             params.extend([start_dt, end_dt])
             
@@ -4693,13 +4694,15 @@ def get_clustering_overview(
         
         PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
         
+        from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if is_all_range else "telemetry.raw_events r"
+        
         def build_donut(dim_expr, needs_norm=True):
-            join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id" if (needs_norm or "n." in where_str) else ""
+            join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp" if (needs_norm or "n." in where_str) else ""
             q = f"""
                 SELECT 
                     {dim_expr} AS name,
                     COUNT(*) AS val
-                FROM telemetry.raw_events r
+                FROM {from_table}
                 {join_clause}
                 {where_str}
                 GROUP BY 1
@@ -4757,36 +4760,50 @@ def get_clustering_overview(
                 "id": "cluster-activity",
                 "title": "ACTIVITY",
                 **build_donut("""CASE
-                    -- 1. Web Access Logs (data.protocol & data.url)
-                    WHEN r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
-                    THEN (r.raw_payload::jsonb->'data'->>'protocol') || ' ' || 
+                    -- 1. Standard Web Combined Access Log ("GET /path HTTP/1.1" 404)
+                    WHEN r.raw_payload ~ '"[A-Z]+\\s+/[^"\\s]*\\s+HTTP/[0-9.]+"\\s+\\d{3}'
+                    THEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[1] || ' ' ||
                          CASE 
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace(split_part(split_part(r.raw_payload::jsonb->'data'->>'url', '?', 1), '#', 1), '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/service/%%' THEN '/service/*'
+                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                         END ||
+                         ' [' || (regexp_match(r.raw_payload, '"[A-Z]+\\s+[^"]+\\s+HTTP/[0-9.]+"\\s+(\\d{3})'))[1] || ']'
+
+                    -- 2. JSON data.protocol & data.url (Wazuh JSON stream format)
+                    WHEN r.raw_payload LIKE '{"%%' AND r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
+                    THEN COALESCE((regexp_match(r.raw_payload, '"protocol"\\s*:\\s*"([A-Z]+)"'))[1], 'HTTP') || ' ' || 
+                         CASE 
+                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/service/%%' THEN '/service/*'
+                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
                          END ||
                          CASE 
-                             WHEN r.raw_payload::jsonb->'data'->>'id' IS NOT NULL AND r.raw_payload::jsonb->'data'->>'id' ~ '^[0-9]{3}$'
-                             THEN ' [' || (r.raw_payload::jsonb->'data'->>'id') || ']' 
+                             WHEN (regexp_match(r.raw_payload, '"(?:id|status)"\\s*:\\s*"?(\\d{3})"?'))[1] IS NOT NULL
+                             THEN ' [' || (regexp_match(r.raw_payload, '"(?:id|status)"\\s*:\\s*"?(\\d{3})"?'))[1] || ']' 
                              ELSE '' 
                          END
 
-                    -- 2. Nginx Error Logs (Rule 31301)
-                    WHEN n.rule_id = 31301 AND (r.raw_payload::jsonb->>'full_log') LIKE '%%request: "%%'
-                    THEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[1] || ' ' ||
+                    -- 3. Nginx Error Logs (request: "METHOD /path")
+                    WHEN r.raw_payload LIKE '%%request:%%'
+                    THEN COALESCE((regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\\s?#]+)'))[1], 'HTTP') || ' ' ||
                          CASE 
-                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/service/%%' THEN '/service/*'
+                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
                          END ||
                          CASE 
-                             WHEN (r.raw_payload::jsonb->>'full_log') ~ '\\((\\d{3}):' THEN ' [' || (regexp_match(r.raw_payload::jsonb->>'full_log', '\\((\\d{3}):'))[1] || ']'
+                             WHEN r.raw_payload ~ '\\((\\d{3}):' THEN ' [' || (regexp_match(r.raw_payload, '\\((\\d{3}):'))[1] || ']'
                              ELSE ''
                          END
 
-                    -- 3. System & Auth Events
+                    -- 4. System & Auth Events
                     WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'PAM Session Opened'
                     WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'PAM Session Closed'
                     WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH Authentication Success'
