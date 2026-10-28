@@ -41,11 +41,68 @@ BREACH_SUBCATS = frozenset({
     "Auth Success", "Command & Control", "Privilege Escalation"
 })
 
+CANONICAL_CATEGORIES = frozenset({
+    "SYSTEM_HEALTH",
+    "COMPLIANCE",
+    "AUTH_SUCCESS",
+    "AUTH_FAILURE",
+    "WEB_OPERATIONAL",
+    "WEB_ATTACK",
+    "VULNERABILITY",
+    "MALWARE",
+    "RANSOMWARE",
+    "PRIVILEGE_ESCALATION",
+    "LATERAL_MOVEMENT",
+    "COMMAND_AND_CONTROL",
+    "DISCOVERY",
+    "DEFENSE_EVASION",
+    "EXECUTION",
+    "FILE_INTEGRITY",
+    "CONFIGURATION_ASSESSMENT",
+})
+
 def _normalize_category(cat_raw, rule_id=None, desc=""):
+    """
+    Normalizes any raw or legacy category string to prevent duplicates
+    and avoid check constraint errors in PostgreSQL.
+    """
     if not cat_raw:
-        return "System / Availability"
-    c = str(cat_raw).strip()
-    return c
+        return "SYSTEM_HEALTH"
+    raw = str(cat_raw).strip()
+    upper = raw.upper()
+    if upper in CANONICAL_CATEGORIES:
+        return upper
+    
+    desc_lower = str(desc or "").lower()
+    rid_str = str(rule_id or "")
+
+    # Benign system health rules
+    if rid_str in ("40704", "40700", "40701", "12109", "50120", "50520", "50521", "60746", "60969", "31301"):
+        return "SYSTEM_HEALTH"
+    if rid_str in ("2904", "2932", "63105", "83202"):
+        return "COMPLIANCE"
+
+    if any(k in upper for k in ("SYSTEM", "HEALTH", "DAEMON", "SERVICE")):
+        return "SYSTEM_HEALTH"
+    if any(k in upper for k in ("COMPLIANCE", "CONFIGURATION", "SCA", "BENCHMARK")):
+        return "COMPLIANCE"
+    if "IDENTITY" in upper or "AUTH" in upper:
+        if "success" in desc_lower or rid_str in ("5715", "5501"):
+            return "AUTH_SUCCESS"
+        return "AUTH_FAILURE"
+    if "WEB" in upper:
+        if any(a in desc_lower for a in ("sql", "xss", "inject", "rce", "attack")):
+            return "WEB_ATTACK"
+        return "WEB_OPERATIONAL"
+    if "VULN" in upper or "CVE" in upper:
+        return "VULNERABILITY"
+    if "MALWARE" in upper or "VIRUS" in upper or "TROJAN" in upper:
+        return "MALWARE"
+    if "PRIVILEGE" in upper or "ROOT" in desc_lower or "sudo" in desc_lower:
+        return "PRIVILEGE_ESCALATION"
+    if "RECON" in upper or "SCAN" in upper or "DISCOVERY" in upper:
+        return "DISCOVERY"
+    return "SYSTEM_HEALTH"
 
 
 class PriorityEngine:
