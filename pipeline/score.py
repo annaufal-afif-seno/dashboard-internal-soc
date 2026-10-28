@@ -168,26 +168,13 @@ class PriorityEngine:
                 elif "privilege escalation" in desc or ("sudo" in desc and "root" in desc and "failed" not in desc):
                     post_exploit = True
 
-        # Check if there is an attack / post-exploit action AFTER breach
-        subsequent_attack_seen = False
-        if breach_seen:
-            for later_idx in range(breach_idx + 1, n):
-                later_subcat = stages[later_idx].get("subcategory") or ""
-                later_stage = (stages[later_idx].get("stage_name") or "").upper()
-                later_desc = (stages[later_idx].get("stage_description") or "").lower()
-                if (
-                    later_subcat in ATTACK_SUBCATS 
-                    or later_subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control")
-                    or later_stage in ("PRIVILEGE_ESCALATION", "LATERAL_MOVEMENT", "EXECUTION", "COMMAND_AND_CONTROL")
-                    or ("sudo" in later_desc and "root" in later_desc and "fail" not in later_desc)
-                    or "exploit" in later_desc
-                    or "malware" in later_desc
-                ):
-                    subsequent_attack_seen = True
-                    break
+        # Check if there is ANY subsequent action after breach (attack, web error, probing, post-exploit, etc.)
+        subsequent_action_after_breach = False
+        if breach_seen and (n - 1) > breach_idx:
+            subsequent_action_after_breach = True
 
-        # P0 (15 Menit): Terjadi Breach (AUTH_SUCCESS) diikuti aksi serangan lanjutan, atau Post-Exploit
-        if (breach_seen and subsequent_attack_seen) or post_exploit:
+        # P0 (15 Menit): Terjadi Breach (AUTH_SUCCESS) diikuti aksi lanjutan APAPUN, atau Post-Exploit
+        if (breach_seen and subsequent_action_after_breach) or post_exploit:
             return "P0", "Breach (Auth Success) Diikuti Aksi Lanjutan / Post-Exploit", SLA_MATRIX_MINUTES["P0"]
 
         # P1 (60 Menit): Terdeteksi Keberhasilan Masuk Perimeter
