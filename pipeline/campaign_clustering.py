@@ -484,39 +484,29 @@ class ThreatCampaignClusterer:
             logger.warning(f"[ClusterEngine] Privilege lineage fetch warning: {e}")
         return lineage
 
-    def _classify_event_role(self, agg: Dict[str, Any], is_pivot: bool) -> str:
-        """Classifies event role within the MITRE kill-chain."""
-        cat = str(agg.get("category") or "").upper()
-        rule_desc = str(agg.get("rule_description") or "").upper()
-        rule_id = str(agg.get("rule_id") or "")
-        tactics = [str(t).lower() for t in (agg.get("mitre_tactics") or [])]
-
-        if is_pivot or "INITIAL_ACCESS" in cat or "WEB_ATTACK" in cat or rule_id in ("31103", "31104", "31106", "31110", "31166", "31430") or "200 (SUCCESS)" in rule_desc:
-            return "PIVOT_COMPROMISE"
-        if "RECON" in cat or "DISCOVERY" in cat or "SCANNER" in rule_desc or rule_id in ("100002", "100003", "30411", "31151", "533") or "discovery" in tactics or "reconnaissance" in tactics:
-            return "PRECURSOR_RECON"
-        if "AUTH_FAILURE" in cat or "CREDENTIAL" in cat or rule_id in ("5716", "5710", "100001", "5503") or "credential access" in tactics:
-            return "BRUTE_FORCE_SPRAY"
-        if "LATERAL" in cat or "lateral movement" in tactics:
-            return "LATERAL_MOVE"
-        if "PRIVILEGE_ESCALATION" in cat or "privilege escalation" in tactics or rule_id in ("5402", "5403", "5407"):
-            return "PRIVILEGE_ESCALATION"
-        if "SYSTEM_HEALTH" in cat or rule_id in ("40704", "40701", "12109", "50120", "50520", "50521", "60746", "60969"):
-            return "SYSTEM_HEALTH"
-        if "COMPLIANCE" in cat or rule_id in ("2902", "2904", "2932", "40700"):
-            return "COMPLIANCE"
-        if "PERSISTENCE" in cat or "persistence" in tactics or rule_id in ("2833", "2834", "5901", "5902"):
-            return "PERSISTENCE"
-        if "DEFENSE_EVASION" in cat or "defense evasion" in tactics or rule_id in ("52510", "591"):
-            return "DEFENSE_EVASION"
-        if "EXECUTION" in cat or "execution" in tactics or rule_id in ("52002", "52003", "52004"):
-            return "EXECUTION"
-        if "COMMAND_AND_CONTROL" in cat or "EXFILTRATION" in cat or "command and control" in tactics or "exfiltration" in tactics:
-            return "C2_EXFIL"
-        if "RANSOMWARE" in cat or "impact" in tactics or rule_id in ("550", "203", "204"):
-            return "IMPACT_DISRUPTION"
-        return "GENERAL_ACTIVITY"
-
+    def _classify_event_role(self, agg: Dict[str, Any], is_pivot: bool) -> str:
+        """Classifies event role within the MITRE kill-chain conforming strictly to cluster_members_entity_role_check."""
+        cat = str(agg.get("category") or "").upper()
+        rule_desc = str(agg.get("rule_description") or "").upper()
+        rule_id = str(agg.get("rule_id") or "")
+        tactics = [str(t).lower() for t in (agg.get("mitre_tactics") or [])]
+
+        if is_pivot or "INITIAL_ACCESS" in cat or "WEB_ATTACK" in cat or "EXECUTION" in cat or "RANSOMWARE" in cat or rule_id in ("31103", "31104", "31106", "31110", "31166", "31430", "52002", "52003", "52004", "550", "203", "204") or "200 (SUCCESS)" in rule_desc:
+            return "PIVOT_COMPROMISE"
+        if "RECON" in cat or "DISCOVERY" in cat or "SCANNER" in rule_desc or rule_id in ("100002", "100003", "30411", "31151", "533") or "discovery" in tactics or "reconnaissance" in tactics:
+            return "PRECURSOR_RECON"
+        if "AUTH_FAILURE" in cat or "CREDENTIAL" in cat or rule_id in ("5716", "5710", "100001", "5503") or "credential access" in tactics:
+            return "BRUTE_FORCE_SPRAY"
+        if "AUTH_SUCCESS" in cat or "PRIVILEGE_ESCALATION" in cat or "privilege escalation" in tactics or rule_id in ("5402", "5403", "5407", "5715", "5501"):
+            return "SUCCESSFUL_ENTRY"
+        if "LATERAL" in cat or "lateral movement" in tactics:
+            return "LATERAL_MOVE"
+        if "PERSISTENCE" in cat or "persistence" in tactics or rule_id in ("2833", "2834", "5901", "5902"):
+            return "PERSISTENCE"
+        if "COMMAND_AND_CONTROL" in cat or "EXFILTRATION" in cat or "command and control" in tactics or "exfiltration" in tactics:
+            return "C2_EXFIL"
+        return "GENERAL_ACTIVITY"
+
     def _fetch_cumulative_context(self, actors: Set[str], tenant_id: str) -> Dict[str, Any]:
         """Queries suppression.cumulative_alerts for lifetime sightings and dormancy status."""
         if not actors:
@@ -827,7 +817,9 @@ class ThreatCampaignClusterer:
                         UPDATE soc_ops.soc_triage_queue
                         SET false_positive_reason = 'Unmasked: Subsumed as precursor into ' || %s,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE induk_aggregation_id = ANY(%s)
+                        WHERE triage_id IN (
+                            SELECT ticket_id FROM soc_ops.ticket_aggregates WHERE aggregation_id = ANY(%s)
+                        )
                           AND triage_status IN ('CLOSE', 'AUTO_CLOSED', 'CLOSED', 'WAITING_SLA');
                     """, (cluster_id, precursor_aggs))
             logger.info(f"[ClusterEngine] Reclassified precursor tickets for cluster {cluster_id}")
