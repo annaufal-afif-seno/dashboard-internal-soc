@@ -1647,15 +1647,14 @@ def get_raw_alerts(
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
             elif "Docker" in act_str:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
-            elif "CVE-" in act_str.upper():
+            elif "CVE" in act_str.upper():
                 m_cve = re.search(r'(CVE-\d{4}-\d+)', act_str, re.IGNORECASE)
                 if m_cve:
                     cve_id = m_cve.group(1).upper()
-                    where_clauses.append("n.rule_description ILIKE %s")
+                    where_clauses.append("(n.rule_id IN (23501, 23502, 23503, 23504, 23505, 23506) AND n.rule_description ILIKE %s)")
                     params.append(f"%{cve_id}%")
                 else:
-                    where_clauses.append("n.rule_description ILIKE %s")
-                    params.append(f"%{act_str}%")
+                    where_clauses.append("(n.rule_id IN (23501, 23502, 23503, 23504, 23505, 23506) OR n.rule_description ILIKE '%%CVE%%')")
             else:
                 m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
                 if m_act:
@@ -1675,7 +1674,15 @@ def get_raw_alerts(
                        "n.rule_level >= 0 AND n.rule_level <= 6"
             where_clauses.append(f"({lvl_cond})")
 
+        has_sub_filter = bool(
+            (search and search.strip()) or 
+            (rule_id and rule_id.strip() and rule_id.strip().upper() != "ALL") or
+            (agent and agent.strip() and agent.strip().upper() != "ALL") or
+            (actor and actor.strip() and actor.strip().upper() != "ALL") or
+            (activity and activity.strip() and activity.strip().upper() != "ALL")
+        )
         where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        order_clause = "" if has_sub_filter else "ORDER BY r.timestamp DESC"
         query = f"""
             SELECT 
                 r.event_id,
@@ -1695,15 +1702,10 @@ def get_raw_alerts(
                 COALESCE(r.agent_name, r.destination_ip, 'unknown') AS target,
                 COALESCE(r.tenant_id, 'DEFAULT') AS tenant_id,
                 COALESCE(r.raw_payload, '') AS full_log
-            FROM telemetry.raw_events r
-            LEFT JOIN LATERAL (
-                SELECT rule_id, rule_level, rule_description
-                FROM telemetry.normalized_events
-                WHERE raw_event_id = r.event_id
-                LIMIT 1
-            ) n ON TRUE
+            FROM telemetry.normalized_events n
+            JOIN telemetry.raw_events r ON n.raw_event_id = r.event_id AND n.event_timestamp = r.timestamp
             {where_str}
-            ORDER BY r.timestamp DESC
+            {order_clause}
             LIMIT %s OFFSET %s;
         """
         cur.execute(query, params + [limit, offset])
@@ -4689,15 +4691,14 @@ def get_clustering_overview(
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
             elif "Docker" in f_act:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
-            elif "CVE-" in f_act.upper():
+            elif "CVE" in f_act.upper():
                 m_cve = re.search(r'(CVE-\d{4}-\d+)', f_act, re.IGNORECASE)
                 if m_cve:
                     cve_id = m_cve.group(1).upper()
-                    where_clauses.append("n.rule_description ILIKE %s")
+                    where_clauses.append("(n.rule_id IN (23501, 23502, 23503, 23504, 23505, 23506) AND n.rule_description ILIKE %s)")
                     params.append(f"%{cve_id}%")
                 else:
-                    where_clauses.append("n.rule_description ILIKE %s")
-                    params.append(f"%{f_act}%")
+                    where_clauses.append("(n.rule_id IN (23501, 23502, 23503, 23504, 23505, 23506) OR n.rule_description ILIKE '%%CVE%%')")
             else:
                 m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', f_act, re.IGNORECASE)
                 if m_act:
@@ -4712,10 +4713,27 @@ def get_clustering_overview(
         
         PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
         
-        has_subfilters = bool(filter_tenant or filter_rule or filter_agent or filter_actor or filter_activity)
-        use_temp_sample = bool(is_all_range and not has_subfilters and not where_clauses)
-        
-        if use_temp_sample:
+        # Materialize filtered sample table (single-pass, ultra fast <1s)
+        if where_clauses:
+            sample_query = f"""
+                CREATE TEMP TABLE tmp_cluster_sample ON COMMIT DROP AS
+                SELECT 
+                    r.event_id,
+                    r.timestamp,
+                    r.tenant_id,
+                    r.agent_name,
+                    r.source_ip,
+                    r.username,
+                    r.raw_payload,
+                    n.rule_id,
+                    n.rule_description
+                FROM telemetry.normalized_events n
+                JOIN telemetry.raw_events r ON n.raw_event_id = r.event_id AND n.event_timestamp = r.timestamp
+                {where_str}
+                LIMIT 10000;
+            """
+            cur.execute(sample_query, params)
+        else:
             cur.execute("""
                 CREATE TEMP TABLE tmp_cluster_sample ON COMMIT DROP AS
                 SELECT 
@@ -4737,81 +4755,41 @@ def get_clustering_overview(
                 LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp;
             """)
             
-            def build_donut(dim_expr, needs_norm=True):
-                expr = dim_expr.replace("n.", "r.")
-                q = f"""
-                    SELECT 
-                        {expr} AS name,
-                        COUNT(*) AS val
-                    FROM tmp_cluster_sample r
-                    GROUP BY 1
-                    ORDER BY val DESC;
-                """
-                cur.execute(q)
-                rows = cur.fetchall()
-                total = sum(r["val"] for r in rows)
-                top5 = rows[:5]
-                rest = sum(r["val"] for r in rows[5:])
-                
-                data_items = []
-                for idx, r in enumerate(top5):
-                    val = r["val"]
-                    pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
-                    data_items.append({
-                        "name": str(r["name"]),
-                        "value": val,
-                        "pct": pct,
-                        "color": PALETTE[idx % len(PALETTE)]
-                    })
-                if rest > 0:
-                    pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
-                    data_items.append({
-                        "name": "Lainnya",
-                        "value": rest,
-                        "pct": pct,
-                        "color": "#64748b"
-                    })
-                return {"total": total, "unit": mode, "data": data_items}
-        else:
-            from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if is_all_range else "telemetry.raw_events r"
+        def build_donut(dim_expr, needs_norm=True):
+            expr = dim_expr.replace("n.", "r.")
+            q = f"""
+                SELECT 
+                    {expr} AS name,
+                    COUNT(*) AS val
+                FROM tmp_cluster_sample r
+                GROUP BY 1
+                ORDER BY val DESC;
+            """
+            cur.execute(q)
+            rows = cur.fetchall()
+            total = sum(r["val"] for r in rows)
+            top5 = rows[:5]
+            rest = sum(r["val"] for r in rows[5:])
             
-            def build_donut(dim_expr, needs_norm=True):
-                join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp" if (needs_norm or "n." in where_str) else ""
-                q = f"""
-                    SELECT 
-                        {dim_expr} AS name,
-                        COUNT(*) AS val
-                    FROM {from_table}
-                    {join_clause}
-                    {where_str}
-                    GROUP BY 1
-                    ORDER BY val DESC;
-                """
-                cur.execute(q, params)
-                rows = cur.fetchall()
-                total = sum(r["val"] for r in rows)
-                top5 = rows[:5]
-                rest = sum(r["val"] for r in rows[5:])
-                
-                data_items = []
-                for idx, r in enumerate(top5):
-                    val = r["val"]
-                    pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
-                    data_items.append({
-                        "name": str(r["name"]),
-                        "value": val,
-                        "pct": pct,
-                        "color": PALETTE[idx % len(PALETTE)]
-                    })
-                if rest > 0:
-                    pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
-                    data_items.append({
-                        "name": "Lainnya",
-                        "value": rest,
-                        "pct": pct,
-                        "color": "#64748b"
-                    })
-                return {"total": total, "unit": mode, "data": data_items}
+            data_items = []
+            for idx, r in enumerate(top5):
+                val = r["val"]
+                pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
+                data_items.append({
+                    "name": str(r["name"]),
+                    "value": val,
+                    "pct": pct,
+                    "color": PALETTE[idx % len(PALETTE)]
+                })
+            if rest > 0:
+                pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
+                data_items.append({
+                    "name": "Lainnya",
+                    "value": rest,
+                    "pct": pct,
+                    "color": "#64748b"
+                })
+            return {"total": total, "unit": mode, "data": data_items}
 
         result = {
             "status": "success",
