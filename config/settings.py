@@ -76,8 +76,8 @@ IGNORED_COLLECTOR_HOSTS = frozenset(
 
 # Tier-2 Local / Private LLM Settings (Ollama)
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://192.168.30.178:11434")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5-coder:7B")
-LOCAL_LLM_TIMEOUT = int(os.getenv("LOCAL_LLM_TIMEOUT", "12"))
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "hf.co/fdtn-ai/Foundation-Sec-8B-Reasoning-Q4_K_M-GGUF:latest")
+LOCAL_LLM_TIMEOUT = int(os.getenv("LOCAL_LLM_TIMEOUT", "45"))
 LOCAL_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCAL_LLM_CONFIDENCE_THRESHOLD", "85.0"))
 
 # Tier-3 Cloud LLM Settings (Google Gemini)
