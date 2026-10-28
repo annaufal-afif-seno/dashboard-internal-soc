@@ -637,8 +637,18 @@ export default function ClusteringOverview({
 
 
 
-        {/* Content: Donut Chart on Left, Legend on Right */}
-
+        {/* Content: Loading, Donut Chart, or Empty State */}
+        {clusterLoading ? (
+          <div className="flex flex-col items-center justify-center my-auto py-10 gap-2.5">
+            <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-slate-400 font-medium">Memuat data clustering...</span>
+          </div>
+        ) : !cluster.data || cluster.data.length === 0 ? (
+          <div className="flex flex-col items-center justify-center my-auto py-10 gap-1.5 text-center px-4">
+            <span className="text-xs font-semibold text-slate-400">Tidak ada data untuk filter ini</span>
+            <span className="text-[11px] text-slate-500">Coba hapus filter atau periksa kata kunci</span>
+          </div>
+        ) : (
         <div className="flex items-center justify-center gap-6 my-auto py-2">
 
           {/* Left: Donut Chart */}
@@ -772,6 +782,7 @@ export default function ClusteringOverview({
           </div>
 
         </div>
+        )}
 
       </div>
 

@@ -4713,45 +4713,105 @@ def get_clustering_overview(
         PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
         
         has_subfilters = bool(filter_tenant or filter_rule or filter_agent or filter_actor or filter_activity)
-        from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if (is_all_range and not has_subfilters) else "telemetry.raw_events r"
+        use_temp_sample = bool(is_all_range and not has_subfilters and not where_clauses)
         
-        def build_donut(dim_expr, needs_norm=True):
-            join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp" if (needs_norm or "n." in where_str) else ""
-            q = f"""
+        if use_temp_sample:
+            cur.execute("""
+                CREATE TEMP TABLE tmp_cluster_sample ON COMMIT DROP AS
                 SELECT 
-                    {dim_expr} AS name,
-                    COUNT(*) AS val
-                FROM {from_table}
-                {join_clause}
-                {where_str}
-                GROUP BY 1
-                ORDER BY val DESC;
-            """
-            cur.execute(q, params)
-            rows = cur.fetchall()
-            total = sum(r["val"] for r in rows)
-            top5 = rows[:5]
-            rest = sum(r["val"] for r in rows[5:])
+                    r.event_id,
+                    r.timestamp,
+                    r.tenant_id,
+                    r.agent_name,
+                    r.source_ip,
+                    r.username,
+                    r.raw_payload,
+                    n.rule_id,
+                    n.rule_description
+                FROM (
+                    SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload
+                    FROM telemetry.raw_events
+                    ORDER BY timestamp DESC
+                    LIMIT 25000
+                ) r
+                LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp;
+            """)
             
-            data_items = []
-            for idx, r in enumerate(top5):
-                val = r["val"]
-                pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
-                data_items.append({
-                    "name": str(r["name"]),
-                    "value": val,
-                    "pct": pct,
-                    "color": PALETTE[idx % len(PALETTE)]
-                })
-            if rest > 0:
-                pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
-                data_items.append({
-                    "name": "Lainnya",
-                    "value": rest,
-                    "pct": pct,
-                    "color": "#64748b"
-                })
-            return {"total": total, "unit": mode, "data": data_items}
+            def build_donut(dim_expr, needs_norm=True):
+                expr = dim_expr.replace("n.", "r.")
+                q = f"""
+                    SELECT 
+                        {expr} AS name,
+                        COUNT(*) AS val
+                    FROM tmp_cluster_sample r
+                    GROUP BY 1
+                    ORDER BY val DESC;
+                """
+                cur.execute(q)
+                rows = cur.fetchall()
+                total = sum(r["val"] for r in rows)
+                top5 = rows[:5]
+                rest = sum(r["val"] for r in rows[5:])
+                
+                data_items = []
+                for idx, r in enumerate(top5):
+                    val = r["val"]
+                    pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
+                    data_items.append({
+                        "name": str(r["name"]),
+                        "value": val,
+                        "pct": pct,
+                        "color": PALETTE[idx % len(PALETTE)]
+                    })
+                if rest > 0:
+                    pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
+                    data_items.append({
+                        "name": "Lainnya",
+                        "value": rest,
+                        "pct": pct,
+                        "color": "#64748b"
+                    })
+                return {"total": total, "unit": mode, "data": data_items}
+        else:
+            from_table = "(SELECT event_id, timestamp, tenant_id, agent_name, source_ip, username, raw_payload FROM telemetry.raw_events ORDER BY timestamp DESC LIMIT 25000) r" if is_all_range else "telemetry.raw_events r"
+            
+            def build_donut(dim_expr, needs_norm=True):
+                join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id AND r.timestamp = n.event_timestamp" if (needs_norm or "n." in where_str) else ""
+                q = f"""
+                    SELECT 
+                        {dim_expr} AS name,
+                        COUNT(*) AS val
+                    FROM {from_table}
+                    {join_clause}
+                    {where_str}
+                    GROUP BY 1
+                    ORDER BY val DESC;
+                """
+                cur.execute(q, params)
+                rows = cur.fetchall()
+                total = sum(r["val"] for r in rows)
+                top5 = rows[:5]
+                rest = sum(r["val"] for r in rows[5:])
+                
+                data_items = []
+                for idx, r in enumerate(top5):
+                    val = r["val"]
+                    pct = f"{(val / total * 100):.1f}" if total > 0 else "0.0"
+                    data_items.append({
+                        "name": str(r["name"]),
+                        "value": val,
+                        "pct": pct,
+                        "color": PALETTE[idx % len(PALETTE)]
+                    })
+                if rest > 0:
+                    pct = f"{(rest / total * 100):.1f}" if total > 0 else "0.0"
+                    data_items.append({
+                        "name": "Lainnya",
+                        "value": rest,
+                        "pct": pct,
+                        "color": "#64748b"
+                    })
+                return {"total": total, "unit": mode, "data": data_items}
 
         result = {
             "status": "success",
