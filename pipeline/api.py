@@ -1633,14 +1633,14 @@ def get_raw_alerts(
 
         if activity and activity.strip() and activity.strip().upper() != "ALL":
             act_str = activity.strip()
-            if "Nginx Error" in act_str:
-                where_clauses.append("(n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx%%')")
-            elif "PAM Session Opened" in act_str:
+            if "PAM Session Opened" in act_str:
                 where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
             elif "PAM Session Closed" in act_str:
                 where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
             elif "SSH Authentication Success" in act_str:
                 where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
+            elif "SSH Authentication Failed" in act_str:
+                where_clauses.append("(n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%')")
             elif "Systemd Process Execution" in act_str:
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
             elif "Sudo Privilege" in act_str:
@@ -1648,7 +1648,7 @@ def get_raw_alerts(
             elif "Docker" in act_str:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
             else:
-                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
+                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', act_str, re.IGNORECASE)
                 if m_act:
                     path_term = m_act.group(1).rstrip('*').rstrip('/')
                     where_clauses.append("r.raw_payload ILIKE %s")
@@ -4665,14 +4665,14 @@ def get_clustering_overview(
                 
         if filter_activity and filter_activity.strip().upper() not in ("ALL", "LAINNYA"):
             f_act = filter_activity.strip()
-            if "Nginx Error" in f_act:
-                where_clauses.append("(n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx%%')")
-            elif "PAM Session Opened" in f_act:
+            if "PAM Session Opened" in f_act:
                 where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
             elif "PAM Session Closed" in f_act:
                 where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
             elif "SSH Authentication Success" in f_act:
                 where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
+            elif "SSH Authentication Failed" in f_act:
+                where_clauses.append("(n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%')")
             elif "Systemd Process Execution" in f_act:
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
             elif "Sudo Privilege" in f_act:
@@ -4680,7 +4680,7 @@ def get_clustering_overview(
             elif "Docker" in f_act:
                 where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
             else:
-                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s\[\*]+)', f_act, re.IGNORECASE)
+                m_act = re.search(r'(?:GET|POST|HEAD|PUT|DELETE|SETROOTCERTIFICATE)\s+([^\s\[\*]+)', f_act, re.IGNORECASE)
                 if m_act:
                     path_term = m_act.group(1).rstrip('*').rstrip('/')
                     where_clauses.append("r.raw_payload ILIKE %s")
@@ -4757,7 +4757,36 @@ def get_clustering_overview(
                 "id": "cluster-activity",
                 "title": "ACTIVITY",
                 **build_donut("""CASE
-                    WHEN n.rule_id = 31301 OR n.rule_description ILIKE '%%nginx error%%' THEN 'Web Traffic: Nginx Error'
+                    -- 1. Web Access Logs (data.protocol & data.url)
+                    WHEN r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
+                    THEN (r.raw_payload::jsonb->'data'->>'protocol') || ' ' || 
+                         CASE 
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace(split_part(split_part(r.raw_payload::jsonb->'data'->>'url', '?', 1), '#', 1), '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                         END ||
+                         CASE 
+                             WHEN r.raw_payload::jsonb->'data'->>'id' IS NOT NULL AND r.raw_payload::jsonb->'data'->>'id' ~ '^[0-9]{3}$'
+                             THEN ' [' || (r.raw_payload::jsonb->'data'->>'id') || ']' 
+                             ELSE '' 
+                         END
+
+                    -- 2. Nginx Error Logs (Rule 31301)
+                    WHEN n.rule_id = 31301 AND (r.raw_payload::jsonb->>'full_log') LIKE '%%request: "%%'
+                    THEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[1] || ' ' ||
+                         CASE 
+                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
+                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
+                             WHEN (regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
+                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload::jsonb->>'full_log', 'request: "([A-Z]+) ([^"\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                         END ||
+                         CASE 
+                             WHEN (r.raw_payload::jsonb->>'full_log') ~ '\\((\\d{3}):' THEN ' [' || (regexp_match(r.raw_payload::jsonb->>'full_log', '\\((\\d{3}):'))[1] || ']'
+                             ELSE ''
+                         END
+
+                    -- 3. System & Auth Events
                     WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'PAM Session Opened'
                     WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'PAM Session Closed'
                     WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH Authentication Success'
@@ -4765,14 +4794,7 @@ def get_clustering_overview(
                     WHEN n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd: service exited%%' THEN 'Systemd Process Execution'
                     WHEN n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo to root%%' THEN 'Sudo Privilege Escalation'
                     WHEN n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%' THEN 'Docker Container Error'
-                    WHEN n.rule_id IN (31101, 31108, 31151, 100001, 100009) AND r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
-                    THEN (r.raw_payload::jsonb->'data'->>'protocol') || ' ' || 
-                         (CASE 
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (r.raw_payload::jsonb->'data'->>'url') LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE SPLIT_PART(r.raw_payload::jsonb->'data'->>'url', '?', 1)
-                          END) || ' [' || COALESCE(r.raw_payload::jsonb->'data'->>'id', '200') || ']'
+                    
                     ELSE TRIM(TRAILING '.' FROM COALESCE(n.rule_description, 'General System Event'))
                 END""", needs_norm=True)
             }
