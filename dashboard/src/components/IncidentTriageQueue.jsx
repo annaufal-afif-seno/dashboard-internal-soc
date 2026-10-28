@@ -4148,6 +4148,20 @@ export default function IncidentTriageQueue({
 
                           </div>
 
+                          {agg.normalized_activity && (
+                            <div className="mt-1.5 flex items-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight border shadow-2xs ${
+                                agg.normalized_activity.includes('[200') || agg.normalized_activity.includes('[SUCCESS')
+                                  ? (isDark ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/70' : 'bg-emerald-50 text-emerald-700 border-emerald-300')
+                                  : agg.normalized_activity.includes('[40') || agg.normalized_activity.includes('[50') || agg.normalized_activity.includes('[FAILED') || agg.normalized_activity.includes('[FAILURE')
+                                  ? (isDark ? 'bg-amber-950/70 text-amber-400 border-amber-800/70' : 'bg-amber-50 text-amber-700 border-amber-300')
+                                  : (isDark ? 'bg-blue-950/70 text-blue-400 border-blue-800/70' : 'bg-blue-50 text-blue-700 border-blue-300')
+                              }`}>
+                                {agg.normalized_activity}
+                              </span>
+                            </div>
+                          )}
+
                           <div className={`flex items-center justify-between text-[10px] mt-1.5 font-mono ${
 
                             isDark ? 'text-slate-400' : 'text-slate-500'

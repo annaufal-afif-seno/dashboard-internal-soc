@@ -1965,6 +1965,119 @@ def get_raw_alert_lineage(
 
 
 # --- RELATIONAL AGGREGATES & FULL FORENSIC LOG INSPECTION ---
+def compute_normalized_activity(agg: Dict[str, Any]) -> str:
+    """
+    Format Activity secara fleksibel dengan 3-Tingkat Fallback:
+    1. Web/HTTP: METHOD PATH [STATUS] (misal: GET /.env* [404])
+    2. Auth: AUTH LOGIN [user:...] [STATUS] (misal: AUTH LOGIN [user:root] [FAILED])
+    3. FIM: FILE [EVENT] [PATH] [FIM]
+    4. Process: PROC EXEC [PATH/CMD] [SYSCALL]
+    5. Universal Fallback: [ACTION/MODULE] [TARGET/PATH] [[STATUS/SEVERITY]]
+    """
+    rule_desc = agg.get("rule_description") or ""
+    rule_id = str(agg.get("rule_id") or "")
+    category = str(agg.get("category") or "").upper()
+    ioa_summary = agg.get("ioa_summary") or ""
+    distinct_ioas = agg.get("distinct_ioas") or []
+    if isinstance(distinct_ioas, str):
+        try:
+            distinct_ioas = json.loads(distinct_ioas)
+        except Exception:
+            distinct_ioas = [distinct_ioas]
+    status_code = agg.get("dominant_http_status")
+    log_source = agg.get("log_source") or ""
+    actor = agg.get("actor") or ""
+    target = agg.get("target") or ""
+
+    all_text = f"{rule_desc} {ioa_summary} {' '.join(str(x) for x in distinct_ioas)} {log_source}"
+
+    # 1. Deteksi WEB / HTTP
+    http_methods = ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"]
+    found_method = None
+    for m in http_methods:
+        if re.search(rf"\b{m}\b", all_text, re.IGNORECASE):
+            found_method = m.upper()
+            break
+
+    found_url = None
+    for text_item in list(distinct_ioas) + [all_text]:
+        url_match = re.search(r'(?:GET|POST|PUT|DELETE|HEAD)\s+([^\s\?\"\']+)', str(text_item), re.IGNORECASE)
+        if url_match:
+            raw_path = url_match.group(1)
+            if "/.env" in raw_path:
+                found_url = "/.env*"
+            else:
+                cleaned = re.sub(r'/[0-9a-fA-F-]{8,}', '/{id}', raw_path)
+                cleaned = re.sub(r'/\d+', '/{id}', cleaned)
+                found_url = cleaned[:35]
+            break
+        path_match = re.search(r'(/[a-zA-Z0-9_\-\.\*]+)', str(text_item))
+        if path_match and ("/" in path_match.group(1)):
+            raw_p = path_match.group(1)
+            if "/.env" in raw_p:
+                found_url = "/.env*"
+                break
+            elif raw_p.startswith(('/api', '/wp-', '/admin', '/login', '/php', '/shell')):
+                found_url = raw_p[:35]
+                break
+
+    if not status_code:
+        status_match = re.search(r'\b(200|201|204|400|401|403|404|405|500|502|503)\b', all_text)
+        if status_match:
+            status_code = status_match.group(1)
+
+    if found_method or found_url or status_code or (category in ("WEB_OPERATIONAL", "WEB_SCAN", "DISCOVERY") and "web" in all_text.lower()):
+        method_str = found_method or ("POST" if "post" in rule_desc.lower() else "GET")
+        url_str = found_url or ("/.env*" if ".env" in all_text else "/*")
+        status_str = f"[{status_code}]" if status_code else "[STATUS_N/A]"
+        return f"{method_str} {url_str} {status_str}"
+
+    # 2. Deteksi AUTHENTICATION
+    if "sshd" in all_text.lower() or "auth" in all_text.lower() or "login" in all_text.lower() or category == "AUTH_SUCCESS":
+        is_success = "success" in all_text.lower() or category == "AUTH_SUCCESS" or "5715" in rule_id
+        outcome = "[SUCCESS]" if is_success else "[FAILED]"
+        user_match = re.search(r'user[:\s]+([a-zA-Z0-9_\-\.]+)', all_text, re.IGNORECASE)
+        user_name = user_match.group(1) if user_match else (actor if actor.startswith("user:") else "user:unknown")
+        if not user_name.startswith("user:"):
+            user_name = f"user:{user_name}"
+        auth_type = "SSH LOGIN" if "ssh" in all_text.lower() else "AUTH LOGIN"
+        return f"{auth_type} [{user_name}] {outcome}"
+
+    # 3. Deteksi FIM
+    if "syscheck" in all_text.lower() or "integrity" in all_text.lower() or "file" in rule_desc.lower():
+        path_match = re.search(r"['\"]?(/[\w\.\-/]+)['\"]?", all_text)
+        target_path = path_match.group(1) if path_match else (log_source if "/" in log_source else target)
+        if "rotate" in all_text.lower():
+            return f"LOG ROTATE [{target_path}] [OSSEC]"
+        event_type = "MODIFIED" if ("checksum" in all_text.lower() or "changed" in all_text.lower()) else "ACCESSED"
+        return f"FILE {event_type} [{target_path}] [FIM]"
+
+    # 4. Deteksi SYSTEMD / SERVICE
+    if "systemd" in all_text.lower() or "journald" in all_text.lower() or "service" in rule_desc.lower():
+        svc_match = re.search(r'service\s+([a-zA-Z0-9_\-\.]+)', all_text, re.IGNORECASE)
+        svc_name = svc_match.group(1) if svc_match else "systemd_service"
+        outcome = "[FAILURE]" if ("fail" in all_text.lower() or "exit" in all_text.lower()) else "[EVENT]"
+        return f"SERVICE [{svc_name}] {outcome}"
+
+    # 5. Deteksi SCA / COMPLIANCE
+    if "sca" in all_text.lower() or "cis" in all_text.lower() or "benchmark" in all_text.lower():
+        check_name = "CIS Benchmark Check"
+        if "sudo" in all_text.lower(): check_name = "CIS: Ensure sudo installed"
+        elif "sticky" in all_text.lower(): check_name = "CIS: Sticky bit check"
+        outcome = "[PASSED]" if "passed" in all_text.lower() else "[AUDIT]"
+        return f"SCA AUDIT [{check_name}] {outcome}"
+
+    # 6. Deteksi VULNERABILITY (CVE)
+    cve_match = re.search(r'(CVE-\d{4}-\d+)', all_text)
+    if cve_match:
+        return f"VULNERABILITY [{cve_match.group(1)}] [DETECTED]"
+
+    # 7. UNIVERSAL FALLBACK
+    short_desc = rule_desc[:25] if rule_desc else "Security Event"
+    tag = log_source if log_source else category
+    return f"{category} [{short_desc}] [{tag}]"
+
+
 @app.get("/api/incidents/{incident_id}/aggregates")
 def get_incident_aggregates_alias(incident_id: str, conn = Depends(get_db_connection)):
     """Alias supporting /api/incidents/{incident_id}/aggregates directly."""
@@ -1980,7 +2093,7 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                 a.aggregation_id, a.rule_id, a.rule_description, a.category, 
                 a.actor, a.target, a.event_count, a.window_start, a.window_end, 
                 a.window_duration_seconds, a.ioa_summary, a.tenant_id,
-                a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id,
+                a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id, a.dominant_http_status,
                 ta.is_induk, ta.is_escalation_trigger
             FROM soc_ops.ticket_aggregates ta
             JOIN suppression.aggregated_alerts a ON a.aggregation_id = ta.aggregation_id
@@ -1996,7 +2109,7 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                     a.aggregation_id, a.rule_id, a.rule_description, a.category, 
                     a.actor, a.target, a.event_count, a.window_start, a.window_end, 
                     a.window_duration_seconds, a.ioa_summary, a.tenant_id,
-                    a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id,
+                    a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id, a.dominant_http_status,
                     (s.sequence_order = 1) AS is_induk, FALSE AS is_escalation_trigger
                 FROM soc_ops.soc_triage_queue t
                 JOIN correlation.incident_stages s ON t.incident_id = s.incident_id
@@ -2014,7 +2127,7 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                     aggregation_id, rule_id, rule_description, category, 
                     actor, target, event_count, window_start, window_end, 
                     window_duration_seconds, ioa_summary, tenant_id,
-                    log_source, distinct_ioas, distinct_iocs, mitre_tactics, mitre_technique_id
+                    log_source, distinct_ioas, distinct_iocs, mitre_tactics, mitre_technique_id, dominant_http_status
                 FROM suppression.aggregated_alerts
                 WHERE aggregation_id = %s;
             """, (triage_id,))
@@ -2074,7 +2187,12 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                         "distinct_ioas": [first_evt["stage_description"]] if first_evt.get("stage_description") else [],
                         "distinct_iocs": [first_evt["source_ip"]] if first_evt.get("source_ip") else [],
                         "mitre_tactics": [],
-                        "mitre_technique_id": None
+                        "mitre_technique_id": None,
+                        "normalized_activity": compute_normalized_activity({
+                            "rule_id": rule_id_str, "rule_description": rule_desc, "category": first_evt["stage_name"],
+                            "ioa_summary": first_evt["stage_description"], "log_source": first_evt.get("location"),
+                            "actor": actor, "target": target
+                        })
                     })
                 return {"total": len(aggs), "aggregates": aggs}
 
@@ -2148,7 +2266,8 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                 "mitre_tactics": m_tactics,
                 "mitre_technique_id": r.get("mitre_technique_id"),
                 "is_induk": bool(r.get("is_induk")),
-                "is_escalation_trigger": bool(r.get("is_escalation_trigger"))
+                "is_escalation_trigger": bool(r.get("is_escalation_trigger")),
+                "normalized_activity": compute_normalized_activity(dict(r))
             })
         return {"total": len(aggs), "aggregates": aggs}
     finally:
