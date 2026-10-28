@@ -1022,51 +1022,8 @@ export default function IncidentTriageQueue({
 
         setMlPrediction(data);
 
-        if (data.triage_status) {
-
-          setSelectedIncident(prev => {
-
-            if (!prev) return prev;
-
-            const matches = prev.id === triageId || prev.triage_id === triageId || prev.incident_id === triageId || prev.incident_id === data.incident_id;
-
-            if (matches) {
-
-              return {
-
-                ...prev,
-
-                status: data.triage_status,
-
-                resolution_outcome: data.resolution_outcome !== undefined ? data.resolution_outcome : prev.resolution_outcome
-
-              };
-
-            }
-
-            return prev;
-
-          });
-
-          setIncidents(prev => prev.map(inc => {
-
-            if (inc.id === triageId || inc.triage_id === triageId || inc.incident_id === triageId || inc.incident_id === data.incident_id) {
-
-              return {
-
-                ...inc,
-
-                status: data.triage_status,
-
-                resolution_outcome: data.resolution_outcome !== undefined ? data.resolution_outcome : inc.resolution_outcome
-
-              };
-
-            }
-
-            return inc;
-
-          }));
+        if (data.resolution_outcome) {
+          setSelectedIncident(prev => prev ? { ...prev, resolution_outcome: data.resolution_outcome } : prev);
 
           try {
             Object.keys(globalTriageCache).forEach(k => {
@@ -3499,11 +3456,7 @@ export default function IncidentTriageQueue({
 
                 {(() => {
 
-                  const effectiveStatus = (mlPrediction && (mlPrediction.triage_id === selectedIncident?.id || mlPrediction.incident_id === selectedIncident?.incident_id))
-
-                    ? normalizeStatus(mlPrediction.triage_status || selectedIncident.status)
-
-                    : normalizeStatus(selectedIncident.status);
+                  const effectiveStatus = normalizeStatus(selectedIncident?.status || selectedIncident?.triage_status);
 
 
 
