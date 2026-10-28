@@ -2804,8 +2804,37 @@ def get_ticket_ml_prediction(triage_id: str, live_recheck: bool = Query(False), 
                 incident_data["resolution_outcome"] = None
                 gt_row = None
         else:
-            # 2. Conclusive (>= 85%): MUST be CLOSE (Threat -> Verified Threat, Benign -> Policy Bundle)
-            target_status = "CLOSE"
+            # 2. Conclusive (>= 85%):
+            # Aturan User:
+            # - OPEN: Jika waktu SLA masih ada (belum habis).
+            # - CLOSE: Jika waktu SLA sudah habis dan tidak ada kluster/agregat nyangkut.
+            # - INVESTIGATE: Jika sedang dalam pemrosesan investigasi triase AI.
+            from datetime import datetime, timezone, timedelta
+            prio = incident_data.get("priority") or "P4"
+            waktu_muncul = incident_data.get("priority_established_at") or incident_data.get("created_at") or incident_data.get("first_seen_at")
+            now_utc = datetime.now(timezone.utc)
+            
+            sla_delta = timedelta(days=7)
+            if prio == "P0":
+                sla_delta = timedelta(minutes=15)
+            elif prio == "P1":
+                sla_delta = timedelta(minutes=60)
+            elif prio == "P2":
+                sla_delta = timedelta(hours=4)
+            elif prio == "P3":
+                sla_delta = timedelta(hours=24)
+                
+            deadline_sla = waktu_muncul + sla_delta if waktu_muncul else now_utc - timedelta(seconds=1)
+            sla_expired = (now_utc >= deadline_sla)
+            
+            curr_status = (incident_data.get("triage_status") or "").upper()
+            if curr_status in ("INVESTIGATING", "INVESTIGATE"):
+                target_status = curr_status
+            elif not sla_expired:
+                target_status = "OPEN"
+            else:
+                target_status = "CLOSE"
+
             target_outcome = "TRUE_POSITIVE_ACTIONABLE" if effective_verdict == "THREAT" else "BENIGN"
             target_analyst = "iris_orchestrator" if effective_verdict == "THREAT" else f"ai_cascade_{cascading_tier}"
             is_tp = (effective_verdict == "THREAT")
@@ -2819,10 +2848,10 @@ def get_ticket_ml_prediction(triage_id: str, live_recheck: bool = Query(False), 
                         assigned_analyst = %s,
                         false_positive_reason = %s,
                         is_verified_true_positive = %s,
-                        resolved_at = COALESCE(resolved_at, CURRENT_TIMESTAMP),
+                        resolved_at = CASE WHEN %s = 'CLOSE' THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE NULL END,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE triage_id = %s OR incident_id = %s;
-                """, (target_status, target_outcome, target_analyst, final_reasoning, is_tp,
+                """, (target_status, target_outcome, target_analyst, final_reasoning, is_tp, target_status,
                       incident_data.get("triage_id") or triage_id, incident_data.get("incident_id")))
                 conn.commit()
                 incident_data["triage_status"] = target_status
