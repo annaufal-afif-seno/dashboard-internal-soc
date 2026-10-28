@@ -30,6 +30,7 @@ import psycopg2
 from psycopg2 import pool, extras
 from fastapi import FastAPI, HTTPException, Depends, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import APIKeyHeader
 
 from config.settings import (
@@ -54,6 +55,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # API Security: Key authentication dependency for mutating endpoints
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -272,6 +274,8 @@ def resolve_time_range(range_val: Optional[str], start: Optional[str] = None, en
         return t_start.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), t_end.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), start_w.strftime("%Y-%m-%d"), today_wib_str
 
 
+_METRICS_OVERVIEW_CACHE = {}
+
 @app.get("/api/metrics/overview")
 def get_metrics_overview(
     range: str = Query("minggu", description="Time range: hari, minggu, bulan, custom"),
@@ -281,29 +285,15 @@ def get_metrics_overview(
     conn = Depends(get_db_connection)
 ):
     """Fetch live pipeline overview funnel metrics and priority distribution from PostgreSQL with dynamic time range and tenant filtering."""
+    cache_key = (range, start, end, tenant_id)
+    now_ts = time.time()
+    if cache_key in _METRICS_OVERVIEW_CACHE:
+        cached_res, exp_ts = _METRICS_OVERVIEW_CACHE[cache_key]
+        if now_ts < exp_ts:
+            return cached_res
+
     cur = conn.cursor(cursor_factory=extras.RealDictCursor)
     try:
-        # Auto-triage only tickets whose SLA window has genuinely expired and no aggregates hanging
-        cur.execute("""
-            SELECT 1 FROM soc_ops.soc_triage_queue q
-            WHERE q.triage_status = 'OPEN'
-              AND (
-                  COALESCE(q.sla_deadline, (COALESCE(q.priority_established_at, q.created_at) + 
-                      CASE 
-                          WHEN q.priority = 'P0' THEN INTERVAL '15 minutes'
-                          WHEN q.priority = 'P1' THEN INTERVAL '60 minutes'
-                          WHEN q.priority = 'P2' THEN INTERVAL '4 hours'
-                          WHEN q.priority = 'P3' THEN INTERVAL '24 hours'
-                          ELSE INTERVAL '7 days'
-                      END
-                  )) <= CURRENT_TIMESTAMP
-              )
-
-            LIMIT 1;
-        """)
-        # Background worker handles triage execution to prevent API deadlock
-        # if cur.fetchone():
-        #     _auto_triage_pending(conn)
         start_dt, end_dt, s_date, e_date = resolve_time_range(range, start, end)
 
         is_specific_tenant = bool(tenant_id and tenant_id.strip() and tenant_id.strip().upper() != "ALL")
@@ -1020,7 +1010,7 @@ def get_metrics_overview(
             for r in live_feed_rows
         ]
 
-        return {
+        res_payload = {
             "total_raw_events": total_raw,
             "total_wazuh_alerts": total_raw,
             "total_aggregated_alerts": total_aggs,
@@ -1069,6 +1059,8 @@ def get_metrics_overview(
             "live_feed": live_feed_list,
             "timestamp": datetime.utcnow().isoformat()
         }
+        _METRICS_OVERVIEW_CACHE[cache_key] = (res_payload, now_ts + 5.0)
+        return res_payload
     finally:
         cur.close()
 
@@ -1746,8 +1738,8 @@ def get_raw_alerts(
             except Exception as le:
                 logger.warning(f"Error querying aggregate lineage: {le}")
 
-            # Dynamic relational resolution for unmapped events
-            unresolved = [r for r in rows if r["event_id"] not in lineage_map or not lineage_map[r["event_id"]].get("aggregation_id")]
+            # Dynamic relational resolution for unmapped events (optimized windowed lookup)
+            unresolved = [r for r in rows if r["event_id"] not in lineage_map or not lineage_map[r["event_id"]].get("aggregation_id")][:10]
             for r in unresolved:
                 eid = r["event_id"]
                 ts = r["timestamp"]
@@ -1765,9 +1757,11 @@ def get_raw_alerts(
                         WHERE (ag.tenant_id = %s OR %s IS NULL)
                           AND (ag.rule_id = %s OR %s IS NULL)
                           AND (ag.actor = %s OR ag.target = %s OR %s IS NULL)
+                          AND ag.window_start >= (%s::timestamptz - interval '7 days')
+                          AND ag.window_start <= (%s::timestamptz + interval '7 days')
                         ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                         LIMIT 1;
-                    """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("target"), r.get("actor"), ts))
+                    """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("target"), r.get("actor"), ts, ts, ts))
                     m_row = cur.fetchone()
                     if m_row and m_row.get("aggregation_id"):
                         lineage_map[eid] = {
@@ -4584,6 +4578,8 @@ def get_suppression_group_detail(group_id: str, conn = Depends(get_db_connection
         cur.close()
 
 
+_CLUSTERING_OVERVIEW_CACHE = {}
+
 @app.get("/api/clustering/overview")
 def get_clustering_overview(
     tenant_id: Optional[str] = Query(None),
@@ -4599,6 +4595,13 @@ def get_clustering_overview(
     conn = Depends(get_db_connection)
 ):
     """Dynamically aggregates real telemetry data for the 5 Clustering Overview donut charts."""
+    cache_key = (tenant_id, range, start, end, mode, filter_tenant, filter_rule, filter_agent, filter_actor, filter_activity)
+    now_ts = time.time()
+    if cache_key in _CLUSTERING_OVERVIEW_CACHE:
+        cached_res, exp_ts = _CLUSTERING_OVERVIEW_CACHE[cache_key]
+        if now_ts < exp_ts:
+            return cached_res
+
     cur = conn.cursor(cursor_factory=extras.RealDictCursor)
     try:
         start_dt, end_dt, _, _ = resolve_time_range(range, start, end)
@@ -4653,13 +4656,14 @@ def get_clustering_overview(
         
         PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e']
         
-        def build_donut(dim_expr):
+        def build_donut(dim_expr, needs_norm=True):
+            join_clause = "LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id" if (needs_norm or "n." in where_str) else ""
             q = f"""
                 SELECT 
                     {dim_expr} AS name,
                     COUNT(*) AS val
                 FROM telemetry.raw_events r
-                LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id
+                {join_clause}
                 {where_str}
                 GROUP BY 1
                 ORDER BY val DESC;
@@ -4695,29 +4699,30 @@ def get_clustering_overview(
             "cluster-tenant": {
                 "id": "cluster-tenant",
                 "title": "TENANT",
-                **build_donut("COALESCE(r.tenant_id, 'DEFAULT')")
+                **build_donut("COALESCE(r.tenant_id, 'DEFAULT')", needs_norm=False)
             },
             "cluster-rule-id": {
                 "id": "cluster-rule-id",
                 "title": "RULE.ID",
-                **build_donut("COALESCE('Rule ' || n.rule_id, 'Unknown')")
+                **build_donut("COALESCE('Rule ' || n.rule_id, 'Unknown')", needs_norm=True)
             },
             "cluster-agent": {
                 "id": "cluster-agent",
                 "title": "AGENT",
-                **build_donut("COALESCE(r.agent_name, 'unknown')")
+                **build_donut("COALESCE(r.agent_name, 'unknown')", needs_norm=False)
             },
             "cluster-actor": {
                 "id": "cluster-actor",
                 "title": "ACTOR",
-                **build_donut("COALESCE(NULLIF(r.source_ip, ''), CASE WHEN r.username IS NOT NULL AND r.username != '' AND r.username != 'none' THEN 'user:' || r.username ELSE NULL END, 'NO_ACTOR')")
+                **build_donut("COALESCE(NULLIF(r.source_ip, ''), CASE WHEN r.username IS NOT NULL AND r.username != '' AND r.username != 'none' THEN 'user:' || r.username ELSE NULL END, 'NO_ACTOR')", needs_norm=False)
             },
             "cluster-activity": {
                 "id": "cluster-activity",
                 "title": "ACTIVITY",
-                **build_donut("COALESCE(n.rule_description, 'General Alert')")
+                **build_donut("COALESCE(n.rule_description, 'General Alert')", needs_norm=True)
             }
         }
+        _CLUSTERING_OVERVIEW_CACHE[cache_key] = (result, now_ts + 10.0)
         return result
     except Exception as e:
         logger.error(f"Error in get_clustering_overview: {e}")
