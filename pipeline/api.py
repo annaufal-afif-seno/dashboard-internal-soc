@@ -350,11 +350,12 @@ def get_metrics_overview(
             # 3. Total raw events for specific tenant (ensuring ingest >= aggregates)
             cur.execute("""
                 SELECT GREATEST(
+                    COALESCE((SELECT count(*) FROM telemetry.raw_events WHERE tenant_id = %s AND timestamp >= %s AND timestamp <= %s), 0),
                     COALESCE((SELECT SUM(total) FROM metrics.raw_severity_hourly WHERE tenant_id = %s AND bucket_hour >= %s AND bucket_hour <= %s), 0),
                     COALESCE((SELECT sum(event_count) FROM suppression.aggregated_alerts WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s), 0),
                     COALESCE((SELECT count(*) FROM suppression.aggregated_alerts WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s), 0)
                 ) as total;
-            """, (t_filter, start_dt, end_dt, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
+            """, (t_filter, start_dt, end_dt, t_filter, start_dt, end_dt, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
             total_raw = cur.fetchone()["total"] or 0
 
         else:
@@ -377,8 +378,19 @@ def get_metrics_overview(
             rollup_res = cur.fetchone()
             use_rollup = rollup_res and rollup_res["total_raw"] > 0
 
+            cur.execute(
+                """
+                SELECT GREATEST(
+                    COALESCE((SELECT count(*) FROM telemetry.raw_events WHERE timestamp >= %s AND timestamp <= %s), 0),
+                    COALESCE((SELECT count(*) FROM telemetry.normalized_events WHERE event_timestamp >= %s AND event_timestamp <= %s), 0)
+                ) as total;
+                """,
+                (start_dt, end_dt, start_dt, end_dt)
+            )
+            live_raw = cur.fetchone()["total"] or 0
+
             if use_rollup:
-                total_raw = int(rollup_res["total_raw"])
+                total_raw = max(int(rollup_res["total_raw"]), live_raw)
                 total_aggs = int(rollup_res["total_aggs"])
                 aggs_suppressed = int(rollup_res["total_suppressed"])
                 aggs_actionable = int(rollup_res["total_actionable"])
