@@ -124,7 +124,7 @@ export const SLA_INTERVALS_MS = {
 
   P0: 15 * 60 * 1000,          // 15 menit
 
-  P1: 30 * 60 * 1000,          // 30 menit
+  P1: 60 * 60 * 1000,          // 60 menit (1 jam)
 
   P2: 4 * 60 * 60 * 1000,      // 4 jam
 

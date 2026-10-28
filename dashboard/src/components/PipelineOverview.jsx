@@ -26,7 +26,7 @@ const defaultPriorityData = [
 // SLA Durations for Earliest Deadline First (EDF) Dynamic Scheduling
 const SLA_INTERVALS_MS = {
   P0: 15 * 60 * 1000,      // 15 minutes
-  P1: 30 * 60 * 1000,      // 30 minutes
+  P1: 60 * 60 * 1000,      // 60 minutes (1 hour)
   P2: 4 * 60 * 60 * 1000,  // 4 hours
   P3: 24 * 60 * 60 * 1000, // 24 hours
   P4: 7 * 24 * 60 * 60 * 1000 // 7 days
