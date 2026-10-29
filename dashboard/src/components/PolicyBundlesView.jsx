@@ -38,6 +38,11 @@ export default function PolicyBundlesView({
   const [clusterAlertsMap, setClusterAlertsMap] = useState({});
   const [clusterAlertsLoading, setClusterAlertsLoading] = useState({});
 
+  // Nested expandable sub-tables for 'by campaign' view
+  const [expandedCampaignIds, setExpandedCampaignIds] = useState({});
+  const [campaignMembersMap, setCampaignMembersMap] = useState({});
+  const [campaignMembersLoading, setCampaignMembersLoading] = useState({});
+
   const [expandedClusterId, setExpandedClusterId] = useState(null);
   const [clusterLogsMap, setClusterLogsMap] = useState({});
   const [loadingClusterLogs, setLoadingClusterLogs] = useState(false);
@@ -93,6 +98,33 @@ export default function PolicyBundlesView({
         setClusterAlertsMap(prev => ({ ...prev, [clusterId]: [] }));
       } finally {
         setClusterAlertsLoading(prev => ({ ...prev, [clusterId]: false }));
+      }
+    }
+  };
+
+  const toggleExpandCampaign = async (campaignId) => {
+    if (!campaignId) return;
+    const isCurrentlyExpanded = !expandedCampaignIds[campaignId];
+    setExpandedCampaignIds(prev => ({
+      ...prev,
+      [campaignId]: isCurrentlyExpanded
+    }));
+
+    if (isCurrentlyExpanded && !campaignMembersMap[campaignId]) {
+      setCampaignMembersLoading(prev => ({ ...prev, [campaignId]: true }));
+      try {
+        const res = await fetch(`/api/campaign-clusters/${campaignId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCampaignMembersMap(prev => ({ ...prev, [campaignId]: data.members || [] }));
+        } else {
+          setCampaignMembersMap(prev => ({ ...prev, [campaignId]: [] }));
+        }
+      } catch (err) {
+        console.warn('Fetch campaign members error:', err);
+        setCampaignMembersMap(prev => ({ ...prev, [campaignId]: [] }));
+      } finally {
+        setCampaignMembersLoading(prev => ({ ...prev, [campaignId]: false }));
       }
     }
   };
@@ -1712,22 +1744,22 @@ export default function PolicyBundlesView({
                         </tr>
                       ) : bundleFilterMode === 'ticket' ? (
                         <tr>
-                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[170px]">TICKET ID</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">AGENT</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">ACTOR</th>
-                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100 min-w-[170px]">TICKET ID</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">AGENT</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">action</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
                         </tr>
                       ) : (
                         <tr>
-                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">NO Campaign</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">classification</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">actor</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">target</th>
-                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100 min-w-[170px]">CAMPAIGN ID</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">KLASIFIKASI</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">TARGET</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">action</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
                         </tr>
                       )}
                     </thead>
@@ -1964,41 +1996,37 @@ export default function PolicyBundlesView({
                                   onClick={() => toggleExpandTicket(item.ticketNo)}
                                   className={`transition-colors cursor-pointer select-none ${
                                     isTicketExpanded 
-                                      ? (isDark ? 'bg-indigo-950/30 border-l-2 border-indigo-500' : 'bg-indigo-50/70 border-l-2 border-indigo-500')
+                                      ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300')
                                       : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
                                   }`}
+                                  title="Klik baris untuk melihat rincian kluster di tiket ini"
                                 >
                                   {/* 1. TICKET ID */}
-                                  <td className="px-2.5 py-2.5 ">
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="p-0.5 rounded hover:bg-indigo-500/20 text-indigo-400">
-                                        {isTicketExpanded ? (
-                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform text-indigo-400" />
-                                        ) : (
-                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 transition-transform text-slate-400 group-hover:text-indigo-400" />
-                                        )}
-                                      </span>
-                                      <span className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight select-all">
+                                      {isTicketExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      )}
+                                      <span className="text-slate-900 dark:text-white select-all">
                                         {item.ticketNo}
                                       </span>
-                                    </div>
-                                    <div className="text-[9.5px] text-slate-400  leading-tight mt-0.5 ml-5 break-words">
-                                      {item.incidentTitle}
                                     </div>
                                   </td>
 
                                   {/* 2. AGENT */}
-                                  <td className="px-2 py-2.5  text-[10px] text-slate-300 break-words leading-tight" title={item.agent || item.target}>
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.agent || item.target}>
                                     {item.agent || item.target || '-'}
                                   </td>
 
                                   {/* 3. ACTOR */}
-                                  <td className="px-2 py-2.5  text-[10px] text-slate-300 break-all leading-tight">
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
                                     {item.actor || 'Internal / N/A'}
                                   </td>
 
                                   {/* 4. Action */}
-                                  <td className="px-1 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                     <button
                                       type="button"
                                       onClick={() => handleActionClick(item)}
@@ -2010,7 +2038,7 @@ export default function PolicyBundlesView({
                                   </td>
 
                                   {/* 5. Status */}
-                                  <td className="px-2 py-2.5 text-center " onClick={(e) => e.stopPropagation()}>
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                     {item.status === 'DEPLOY' ? (
                                       <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                         DEPLOY
@@ -2041,34 +2069,16 @@ export default function PolicyBundlesView({
                                   </td>
 
                                   {/* 6. Deploy Toggle Switch */}
-                                  <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                     {item.status === 'EXPIRED' || item.isExpired ? (
                                       <div className="flex flex-col items-center justify-center gap-0.5">
                                         <button
                                           type="button"
-                                          onClick={() => {
-                                            setExtendModalItem(item);
-                                            const defaultDate = new Date();
-                                            defaultDate.setDate(defaultDate.getDate() + 90);
-                                            setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                          }}
+                                          disabled
                                           className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
-                                          title="Expired: Tombol OFF dan terkunci. Ubah tanggal expired terlebih dahulu untuk mengaktifkan."
+                                          title="Expired: Tombol OFF dan terkunci."
                                         >
-                                          <span className="sr-only">Expired toggle disabled</span>
-                                          <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs transition-transform translate-x-0" />
-                                        </button>
-                                        <button 
-                                          type="button"
-                                          onClick={() => {
-                                            setExtendModalItem(item);
-                                            const defaultDate = new Date();
-                                            defaultDate.setDate(defaultDate.getDate() + 90);
-                                            setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                          }}
-                                          className="text-[9px]  text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
-                                        >
-                                          extend
+                                          <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs translate-x-0" />
                                         </button>
                                       </div>
                                     ) : (
@@ -2077,7 +2087,10 @@ export default function PolicyBundlesView({
                                           type="button"
                                           role="switch"
                                           aria-checked={item.status === 'DEPLOY'}
-                                          onClick={() => handleToggleDeploy(item)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleDeploy(item);
+                                          }}
                                           className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
                                             item.status === 'DEPLOY' 
                                               ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
@@ -2317,92 +2330,74 @@ export default function PolicyBundlesView({
                             );
                           }
 
-                          // CAMPAIGN VIEW (7 columns)
+                          // CAMPAIGN VIEW (7 columns, matching by cluster style with expandable sub-table)
+                          const isCampaignExpanded = !!expandedCampaignIds[item.id];
+                          const campaignMembers = campaignMembersMap[item.id] || [];
+                          const isCampaignLoading = !!campaignMembersLoading[item.id];
+
                           return (
-                            <tr key={`${item.id}-${idx}`} className={`transition-colors ${
-                              isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
-                            }`}>
-                              {/* 1. NO Campaign */}
-                              <td className="px-2.5 py-2.5 ">
-                                <div className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight">
-                                  {item.ticketNo}
-                                </div>
-                                <div className="text-[9.5px] text-slate-400  leading-tight mt-0.5 break-words">
-                                  {item.incidentTitle}
-                                </div>
-                              </td>
+                            <React.Fragment key={`${item.id}-${idx}`}>
+                              <tr 
+                                onClick={() => toggleExpandCampaign(item.id)}
+                                className={`transition-colors cursor-pointer select-none ${
+                                  isCampaignExpanded
+                                    ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300')
+                                    : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
+                                }`}
+                                title="Klik baris untuk melihat rincian kluster di kampanye ini"
+                              >
+                                {/* 1. CAMPAIGN ID */}
+                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
+                                  <div className="flex items-center gap-1.5">
+                                    {isCampaignExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    )}
+                                    <span className="text-slate-900 dark:text-white select-all">
+                                      {item.ticketNo}
+                                    </span>
+                                  </div>
+                                </td>
 
-                              {/* 2. Classification */}
-                              <td className="px-2 py-2.5">
-                                <span className={`text-[10px] font-bold uppercase tracking-tight leading-tight block ${
-                                  item.classi.includes('FALSE POSITIVE') ? 'text-purple-400' :
-                                  item.classi.includes('KNOWN GOOD') ? 'text-blue-400' :
-                                  item.classi.includes('CONDITIONAL') ? 'text-indigo-400' :
-                                  item.classi.includes('EXCEPTION') ? 'text-teal-400' :
-                                  item.classi.includes('MAINTENANCE') ? 'text-amber-400' :
-                                  'text-slate-400'
-                                }`}>
+                                {/* 2. KLASIFIKASI */}
+                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold uppercase text-slate-900 dark:text-white">
                                   {item.classi}
-                                </span>
-                              </td>
+                                </td>
 
-                              {/* 3. Actor */}
-                              <td className="px-2 py-2.5  text-[10px] text-slate-300 break-all leading-tight">
-                                {item.actor}
-                              </td>
+                                {/* 3. ACTOR */}
+                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
+                                  {item.actor}
+                                </td>
 
-                              {/* 4. Target */}
-                              <td className="px-2 py-2.5  text-[10px] text-slate-300 break-words leading-tight" title={item.target}>
-                                {item.target}
-                              </td>
+                                {/* 4. TARGET */}
+                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.target}>
+                                  {item.target}
+                                </td>
 
-                              {/* 5. Action */}
-                              <td className="px-1 py-2.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleActionClick(item)}
-                                  className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
-                                  title="Edit / Tinjau Parameter Supresi"
-                                >
-                                  <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
-                                </button>
-                              </td>
-
-                              {/* 6. Status */}
-                              <td className="px-2 py-2.5 text-center ">
-                                {item.status === 'DEPLOY' ? (
-                                  <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                    DEPLOY
-                                  </span>
-                                ) : item.status === 'APPROVE' ? (
-                                  <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                    APPROVE
-                                  </span>
-                                ) : item.status === 'EXPIRED' ? (
+                                {/* 5. Action */}
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setExtendModalItem(item);
-                                      const defaultDate = new Date();
-                                      defaultDate.setDate(defaultDate.getDate() + 90);
-                                      setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                    }}
-                                    title="Kampanye Expired. Klik untuk memperpanjang tanggal expired."
-                                    className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                                    onClick={() => handleActionClick(item)}
+                                    className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
+                                    title="Edit / Tinjau Parameter Supresi"
                                   >
-                                    EXPIRED
+                                    <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
                                   </button>
-                                ) : (
-                                  <span style={{ color: "#ffffff" }} className="status-badge inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
-                                        WAITING
-                                      </span>
-                                )}
-                              </td>
+                                </td>
 
-                              {/* 7. Deploy Toggle Switch */}
-                              <td className="px-2 py-2.5 text-center">
-                                {item.status === 'EXPIRED' || item.isExpired ? (
-                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                {/* 6. Status */}
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                  {item.status === 'DEPLOY' ? (
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      DEPLOY
+                                    </span>
+                                  ) : item.status === 'APPROVE' ? (
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      APPROVE
+                                    </span>
+                                  ) : item.status === 'EXPIRED' ? (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -2411,50 +2406,238 @@ export default function PolicyBundlesView({
                                         defaultDate.setDate(defaultDate.getDate() + 90);
                                         setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
                                       }}
-                                      className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
-                                      title="Expired: Tombol OFF dan terkunci. Ubah tanggal expired terlebih dahulu untuk mengaktifkan."
+                                      title="Kampanye Expired. Klik untuk memperpanjang tanggal expired."
+                                      className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                                     >
-                                      <span className="sr-only">Expired toggle disabled</span>
-                                      <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs transition-transform translate-x-0" />
+                                      EXPIRED
                                     </button>
-                                    <button 
-                                      type="button"
-                                      onClick={() => {
-                                        setExtendModalItem(item);
-                                        const defaultDate = new Date();
-                                        defaultDate.setDate(defaultDate.getDate() + 90);
-                                        setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                      }}
-                                      className="text-[9px]  text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
-                                    >
-                                      extend
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      role="switch"
-                                      aria-checked={item.status === 'DEPLOY'}
-                                      onClick={() => handleToggleDeploy(item)}
-                                      className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                        item.status === 'DEPLOY' 
-                                          ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
-                                          : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
-                                      }`}
-                                      title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
-                                    >
-                                      <span className="sr-only">Toggle Deploy</span>
-                                      <span
-                                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                          item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                  ) : (
+                                    <span style={{ color: "#ffffff" }} className="status-badge inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
+                                      WAITING
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* 7. Deploy Toggle Switch */}
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                  {item.status === 'EXPIRED' || item.isExpired ? (
+                                    <div className="flex flex-col items-center justify-center gap-0.5">
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
+                                        title="Expired: Tombol OFF dan terkunci."
+                                      >
+                                        <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs translate-x-0" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center">
+                                      <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={item.status === 'DEPLOY'}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleDeploy(item);
+                                        }}
+                                        className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                          item.status === 'DEPLOY' 
+                                            ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                            : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                         }`}
-                                      />
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
+                                        title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
+                                      >
+                                        <span className="sr-only">Toggle Deploy</span>
+                                        <span
+                                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                            item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* SUB-TABLE: RINCIAN KLUSTER DALAM KAMPANYE */}
+                              {isCampaignExpanded && (
+                                <tr key={`${item.id}-campaign-subtable`} className="border-b border-indigo-500/20">
+                                  <td colSpan={7} className={`p-3 ${isDark ? 'bg-[#070c18]' : 'bg-slate-50'}`}>
+                                    <div className="rounded-lg border border-indigo-500/30 overflow-hidden shadow-xs">
+                                      <div className={`px-3 py-2 flex items-center justify-between border-b border-indigo-500/20 ${
+                                        isDark ? 'bg-indigo-950/40 text-slate-200' : 'bg-indigo-50 text-indigo-900'
+                                      }`}>
+                                        <div className="flex items-center gap-2">
+                                          <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                                          <span className="text-[11px] font-bold tracking-wide">
+                                            RINCIAN KLUSTER DI KAMPANYE: <span className="text-indigo-400 select-all">{item.ticketNo}</span>
+                                          </span>
+                                          <span className="px-1.5 py-0.5 rounded text-[9.5px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
+                                            {campaignMembers.length} Kluster
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 italic">
+                                          Klik baris kluster untuk melihat rincian alert 1 per 1
+                                        </span>
+                                      </div>
+
+                                      {isCampaignLoading ? (
+                                        <div className="flex items-center justify-center py-6 text-xs text-slate-400 gap-2">
+                                          <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                                          <span>Memuat rincian kluster pada kampanye...</span>
+                                        </div>
+                                      ) : campaignMembers.length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-slate-400 italic">
+                                          Tidak ada kluster terikat pada kampanye ini.
+                                        </div>
+                                      ) : (
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-left text-[10px] border-collapse">
+                                            <thead className={`border-b text-[10px] font-semibold ${
+                                              isDark ? 'bg-[#091124] text-slate-300 border-indigo-500/20' : 'bg-indigo-100/50 text-slate-700 border-indigo-200'
+                                            }`}>
+                                              <tr>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">CLUSTER ID</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">KATEGORI</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">SUB KATEGORY</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">AGENT</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">ACTOR</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">ACTIVITY</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className={`divide-y ${
+                                              isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'
+                                            }`}>
+                                              {campaignMembers.map((cluster, cIdx) => {
+                                                const clusterId = cluster.aggregation_id || cluster.cluster_id || `cluster-${cIdx}`;
+                                                const isClusterExpanded = !!expandedClusterIds[clusterId];
+                                                const alerts = clusterAlertsMap[clusterId] || [];
+                                                const isAlertsLoading = !!clusterAlertsLoading[clusterId];
+
+                                                return (
+                                                  <React.Fragment key={`${clusterId}-${cIdx}`}>
+                                                    <tr
+                                                      onClick={() => toggleExpandCluster(clusterId)}
+                                                      className={`transition-colors cursor-pointer select-none ${
+                                                        isClusterExpanded
+                                                          ? (isDark ? 'bg-cyan-950/40 border-l-2 border-cyan-400' : 'bg-cyan-50/80 border-l-2 border-cyan-500')
+                                                          : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-100/80')
+                                                      }`}
+                                                    >
+                                                      <td className="px-3 py-2 font-bold text-xs whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                          {isClusterExpanded ? (
+                                                            <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                                                          ) : (
+                                                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                                          )}
+                                                          <span className="text-cyan-400 select-all">{clusterId}</span>
+                                                        </div>
+                                                      </td>
+                                                      <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold uppercase text-slate-900 dark:text-white">
+                                                        {cluster.category || 'DISCOVERY'}
+                                                      </td>
+                                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
+                                                        {cluster.subcategory || cluster.mitre || 'system, logs'}
+                                                      </td>
+                                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
+                                                        {cluster.target || cluster.target_entity || item.target}
+                                                      </td>
+                                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
+                                                        {cluster.actor || cluster.actor_entity || item.actor}
+                                                      </td>
+                                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-amber-500 dark:text-amber-400 font-medium">
+                                                        {cluster.activity || cluster.evidence_summary || 'ACTIVITY NORMALIZED'}
+                                                      </td>
+                                                    </tr>
+
+                                                    {/* LEVEL 3: RAW ALERTS SUB-SUB-TABLE */}
+                                                    {isClusterExpanded && (
+                                                      <tr key={`${clusterId}-alerts`}>
+                                                        <td colSpan={6} className={`p-2.5 ${isDark ? 'bg-[#040810]' : 'bg-slate-100'}`}>
+                                                          <div className="rounded border border-cyan-500/30 overflow-hidden">
+                                                            <div className={`px-2.5 py-1.5 flex items-center justify-between border-b border-cyan-500/20 ${
+                                                              isDark ? 'bg-cyan-950/30 text-cyan-300' : 'bg-cyan-100/60 text-cyan-900'
+                                                            }`}>
+                                                              <div className="flex items-center gap-1.5">
+                                                                <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                                                <span className="text-[10px] font-bold">
+                                                                  RINCIAN ALERT 1 PER 1 (RAW FORENSIC EVIDENCE) - KLUSTER: <span className="select-all">{clusterId}</span>
+                                                                </span>
+                                                                <span className="px-1 py-0.2 rounded text-[9px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                                                  {alerts.length} Alert
+                                                                </span>
+                                                              </div>
+                                                            </div>
+
+                                                            {isAlertsLoading ? (
+                                                              <div className="flex items-center justify-center py-4 text-xs text-slate-400 gap-1.5">
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                                                <span>Memuat raw alerts...</span>
+                                                              </div>
+                                                            ) : alerts.length === 0 ? (
+                                                              <div className="text-center py-4 text-xs text-slate-400 italic">
+                                                                Tidak ada alert forensik terhubung.
+                                                              </div>
+                                                            ) : (
+                                                              <div className="max-h-56 overflow-y-auto">
+                                                                <table className="w-full text-left text-[9.5px]">
+                                                                  <thead className={`sticky top-0 z-10 border-b ${
+                                                                    isDark ? 'bg-[#081226] text-slate-300 border-slate-800' : 'bg-slate-200 text-slate-700 border-slate-300'
+                                                                  }`}>
+                                                                    <tr>
+                                                                      <th className="px-2 py-1.5 font-bold uppercase tracking-wider">ALERT ID</th>
+                                                                      <th className="px-2 py-1.5 font-bold uppercase tracking-wider">AGENT</th>
+                                                                      <th className="px-2 py-1.5 font-bold uppercase tracking-wider">ACTOR</th>
+                                                                      <th className="px-2 py-1.5 font-bold uppercase tracking-wider text-center">RULE ID</th>
+                                                                      <th className="px-2 py-1.5 font-bold uppercase tracking-wider">FULL LOG</th>
+                                                                    </tr>
+                                                                  </thead>
+                                                                  <tbody className={`divide-y ${
+                                                                    isDark ? 'divide-slate-800/40 bg-[#050a14]' : 'divide-slate-200 bg-white'
+                                                                  }`}>
+                                                                    {alerts.map((al, aIdx) => (
+                                                                      <tr key={`${al.event_id || aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
+                                                                        <td className="px-2 py-1.5 font-bold text-cyan-400 whitespace-nowrap">
+                                                                          {al.event_id || '-'}
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                          {al.agent_name || cluster.target || item.target || '-'}
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                          {al.username || al.source_ip || cluster.actor || item.actor || '-'}
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 text-center whitespace-nowrap">
+                                                                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                                                            {al.rule_id || '-'}
+                                                                          </span>
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 text-slate-400 font-mono text-[9px] max-w-xs truncate" title={al.raw_payload || al.rule_description}>
+                                                                          {al.raw_payload || al.rule_description || '-'}
+                                                                        </td>
+                                                                      </tr>
+                                                                    ))}
+                                                                  </tbody>
+                                                                </table>
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        </td>
+                                                      </tr>
+                                                    )}
+                                                  </React.Fragment>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })
                       )}
