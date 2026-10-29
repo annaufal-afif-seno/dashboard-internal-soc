@@ -1631,7 +1631,7 @@ export default function PolicyBundlesView({
                                         EXPIRED
                                       </button>
                                     ) : (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
+                                      <span style={{ color: "#ffffff" }} className="status-badge inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
                                         WAITING
                                       </span>
                                     )}
@@ -1841,7 +1841,7 @@ export default function PolicyBundlesView({
                                         EXPIRED
                                       </button>
                                     ) : (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
+                                      <span style={{ color: "#ffffff" }} className="status-badge inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
                                         WAITING
                                       </span>
                                     )}
@@ -2200,7 +2200,7 @@ export default function PolicyBundlesView({
                                     EXPIRED
                                   </button>
                                 ) : (
-                                  <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
+                                  <span style={{ color: "#ffffff" }} className="status-badge inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
                                         WAITING
                                       </span>
                                 )}
