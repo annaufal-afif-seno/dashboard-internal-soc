@@ -181,11 +181,11 @@ export default function ClusteringOverview({
   const handleSubmitSuppression = async (e) => {
     e.preventDefault();
     if (!suppForm.reason.trim()) {
-      setSuppErrorMsg('Alasan supresi wajib diisi.');
+      setSuppErrorMsg('Suppression reason is required.');
       return;
     }
     if (!suppForm.expiredDate) {
-      setSuppErrorMsg('Tanggal kedaluwarsa (expired date) wajib ditentukan.');
+      setSuppErrorMsg('Expiration date is required.');
       return;
     }
 
@@ -228,17 +228,17 @@ export default function ClusteringOverview({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Gagal menyimpan aturan supresi (HTTP ${res.status})`);
+        throw new Error(errData.detail || `Failed to save suppression rule (HTTP ${res.status})`);
       }
 
       const resData = await res.json();
       const ruleId = resData.rule?.suppression_id || 'SUP-2026';
-      setSuppSuccessMsg(`Aturan supresi ${ruleId} berhasil dibuat dan disimpan ke database!`);
+      setSuppSuccessMsg(`Suppression rule ${ruleId} created and saved successfully!`);
       setTimeout(() => {
         setShowSuppressionModal(false);
       }, 1800);
     } catch (err) {
-      setSuppErrorMsg(err.message || 'Terjadi kesalahan saat menyimpan aturan supresi.');
+      setSuppErrorMsg(err.message || 'An error occurred while saving the suppression rule.');
     } finally {
       setSuppSubmitting(false);
     }
@@ -1550,7 +1550,7 @@ export default function ClusteringOverview({
                 type="button"
                 onClick={handleOpenSuppressionModal}
                 className="p-1 cursor-pointer transition-transform hover:scale-125 group flex items-center justify-center"
-                title="Buka Formulir Supresi Alert"
+                title="Open Alert Suppression Form"
               >
                 <Flag className="w-5 h-5 fill-red-500 text-red-500 opacity-90 group-hover:opacity-100 transition-all drop-shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
               </button>
@@ -2605,10 +2605,10 @@ export default function ClusteringOverview({
                 </div>
                 <div>
                   <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Formulir Supresi Alert
+                    Alert Suppression Form
                   </h3>
                   <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Buat aturan supresi berdasarkan 5 dimensi cluster & masa berlaku
+                    Configure suppression policy based on 5 cluster dimensions & SLA
                   </p>
                 </div>
               </div>
@@ -2616,7 +2616,7 @@ export default function ClusteringOverview({
                 type="button"
                 onClick={() => setShowSuppressionModal(false)}
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'}`}
-                title="Tutup Modal"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2639,10 +2639,10 @@ export default function ClusteringOverview({
             {/* Form */}
             <form onSubmit={handleSubmitSuppression} className="space-y-4 text-xs">
               
-              {/* 5 Dimensi Cluster Grid */}
+              {/* 5 Cluster Dimensions Grid */}
               <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-slate-50 border-slate-200'} space-y-3`}>
                 <span className={`text-[11px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  5 Dimensi Cluster
+                  5 Cluster Dimensions
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2731,13 +2731,13 @@ export default function ClusteringOverview({
               {/* Expired Date & Alasan */}
               <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-slate-50 border-slate-200'} space-y-3`}>
                 <span className={`text-[11px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Masa Berlaku & Justifikasi
+                  Validity & Justification
                 </span>
 
                 {/* Expired Date */}
                 <div>
                   <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Expired Date (Tanggal Kedaluwarsa) <span className="text-red-500">*</span>
+                    Expiration Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -2749,21 +2749,21 @@ export default function ClusteringOverview({
                     }`}
                   />
                   <span className={`text-[10px] block mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                    Maksimum SLA supresi adalah 90 hari sejak tanggal pembuatan.
+                    Maximum suppression SLA validity is 90 days from creation date.
                   </span>
                 </div>
 
                 {/* Alasan */}
                 <div>
                   <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Alasan Supresi <span className="text-red-500">*</span>
+                    Suppression Reason <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     rows={3}
                     required
                     value={suppForm.reason}
                     onChange={(e) => setSuppForm({ ...suppForm, reason: e.target.value })}
-                    placeholder="Masukkan alasan administratif / teknis mengapa alert ini disupresi (misal: pengujian sistem internal, scanning terjadwal, benign noise)..."
+                    placeholder="Enter administrative or technical justification for suppressing this alert (e.g., internal system testing, scheduled vulnerability scanning, benign operational noise)..."
                     className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none ${
                       isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
                     }`}
@@ -2780,7 +2780,7 @@ export default function ClusteringOverview({
                     isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                   }`}
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -2792,7 +2792,7 @@ export default function ClusteringOverview({
                   ) : (
                     <Flag className="w-3.5 h-3.5 fill-white" />
                   )}
-                  <span>{suppSubmitting ? 'Menyimpan...' : 'Simpan Aturan Supresi'}</span>
+                  <span>{suppSubmitting ? 'Saving...' : 'Save Suppression Rule'}</span>
                 </button>
               </div>
 
