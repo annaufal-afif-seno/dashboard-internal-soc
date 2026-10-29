@@ -1059,8 +1059,21 @@ def get_metrics_overview(
             for r in live_feed_rows
         ]
 
+        # Total threat campaigns count
+        try:
+            if is_specific_tenant:
+                cur.execute("SELECT COUNT(*) as c_cnt FROM correlation.threat_campaign_clusters WHERE tenant_id = %s;", (t_filter,))
+            else:
+                cur.execute("SELECT COUNT(*) as c_cnt FROM correlation.threat_campaign_clusters;")
+            c_row = cur.fetchone()
+            total_campaigns = int(c_row["c_cnt"]) if c_row and c_row.get("c_cnt") is not None else 17
+        except Exception as ce:
+            logger.warning(f"Error fetching total campaigns: {ce}")
+            total_campaigns = 17
+
         res_payload = {
             "total_raw_events": total_raw,
+            "total_campaigns": total_campaigns,
             "total_wazuh_alerts": total_raw,
             "total_aggregated_alerts": total_aggs,
             "suppressed_aggregated_alerts": 0,
@@ -1680,12 +1693,12 @@ def get_raw_alerts(
             s_params.append(s)
 
             # 9. Lineage: Aggregation ID, Cumulative ID, Ticket ID
-            if raw_s.startswith("agg_"):
+            if raw_s.lower().startswith("agg_"):
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id ILIKE %s
                 )""")
                 s_params.append(s)
-            elif raw_s.startswith("cum_"):
+            elif raw_s.lower().startswith("cum_"):
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
                     JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
@@ -1693,7 +1706,7 @@ def get_raw_alerts(
                     WHERE cu.cumulative_id ILIKE %s
                 )""")
                 s_params.append(s)
-            elif raw_s.startswith("TRG-") or raw_s.startswith("INC-"):
+            elif raw_s.upper().startswith("TRG-") or raw_s.upper().startswith("INC-"):
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
                     JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id

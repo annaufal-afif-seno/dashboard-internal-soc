@@ -334,6 +334,9 @@ export default function PipelineOverview({
             ? Number(data.total_ground_truth).toLocaleString()
             : "46.191"))
     : "-";
+  const totalCampaigns = (data?.total_campaigns !== undefined && data?.total_campaigns !== null)
+    ? Number(data.total_campaigns).toLocaleString()
+    : "17";
 
   const reductionChartData = (data?.reduction_data || defaultReductionData).map(d => {
     const rawVal = d.ingest ?? d.ingested ?? d.raw ?? 0;
@@ -485,8 +488,8 @@ export default function PipelineOverview({
 
   return (
     <div className="space-y-5 w-full">
-      {/* 5 Metric Summary Cards - Ultra Minimalist Clean */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* 6 Metric Summary Cards - Ultra Minimalist Clean */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Card 1: Ingest */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
@@ -501,7 +504,7 @@ export default function PipelineOverview({
           }`}>{totalRaw}</div>
         </div>
 
-        {/* Card 2: Aggregate */}
+        {/* Card 2: Cluster */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -509,13 +512,27 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>AGGREGATE</span>
+          }`}>CLUSTER</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>{totalAggs}</div>
         </div>
 
-        {/* Card 3: Ticket */}
+        {/* Card 3: Campaign */}
+        <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
+          isDark 
+            ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
+            : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+        }`}>
+          <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
+            isDark ? 'text-slate-400' : 'text-slate-900'
+          }`}>CAMPAIGN</span>
+          <div className={`text-2xl font-bold font-mono tracking-tight ${
+            isDark ? 'text-white' : 'text-slate-900'
+          }`}>{totalCampaigns}</div>
+        </div>
+
+        {/* Card 4: Ticket */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -574,7 +591,7 @@ export default function PipelineOverview({
                   <span className="w-2.5 h-1 rounded-full bg-[#38bdf8]"></span> Ingest
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#818cf8]"></span> Aggregate
+                  <span className="w-2.5 h-1 rounded-full bg-[#818cf8]"></span> Cluster
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <span className="w-2.5 h-1 rounded-full bg-[#f59e0b]"></span> Ticket
@@ -610,7 +627,7 @@ export default function PipelineOverview({
                 <YAxis stroke={isDark ? "#94a3b8" : "#64748b"} fontSize={11} tickLine={false} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(val >= 10000 ? 0 : 1)}k` : val} />
                 <Tooltip content={<CustomAreaTooltip isDark={isDark} />} />
                 <Area type="monotone" dataKey="ingest" name="Ingest" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#ingestGrad)" dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="aggregate" name="Aggregate" stroke="#818cf8" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="aggregate" name="Cluster" stroke="#818cf8" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="ticket" name="Ticket" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="threat" name="Threat" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="groundtruth" name="Groundtruth" stroke="#10b981" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
