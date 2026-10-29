@@ -1686,12 +1686,8 @@ export default function PolicyBundlesView({
                                       }`}>
                                         <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
                                           <div className="flex items-center gap-2">
-                                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                              Rincian Alert Dalam Kluster ({currentLogs.length || 1} alert)
-                                            </span>
-                                            <span className=" text-[10px] text-slate-500 dark:text-slate-400">
-                                              [{clusterKey}]
+                                            <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                                              Detail
                                             </span>
                                           </div>
                                           {isFetchingLogs && (
