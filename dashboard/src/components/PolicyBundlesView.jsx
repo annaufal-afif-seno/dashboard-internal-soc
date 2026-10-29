@@ -129,6 +129,40 @@ export default function PolicyBundlesView({
     }
   };
 
+  const formatDateTimeWib = (dateInput) => {
+    if (!dateInput) return '';
+    if (typeof dateInput === 'string' && dateInput.includes('WIB')) {
+      return dateInput;
+    }
+    try {
+      let d;
+      if (typeof dateInput === 'number' || (!isNaN(dateInput) && !isNaN(parseFloat(dateInput)))) {
+        const num = parseFloat(dateInput);
+        d = new Date(num > 1e11 ? num : num * 1000);
+      } else {
+        d = new Date(dateInput);
+      }
+      if (isNaN(d.getTime())) return String(dateInput);
+      
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(d);
+      const p = {};
+      parts.forEach(({ type, value }) => { p[type] = value; });
+      return `${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute}:${p.second} WIB`;
+    } catch {
+      return String(dateInput);
+    }
+  };
+
   const getCategoryBadge = (category) => {
     const cat = String(category || '').toUpperCase();
     if (cat.includes('WEB')) return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
@@ -850,6 +884,8 @@ export default function PolicyBundlesView({
           r.activity || 
           'GET /.env* [111]';
 
+        const clusterTimestamp = r.created_date || r.window_start || r.created_at || r.scope_definition?.window_start || r.timestamp;
+
         clusterItems.push({
           id: r.id || `CLUSTER-${tenantName}-${idx + 1}`,
           ticketNo: clusterIntervalId,
@@ -868,7 +904,10 @@ export default function PolicyBundlesView({
           sids: r.sids || [r.scope_definition?.rule_id || 5501],
           raw: r,
           isRule: true,
-          origin: 'cluster'
+          origin: 'cluster',
+          createdAt: clusterTimestamp,
+          timestamp: clusterTimestamp,
+          window_start: clusterTimestamp
         });
       });
       return clusterItems;
@@ -918,6 +957,8 @@ export default function PolicyBundlesView({
           classi = 'CONDITIONAL';
         }
 
+        const ticketTimestamp = req.created_at || req.resolved_at || req.first_detected_at || req.updated_at || req.timestamp;
+
         ticketItems.push({
           id: req.suppression_id || req.triage_id || `SUP-${tenantName}-${idx + 1}`,
           ticketNo: req.triage_id || req.incident_id || `TRG-${tenantName}-${idx + 1}`,
@@ -932,7 +973,9 @@ export default function PolicyBundlesView({
           sids: req.rule_ids && req.rule_ids.length > 0 ? req.rule_ids : [5502, 5501],
           raw: req,
           isRule: false,
-          origin: 'ticket'
+          origin: 'ticket',
+          createdAt: ticketTimestamp,
+          timestamp: ticketTimestamp
         });
       });
       return ticketItems;
@@ -1796,16 +1839,23 @@ export default function PolicyBundlesView({
                                   title="Klik baris untuk melihat rincian alert di kluster ini"
                                 >
                                   {/* 1. CLUSTER ID (Interval Cluster ID) */}
-                                  <td className="px-3 py-2.5  whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
                                     <div className="flex items-center gap-1.5">
                                       {isExpanded ? (
                                         <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
                                       ) : (
                                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                       )}
-                                      <span className=" text-slate-900 dark:text-white select-all">
-                                        {item.clusterId || item.ticketNo}
-                                      </span>
+                                      <div>
+                                        <span className="text-slate-900 dark:text-white select-all">
+                                          {item.clusterId || item.ticketNo}
+                                        </span>
+                                        {(item.createdAt || item.timestamp || item.window_start) && (
+                                          <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                            {formatDateTimeWib(item.createdAt || item.timestamp || item.window_start)}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </td>
 
@@ -2002,9 +2052,16 @@ export default function PolicyBundlesView({
                                       ) : (
                                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                       )}
-                                      <span className="text-slate-900 dark:text-white select-all">
-                                        {item.ticketNo}
-                                      </span>
+                                      <div>
+                                        <span className="text-slate-900 dark:text-white select-all">
+                                          {item.ticketNo}
+                                        </span>
+                                        {(item.createdAt || item.timestamp) && (
+                                          <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                            {formatDateTimeWib(item.createdAt || item.timestamp)}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </td>
 
@@ -2175,9 +2232,16 @@ export default function PolicyBundlesView({
                                                             ) : (
                                                               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                             )}
-                                                            <span className="text-slate-900 dark:text-white select-all">
-                                                              {cluster.aggregation_id}
-                                                            </span>
+                                                            <div>
+                                                              <span className="text-slate-900 dark:text-white select-all">
+                                                                {cluster.aggregation_id}
+                                                              </span>
+                                                              {(cluster.window_start || cluster.created_at || cluster.timestamp) && (
+                                                                <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                                                  {formatDateTimeWib(cluster.window_start || cluster.created_at || cluster.timestamp)}
+                                                                </div>
+                                                              )}
+                                                            </div>
                                                           </div>
                                                         </td>
 
@@ -2326,9 +2390,16 @@ export default function PolicyBundlesView({
                                     ) : (
                                       <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                     )}
-                                    <span className="text-slate-900 dark:text-white select-all">
-                                      {item.ticketNo}
-                                    </span>
+                                    <div>
+                                      <span className="text-slate-900 dark:text-white select-all">
+                                        {item.ticketNo}
+                                      </span>
+                                      {(item.createdAt || item.timestamp || item.window_start) && (
+                                        <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                          {formatDateTimeWib(item.createdAt || item.timestamp || item.window_start)}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
 
@@ -2503,9 +2574,16 @@ export default function PolicyBundlesView({
                                                           ) : (
                                                             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                           )}
-                                                          <span className="text-slate-900 dark:text-white select-all">
-                                                            {clusterId}
-                                                          </span>
+                                                          <div>
+                                                            <span className="text-slate-900 dark:text-white select-all">
+                                                              {clusterId}
+                                                            </span>
+                                                            {(cluster.window_start || cluster.timestamp || cluster.event_timestamp || cluster.created_at) && (
+                                                              <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                                                {formatDateTimeWib(cluster.window_start || cluster.timestamp || cluster.event_timestamp || cluster.created_at)}
+                                                              </div>
+                                                            )}
+                                                          </div>
                                                         </div>
                                                       </td>
                                                       <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
