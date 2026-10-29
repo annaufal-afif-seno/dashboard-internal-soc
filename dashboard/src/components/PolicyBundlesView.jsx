@@ -1631,7 +1631,7 @@ export default function PolicyBundlesView({
                                         EXPIRED
                                       </button>
                                     ) : (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
                                         WAITING
                                       </span>
                                     )}
@@ -1841,7 +1841,7 @@ export default function PolicyBundlesView({
                                         EXPIRED
                                       </button>
                                     ) : (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
                                         WAITING
                                       </span>
                                     )}
@@ -2200,9 +2200,9 @@ export default function PolicyBundlesView({
                                     EXPIRED
                                   </button>
                                 ) : (
-                                  <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                    WAITING
-                                  </span>
+                                  <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap select-none">
+                                        WAITING
+                                      </span>
                                 )}
                               </td>
 
