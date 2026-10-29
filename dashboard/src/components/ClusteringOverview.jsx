@@ -907,7 +907,22 @@ export default function ClusteringOverview({
 
   return (
 
-    <div className="space-y-6">
+    <div 
+      className="space-y-6 clustering-trebuchet-wrapper"
+      style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}
+    >
+      <style>{`
+        .clustering-trebuchet-wrapper,
+        .clustering-trebuchet-wrapper *,
+        .clustering-trebuchet-wrapper text,
+        .clustering-trebuchet-wrapper tspan,
+        .clustering-trebuchet-wrapper input,
+        .clustering-trebuchet-wrapper select,
+        .clustering-trebuchet-wrapper textarea,
+        .clustering-trebuchet-wrapper button {
+          font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif !important;
+        }
+      `}</style>
 
       {/* Header Banner dengan Multi-Filter Badges di Samping Judul Clustering */}
 
