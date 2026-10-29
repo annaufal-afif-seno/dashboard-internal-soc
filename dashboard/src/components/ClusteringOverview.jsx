@@ -196,7 +196,7 @@ export default function ClusteringOverview({
       const sids = cleanRuleId && !isNaN(parseInt(cleanRuleId, 10)) ? [parseInt(cleanRuleId, 10)] : [0];
       
       const payload = {
-        name: `Cluster Suppression: ${suppForm.tenant || 'ALL'} - Rule ${cleanRuleId || 'ALL'}`,
+        name: `Noise Proposal: ${suppForm.tenant || 'ALL'} - Rule ${cleanRuleId || 'ALL'}`,
         classification: 'S2_FALSE_POSITIVE',
         sids: sids,
         owner: 'soc-analyst',
@@ -204,7 +204,7 @@ export default function ClusteringOverview({
         expiration: suppForm.expiredDate,
         reason: suppForm.reason.trim(),
         status: 'WAITING',
-        enforcement_mode: 'PIPELINE_MUTE',
+        enforcement_mode: 'WAZUH_XML',
         scope_definition: {
           tenant_id: suppForm.tenant || undefined,
           agent: suppForm.agent || undefined,
@@ -233,7 +233,7 @@ export default function ClusteringOverview({
 
       const resData = await res.json();
       const ruleId = resData.rule?.suppression_id || 'SUP-2026';
-      setSuppSuccessMsg(`Suppression rule ${ruleId} created and saved successfully!`);
+      setSuppSuccessMsg(`Usulan aturan Wazuh ${ruleId} berhasil diajukan ke Policy Bundle!`);
       setTimeout(() => {
         setShowSuppressionModal(false);
       }, 1800);
@@ -1608,7 +1608,7 @@ export default function ClusteringOverview({
                 type="button"
                 onClick={handleOpenSuppressionModal}
                 className="p-1 cursor-pointer transition-transform hover:scale-125 group flex items-center justify-center"
-                title="Open Alert Suppression Form"
+                title="Tandai Noise & Usulkan Aturan Wazuh (CDB/XML)"
               >
                 <Flag className="w-5 h-5 fill-red-500 text-red-500 opacity-90 group-hover:opacity-100 transition-all drop-shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
               </button>
@@ -2503,9 +2503,14 @@ export default function ClusteringOverview({
             <div className={`flex items-center justify-between border-b pb-3.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2.5">
                 <Flag className="w-5 h-5 fill-red-500 text-red-500 shrink-0" />
-                <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Cluster Suppression Form
-                </h3>
+                <div>
+                  <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Tandai Noise & Usul Aturan Wazuh (CDB / XML)
+                  </h3>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Menandai kluster sebagai noise operasional untuk Policy Bundle (Wazuh). Kluster & tiket tetap diproses normal dalam pipeline.
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -2687,7 +2692,7 @@ export default function ClusteringOverview({
                   ) : (
                     <Flag className="w-3.5 h-3.5 fill-white" />
                   )}
-                  <span>{suppSubmitting ? 'Saving...' : 'Save Suppression Rule'}</span>
+                  <span>{suppSubmitting ? 'Menyimpan...' : 'Ajukan Usul Aturan Wazuh'}</span>
                 </button>
               </div>
 
