@@ -518,21 +518,7 @@ export default function PipelineOverview({
           }`}>{totalAggs}</div>
         </div>
 
-        {/* Card 3: Campaign */}
-        <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
-          isDark 
-            ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
-            : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-        }`}>
-          <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
-            isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>CAMPAIGN</span>
-          <div className={`text-2xl font-bold font-mono tracking-tight ${
-            isDark ? 'text-white' : 'text-slate-900'
-          }`}>{totalCampaigns}</div>
-        </div>
-
-        {/* Card 4: Ticket */}
+        {/* Card 3: Ticket */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -572,6 +558,20 @@ export default function PipelineOverview({
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>{totalGroundtruth}</div>
+        </div>
+
+        {/* Card 6: Campaign (Ujung Kanan) */}
+        <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
+          isDark 
+            ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
+            : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+        }`}>
+          <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
+            isDark ? 'text-slate-400' : 'text-slate-900'
+          }`}>CAMPAIGN</span>
+          <div className={`text-2xl font-bold font-mono tracking-tight ${
+            isDark ? 'text-white' : 'text-slate-900'
+          }`}>{totalCampaigns}</div>
         </div>
       </div>
 
