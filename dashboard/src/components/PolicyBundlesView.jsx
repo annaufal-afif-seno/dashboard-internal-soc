@@ -610,6 +610,7 @@ export default function PolicyBundlesView({
   // Format tenant identifier into clean human-readable name matching the wireframe sketch
   const formatTenantDisplay = (t) => {
     if (!t) return '';
+    if (t === 'DEFAULT') return 'DEFAULT';
     if (t === 'TenantA') return 'Tenant A';
     if (t === 'TenantB') return 'Tenant B';
     if (t === 'TenantC') return 'Tenant C';
@@ -622,30 +623,30 @@ export default function PolicyBundlesView({
     ? tuningRequests
     : internalTuningRequests;
 
-  // Dynamic discovery of ALL tenants present in API, tuningRequests, rules, and groups (2x2 Grid)
+  // Dynamic discovery of ALL 5 tenants: TenantA, TenantB, TenantC, TenantD, DEFAULT (3 rows, last row 1 box)
   const discoveredTenants = useMemo(() => {
-    const tenantSet = new Set(['TenantA', 'TenantB', 'TenantC', 'TenantD']);
+    const tenantSet = new Set(['TenantA', 'TenantB', 'TenantC', 'TenantD', 'DEFAULT']);
 
     apiTenants.forEach(t => {
-      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
+      if (t && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     activeTuningRequests.forEach(req => {
       const t = req.tenant_id || req.tenant;
-      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
+      if (t && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     rules.forEach(r => {
       const t = r.tenantId || r.tenant_id;
-      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
+      if (t && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
     groups.forEach(g => {
       const t = g.tenant_id;
-      if (t && t !== 'DEFAULT' && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
+      if (t && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
-    const priorityOrder = { 'TenantA': 1, 'TenantB': 2, 'TenantC': 3, 'TenantD': 4 };
+    const priorityOrder = { 'TenantA': 1, 'TenantB': 2, 'TenantC': 3, 'TenantD': 4, 'DEFAULT': 5 };
     return Array.from(tenantSet).sort((a, b) => {
       const pA = priorityOrder[a] || 99;
       const pB = priorityOrder[b] || 99;
@@ -663,7 +664,7 @@ export default function PolicyBundlesView({
     // Filter rules specific to this tenant
     const tRules = rules.filter(r => {
       const t = r.tenantId || r.tenant_id || r.scopeDefinition?.tenant_id || r.scope_definition?.tenant_id;
-      return t === tenantName || (tenantName === 'TenantA' && t === 'DEFAULT');
+      return t === tenantName;
     });
 
     // -------------------------------------------------------------
@@ -777,7 +778,7 @@ export default function PolicyBundlesView({
       const ticketItems = [];
       const reqs = activeTuningRequests.filter(req => {
         const t = req.tenant_id || req.tenant || 'DEFAULT';
-        return t === tenantName || (tenantName === 'TenantA' && t === 'DEFAULT');
+        return t === tenantName;
       });
 
       reqs.forEach((req, idx) => {
@@ -885,7 +886,7 @@ export default function PolicyBundlesView({
       ``
     ];
 
-    let startId = 100200 + (tenantName === 'TenantA' ? 10 : tenantName === 'TenantB' ? 30 : tenantName === 'TenantC' ? 50 : 70);
+    let startId = 100200 + (tenantName === 'TenantA' ? 10 : tenantName === 'TenantB' ? 30 : tenantName === 'TenantC' ? 50 : tenantName === 'TenantD' ? 70 : 90);
 
     items.forEach((item, i) => {
       const sidsStr = Array.isArray(item.sids) && item.sids.length > 0 ? item.sids.join(', ') : '5501, 5502';
