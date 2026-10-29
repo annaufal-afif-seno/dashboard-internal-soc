@@ -1413,7 +1413,9 @@ export default function PolicyBundlesView({
                       isDark ? 'bg-[#0c1224] text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'
                     }`}>
                       <tr>
-                        <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">NO Ticket</th>
+                        <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">
+                          {bundleFilterMode === 'cluster' ? 'NO Cluster' : bundleFilterMode === 'campaign' ? 'NO Campaign' : 'NO Ticket'}
+                        </th>
                         <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">classification</th>
                         <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">actor</th>
                         <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">target</th>
@@ -1428,7 +1430,11 @@ export default function PolicyBundlesView({
                       {filteredItems.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
-                            Tidak ada tiket atau kebijakan yang cocok dengan filter.
+                            {bundleFilterMode === 'cluster' 
+                              ? 'Tidak ada kluster atau kebijakan yang cocok dengan filter.'
+                              : bundleFilterMode === 'campaign'
+                              ? 'Tidak ada kampanye atau kebijakan yang cocok dengan filter.'
+                              : 'Tidak ada tiket atau kebijakan yang cocok dengan filter.'}
                           </td>
                         </tr>
                       ) : (
