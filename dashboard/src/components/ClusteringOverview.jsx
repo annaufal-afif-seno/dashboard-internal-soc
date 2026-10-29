@@ -136,6 +136,115 @@ export default function ClusteringOverview({
 
   const [isFlagFilterActive, setIsFlagFilterActive] = useState(false);
 
+  // Suppression Form Modal State
+  const [showSuppressionModal, setShowSuppressionModal] = useState(false);
+  const [suppForm, setSuppForm] = useState({
+    tenant: '',
+    agent: '',
+    ruleId: '',
+    actor: '',
+    activity: '',
+    expiredDate: '',
+    reason: ''
+  });
+  const [suppSubmitting, setSuppSubmitting] = useState(false);
+  const [suppSuccessMsg, setSuppSuccessMsg] = useState(null);
+  const [suppErrorMsg, setSuppErrorMsg] = useState(null);
+
+  const handleOpenSuppressionModal = () => {
+    const today = new Date();
+    today.setDate(today.getDate() + 30);
+    const defaultExp = today.toISOString().split('T')[0];
+
+    const initialTenant = selectedAlert?.tenant_id || effectiveTenant || selectedTenant || 'DEFAULT';
+    const initialAgent = selectedAlert?.target || effectiveAgent || '';
+    const initialRuleId = selectedAlert?.rule_id 
+      ? String(selectedAlert.rule_id) 
+      : (effectiveRuleId ? effectiveRuleId.replace(/^[^\d]*/, '').trim() : '');
+    const initialActor = selectedAlert?.actor || effectiveActor || '';
+    const initialActivity = effectiveActivity || selectedAlert?.rule_description || '';
+
+    setSuppForm({
+      tenant: initialTenant === 'ALL' ? 'DEFAULT' : initialTenant,
+      agent: initialAgent,
+      ruleId: initialRuleId,
+      actor: initialActor,
+      activity: initialActivity,
+      expiredDate: defaultExp,
+      reason: ''
+    });
+    setSuppSuccessMsg(null);
+    setSuppErrorMsg(null);
+    setShowSuppressionModal(true);
+  };
+
+  const handleSubmitSuppression = async (e) => {
+    e.preventDefault();
+    if (!suppForm.reason.trim()) {
+      setSuppErrorMsg('Alasan supresi wajib diisi.');
+      return;
+    }
+    if (!suppForm.expiredDate) {
+      setSuppErrorMsg('Tanggal kedaluwarsa (expired date) wajib ditentukan.');
+      return;
+    }
+
+    setSuppSubmitting(true);
+    setSuppErrorMsg(null);
+    try {
+      const cleanRuleId = suppForm.ruleId ? suppForm.ruleId.replace(/^[^\d]*/, '').trim() : '';
+      const sids = cleanRuleId && !isNaN(parseInt(cleanRuleId, 10)) ? [parseInt(cleanRuleId, 10)] : [0];
+      
+      const payload = {
+        name: `Cluster Suppression: ${suppForm.tenant || 'ALL'} - Rule ${cleanRuleId || 'ALL'}`,
+        classification: 'S2_FALSE_POSITIVE',
+        sids: sids,
+        owner: 'soc-analyst',
+        approver: 'soc-lead',
+        expiration: suppForm.expiredDate,
+        reason: suppForm.reason.trim(),
+        status: 'WAITING',
+        enforcement_mode: 'PIPELINE_MUTE',
+        scope_definition: {
+          tenant_id: suppForm.tenant || undefined,
+          agent: suppForm.agent || undefined,
+          target_host: suppForm.agent || undefined,
+          rule_id: cleanRuleId || undefined,
+          match_sids: sids,
+          actor: suppForm.actor || undefined,
+          source_ip: suppForm.actor || undefined,
+          activity: suppForm.activity || undefined,
+        }
+      };
+
+      const res = await fetch('/api/suppression/rules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'wazuh-soc-secure-key-2026'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `Gagal menyimpan aturan supresi (HTTP ${res.status})`);
+      }
+
+      const resData = await res.json();
+      const ruleId = resData.rule?.suppression_id || 'SUP-2026';
+      setSuppSuccessMsg(`Aturan supresi ${ruleId} berhasil dibuat dan disimpan ke database!`);
+      setTimeout(() => {
+        setShowSuppressionModal(false);
+      }, 1800);
+    } catch (err) {
+      setSuppErrorMsg(err.message || 'Terjadi kesalahan saat menyimpan aturan supresi.');
+    } finally {
+      setSuppSubmitting(false);
+    }
+  };
+
+
   const [alertsSearchInput, setAlertsSearchInput] = useState('');
 
   const [alertsSearchQuery, setAlertsSearchQuery] = useState('');
@@ -1352,7 +1461,7 @@ export default function ClusteringOverview({
 
               <h3 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
 
-                Raw Alerts
+                Alert
 
               </h3>
 
@@ -1435,24 +1544,15 @@ export default function ClusteringOverview({
 
 
 
-            {/* Sisi Kanan (Pojok Kanan): Icon Flag Merah Murni Tanpa Lingkaran */}
+            {/* Sisi Kanan (Pojok Kanan): Icon Flag Merah untuk Buka Form Supresi */}
             <div className="shrink-0 w-28 sm:w-36 flex justify-end items-center">
               <button
                 type="button"
-                onClick={() => {
-                  const nextFlag = !isFlagFilterActive;
-                  setIsFlagFilterActive(nextFlag);
-                  setAlertsLevelFilter(nextFlag ? 'CRITICAL' : 'ALL');
-                  setAlertsPage(1);
-                }}
+                onClick={handleOpenSuppressionModal}
                 className="p-1 cursor-pointer transition-transform hover:scale-125 group flex items-center justify-center"
-                title={isFlagFilterActive || alertsLevelFilter === 'CRITICAL' ? 'Filter Flag Merah Aktif (Menampilkan Critical Alert)' : 'Filter Flag Merah (Critical Alert)'}
+                title="Buka Formulir Supresi Alert"
               >
-                <Flag className={`w-5 h-5 transition-all ${
-                  isFlagFilterActive || alertsLevelFilter === 'CRITICAL'
-                    ? 'fill-red-600 text-red-600 drop-shadow-[0_0_8px_rgba(239,68,68,0.7)]'
-                    : 'fill-red-500 text-red-500 opacity-85 group-hover:opacity-100'
-                }`} />
+                <Flag className="w-5 h-5 fill-red-500 text-red-500 opacity-90 group-hover:opacity-100 transition-all drop-shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
               </button>
             </div>
 
@@ -2492,8 +2592,216 @@ export default function ClusteringOverview({
 
       </div>
 
+      {/* SUPPRESSION FORM MODAL (Formulir Supresi dari Icon Bendera Merah) */}
+      {showSuppressionModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className={`${isDark ? 'bg-[#0b0f19] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} border rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in duration-150`}>
+            
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between border-b pb-3.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
+                  <Flag className="w-4 h-4 fill-red-500" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Formulir Supresi Alert
+                  </h3>
+                  <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Buat aturan supresi berdasarkan 5 dimensi cluster & masa berlaku
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSuppressionModal(false)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'}`}
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Success / Error Alerts */}
+            {suppSuccessMsg && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{suppSuccessMsg}</span>
+              </div>
+            )}
+            {suppErrorMsg && (
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{suppErrorMsg}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmitSuppression} className="space-y-4 text-xs">
+              
+              {/* 5 Dimensi Cluster Grid */}
+              <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-slate-50 border-slate-200'} space-y-3`}>
+                <span className={`text-[11px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  5 Dimensi Cluster
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Tenant */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Tenant
+                    </label>
+                    <input
+                      type="text"
+                      value={suppForm.tenant}
+                      onChange={(e) => setSuppForm({ ...suppForm, tenant: e.target.value })}
+                      placeholder="e.g. TenantD, DEFAULT"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Agent */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Agent
+                    </label>
+                    <input
+                      type="text"
+                      value={suppForm.agent}
+                      onChange={(e) => setSuppForm({ ...suppForm, agent: e.target.value })}
+                      placeholder="e.g. isif-rproxy-155"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Rule ID */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Rule ID
+                    </label>
+                    <input
+                      type="text"
+                      value={suppForm.ruleId}
+                      onChange={(e) => setSuppForm({ ...suppForm, ruleId: e.target.value })}
+                      placeholder="e.g. 31301"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Actor */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Actor
+                    </label>
+                    <input
+                      type="text"
+                      value={suppForm.actor}
+                      onChange={(e) => setSuppForm({ ...suppForm, actor: e.target.value })}
+                      placeholder="e.g. 34.104.184.175 / user:ubuntu"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Activity */}
+                  <div className="sm:col-span-2">
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Activity
+                    </label>
+                    <input
+                      type="text"
+                      value={suppForm.activity}
+                      onChange={(e) => setSuppForm({ ...suppForm, activity: e.target.value })}
+                      placeholder="e.g. GET /.env* [111], AUTH LOGIN [SUCCESS]"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Expired Date & Alasan */}
+              <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#070b14] border-slate-800/80' : 'bg-slate-50 border-slate-200'} space-y-3`}>
+                <span className={`text-[11px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Masa Berlaku & Justifikasi
+                </span>
+
+                {/* Expired Date */}
+                <div>
+                  <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Expired Date (Tanggal Kedaluwarsa) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={suppForm.expiredDate}
+                    onChange={(e) => setSuppForm({ ...suppForm, expiredDate: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                      isDark ? 'bg-[#0f1422] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'
+                    }`}
+                  />
+                  <span className={`text-[10px] block mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Maksimum SLA supresi adalah 90 hari sejak tanggal pembuatan.
+                  </span>
+                </div>
+
+                {/* Alasan */}
+                <div>
+                  <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Alasan Supresi <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={suppForm.reason}
+                    onChange={(e) => setSuppForm({ ...suppForm, reason: e.target.value })}
+                    placeholder="Masukkan alasan administratif / teknis mengapa alert ini disupresi (misal: pengujian sistem internal, scanning terjadwal, benign noise)..."
+                    className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none ${
+                      isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className={`flex items-center justify-end gap-2.5 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowSuppressionModal(false)}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={suppSubmitting}
+                  className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  {suppSubmitting ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Flag className="w-3.5 h-3.5 fill-white" />
+                  )}
+                  <span>{suppSubmitting ? 'Menyimpan...' : 'Simpan Aturan Supresi'}</span>
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
 
   );
-
 }
