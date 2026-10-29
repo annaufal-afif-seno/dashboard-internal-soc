@@ -388,12 +388,11 @@ def get_metrics_overview(
             cur.execute("""
                 SELECT GREATEST(
                     COALESCE((SELECT count(*) FROM telemetry.raw_events WHERE tenant_id = %s AND timestamp >= %s AND timestamp <= %s), 0),
-                    COALESCE((SELECT SUM(total) FROM metrics.raw_severity_hourly WHERE tenant_id = %s AND bucket_hour >= %s AND bucket_hour <= %s), 0),
                     COALESCE((SELECT sum(event_count) FROM suppression.aggregated_alerts WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s), 0),
                     COALESCE((SELECT count(*) FROM suppression.aggregated_alerts WHERE window_start >= %s AND window_start <= %s AND tenant_id = %s), 0)
                 ) as total;
-            """, (t_filter, start_dt, end_dt, t_filter, start_dt, end_dt, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
-            total_raw = cur.fetchone()["total"] or 0
+            """, (t_filter, start_dt, end_dt, start_dt, end_dt, t_filter, start_dt, end_dt, t_filter))
+            total_raw = int(cur.fetchone()["total"] or 0)
 
         else:
             # Check if high-performance rollup table has data for this window
@@ -500,11 +499,14 @@ def get_metrics_overview(
         # 5. Noise Reduction Metrics
         reduction_pct = 0.0
         compression = "1.0:1"
+        total_raw = int(total_raw)
+        total_aggs = int(total_aggs)
+        total_corr = int(total_corr)
         if total_raw > 0:
-            suppressed = max(0, total_raw - (total_aggs + total_corr))
-            reduction_pct = round((suppressed / total_raw) * 100.0, 2)
+            suppressed = float(max(0, total_raw - (total_aggs + total_corr)))
+            reduction_pct = round((suppressed / float(total_raw)) * 100.0, 2)
             denom = (total_aggs + total_corr) if (total_aggs + total_corr) > 0 else 1
-            compression = f"{(total_raw / denom):.1f}:1"
+            compression = f"{(float(total_raw) / denom):.1f}:1"
 
         # 6. Priority Distribution Breakdown (Filtered by time range: P0-P4 Actionable)
         priority_palette = {
