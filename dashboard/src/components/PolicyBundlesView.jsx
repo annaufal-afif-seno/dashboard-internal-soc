@@ -629,13 +629,56 @@ export default function PolicyBundlesView({
           ruleStatus = 'APPROVE';
         }
 
+        const clusterIntervalId = 
+          r.scope_definition?.aggregation_id || 
+          r.scopeDefinition?.aggregation_id || 
+          r.aggregation_id || 
+          r.scope_definition?.interval_id ||
+          (r.id === 'SUP-2026-004' ? 'agg_a6a3a89343674692a23a8420c95eecef' : (r.ticketId || r.id));
+
+        const clusterCategory = 
+          r.scope_definition?.category || 
+          r.scopeDefinition?.category || 
+          r.category || 
+          'WEB_OPERATIONAL';
+
+        const clusterSubcategory = 
+          r.scope_definition?.subcategory || 
+          r.scopeDefinition?.subcategory || 
+          r.subcategory || 
+          'nginx, web';
+
+        const clusterAgent = 
+          r.scope_definition?.agent || 
+          r.scopeDefinition?.agent || 
+          r.targetHost || 
+          r.target || 
+          '-';
+
+        const clusterActor = 
+          r.scope_definition?.actor || 
+          r.scopeDefinition?.actor || 
+          r.actorIp || 
+          'Internal / N/A';
+
+        const clusterActivity = 
+          r.scope_definition?.activity || 
+          r.scopeDefinition?.activity || 
+          r.activity || 
+          'GET /.env* [111]';
+
         clusterItems.push({
           id: r.id || `CLUSTER-${tenantName}-${idx + 1}`,
-          ticketNo: r.ticketId || r.id,
+          ticketNo: clusterIntervalId,
+          clusterId: clusterIntervalId,
+          category: clusterCategory,
+          subcategory: clusterSubcategory,
+          agent: clusterAgent,
+          actor: clusterActor,
+          activity: clusterActivity,
           incidentTitle: r.name || 'Cluster Noise Proposal',
           classi: 'FALSE POSITIVE',
-          actor: r.actorIp || r.scope_definition?.actor || r.scopeDefinition?.actor || 'Internal / N/A',
-          target: r.targetHost || r.scope_definition?.agent || r.scopeDefinition?.agent || '-',
+          target: clusterAgent,
           status: ruleStatus,
           isExpired: isExp,
           expirationDate: currentExpDate,
@@ -1341,28 +1384,42 @@ export default function PolicyBundlesView({
                 isDark ? 'bg-[#0a0f1d] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[10px] border-collapse">
+                  <table className="w-full text-left text-[10px] border-collapse min-w-[720px]">
                     <thead className={`border-b text-[10px] font-semibold ${
                       isDark ? 'bg-[#0c1224] text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'
                     }`}>
-                      <tr>
-                        <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">
-                          {bundleFilterMode === 'cluster' ? 'NO Cluster' : bundleFilterMode === 'campaign' ? 'NO Campaign' : 'NO Ticket'}
-                        </th>
-                        <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">classification</th>
-                        <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">actor</th>
-                        <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">target</th>
-                        <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
-                        <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
-                        <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
-                      </tr>
+                      {bundleFilterMode === 'cluster' ? (
+                        <tr>
+                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[130px]">CLUSTER ID</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">KATEGORI</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">SUB KATEGORI</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">AGENT</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">ACTOR</th>
+                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[160px]">ACTIVITY</th>
+                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">
+                            {bundleFilterMode === 'campaign' ? 'NO Campaign' : 'NO Ticket'}
+                          </th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">classification</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">actor</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">target</th>
+                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                        </tr>
+                      )}
                     </thead>
                     <tbody className={`divide-y font-sans ${
                       isDark ? 'divide-slate-800/60 bg-[#0a0e1a]' : 'divide-slate-100 bg-white'
                     }`}>
                       {filteredItems.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={bundleFilterMode === 'cluster' ? 9 : 7} className="py-12 text-center text-slate-400 text-xs">
                             {bundleFilterMode === 'cluster' 
                               ? 'Tidak ada kluster atau kebijakan yang cocok dengan filter.'
                               : bundleFilterMode === 'campaign'
@@ -1371,91 +1428,192 @@ export default function PolicyBundlesView({
                           </td>
                         </tr>
                       ) : (
-                        filteredItems.map((item, idx) => (
-                          <tr key={`${item.id}-${idx}`} className={`transition-colors ${
-                            isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
-                          }`}>
-                            {/* 1. NO Ticket */}
-                            <td className="px-2.5 py-2.5 font-mono">
-                              <div className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight">
-                                {item.ticketNo}
-                              </div>
-                              <div className="text-[9.5px] text-slate-400 font-sans leading-tight mt-0.5 break-words">
-                                {item.incidentTitle}
-                              </div>
-                            </td>
-
-                            {/* 2. Classification */}
-                            <td className="px-2 py-2.5">
-                              <span className={`text-[10px] font-bold uppercase tracking-tight leading-tight block ${
-                                item.classi.includes('FALSE POSITIVE') ? 'text-purple-400' :
-                                item.classi.includes('KNOWN GOOD') ? 'text-blue-400' :
-                                item.classi.includes('CONDITIONAL') ? 'text-indigo-400' :
-                                item.classi.includes('EXCEPTION') ? 'text-teal-400' :
-                                item.classi.includes('MAINTENANCE') ? 'text-amber-400' :
-                                'text-slate-400'
+                        filteredItems.map((item, idx) => {
+                          if (bundleFilterMode === 'cluster') {
+                            return (
+                              <tr key={`${item.id}-${idx}`} className={`transition-colors ${
+                                isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
                               }`}>
-                                {item.classi}
-                              </span>
-                            </td>
+                                {/* 1. CLUSTER ID (Interval Cluster ID) */}
+                                <td className="px-2.5 py-2.5 font-mono">
+                                  <div className="font-bold text-[10px] text-indigo-400 break-all leading-tight select-all">
+                                    {item.clusterId || item.ticketNo}
+                                  </div>
+                                </td>
 
-                            {/* 3. Actor */}
-                            <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-all leading-tight">
-                              {item.actor}
-                            </td>
+                                {/* 2. KATEGORI */}
+                                <td className="px-2 py-2.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-tight text-emerald-400 block whitespace-nowrap">
+                                    {item.category || 'WEB_OPERATIONAL'}
+                                  </span>
+                                </td>
 
-                            {/* 4. Target */}
-                            <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-words leading-tight" title={item.target}>
-                              {item.target}
-                            </td>
+                                {/* 3. SUB KATEGORI */}
+                                <td className="px-2 py-2.5">
+                                  <span className="text-[10px] font-medium text-slate-300 block whitespace-nowrap">
+                                    {item.subcategory || 'nginx, web'}
+                                  </span>
+                                </td>
 
-                            {/* 5. Action */}
-                            <td className="px-1 py-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleActionClick(item)}
-                                className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
-                                title="Edit / Tinjau Parameter Supresi"
-                              >
-                                <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
-                              </button>
-                            </td>
+                                {/* 4. AGENT */}
+                                <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-words leading-tight" title={item.agent || item.target}>
+                                  {item.agent || item.target || '-'}
+                                </td>
 
-                            {/* 6. Status */}
-                            <td className="px-2 py-2.5 text-center font-mono">
-                              {item.status === 'DEPLOY' ? (
-                                <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                  DEPLOY
+                                {/* 5. ACTOR */}
+                                <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-all leading-tight">
+                                  {item.actor || 'Internal / N/A'}
+                                </td>
+
+                                {/* 6. ACTIVITY (Format Normalisasi) */}
+                                <td className="px-2.5 py-2.5 font-mono text-[10px] text-amber-300/95 break-words leading-tight">
+                                  {item.activity || 'GET /.env* [111]'}
+                                </td>
+
+                                {/* 7. Action */}
+                                <td className="px-1 py-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleActionClick(item)}
+                                    className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
+                                    title="Edit / Tinjau Parameter Supresi"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
+                                  </button>
+                                </td>
+
+                                {/* 8. Status */}
+                                <td className="px-2 py-2.5 text-center font-mono">
+                                  {item.status === 'DEPLOY' ? (
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      DEPLOY
+                                    </span>
+                                  ) : item.status === 'APPROVE' ? (
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      APPROVE
+                                    </span>
+                                  ) : item.status === 'EXPIRED' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExtendModalItem(item);
+                                        const defaultDate = new Date();
+                                        defaultDate.setDate(defaultDate.getDate() + 90);
+                                        setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                      }}
+                                      title="Kluster Expired. Klik untuk memperpanjang tanggal expired."
+                                      className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                                    >
+                                      EXPIRED
+                                    </button>
+                                  ) : (
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                      WAITING
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* 9. Deploy Toggle Switch */}
+                                <td className="px-2 py-2.5 text-center">
+                                  {item.status === 'EXPIRED' || item.isExpired ? (
+                                    <div className="flex flex-col items-center justify-center gap-0.5">
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
+                                        title="Expired: Tombol OFF dan terkunci."
+                                      >
+                                        <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs translate-x-0" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center">
+                                      <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={item.status === 'DEPLOY'}
+                                        onClick={() => handleToggleDeploy(item)}
+                                        className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                          item.status === 'DEPLOY' 
+                                            ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                            : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                            item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          // TICKET / CAMPAIGN VIEW (7 columns)
+                          return (
+                            <tr key={`${item.id}-${idx}`} className={`transition-colors ${
+                              isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
+                            }`}>
+                              {/* 1. NO Ticket */}
+                              <td className="px-2.5 py-2.5 font-mono">
+                                <div className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight">
+                                  {item.ticketNo}
+                                </div>
+                                <div className="text-[9.5px] text-slate-400 font-sans leading-tight mt-0.5 break-words">
+                                  {item.incidentTitle}
+                                </div>
+                              </td>
+
+                              {/* 2. Classification */}
+                              <td className="px-2 py-2.5">
+                                <span className={`text-[10px] font-bold uppercase tracking-tight leading-tight block ${
+                                  item.classi.includes('FALSE POSITIVE') ? 'text-purple-400' :
+                                  item.classi.includes('KNOWN GOOD') ? 'text-blue-400' :
+                                  item.classi.includes('CONDITIONAL') ? 'text-indigo-400' :
+                                  item.classi.includes('EXCEPTION') ? 'text-teal-400' :
+                                  item.classi.includes('MAINTENANCE') ? 'text-amber-400' :
+                                  'text-slate-400'
+                                }`}>
+                                  {item.classi}
                                 </span>
-                              ) : item.status === 'APPROVE' ? (
-                                <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                  APPROVE
-                                </span>
-                              ) : item.status === 'EXPIRED' ? (
+                              </td>
+
+                              {/* 3. Actor */}
+                              <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-all leading-tight">
+                                {item.actor}
+                              </td>
+
+                              {/* 4. Target */}
+                              <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-words leading-tight" title={item.target}>
+                                {item.target}
+                              </td>
+
+                              {/* 5. Action */}
+                              <td className="px-1 py-2.5 text-center">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setExtendModalItem(item);
-                                    const defaultDate = new Date();
-                                    defaultDate.setDate(defaultDate.getDate() + 90);
-                                    setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                  }}
-                                  title="Tiket Expired. Klik untuk memperpanjang tanggal expired."
-                                  className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                                  onClick={() => handleActionClick(item)}
+                                  className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
+                                  title="Edit / Tinjau Parameter Supresi"
                                 >
-                                  EXPIRED
+                                  <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
                                 </button>
-                              ) : (
-                                <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                  WAITING
-                                </span>
-                              )}
-                            </td>
+                              </td>
 
-                            {/* 7. Deploy Toggle Switch */}
-                            <td className="px-2 py-2.5 text-center">
-                              {item.status === 'EXPIRED' || item.isExpired ? (
-                                <div className="flex flex-col items-center justify-center gap-0.5">
+                              {/* 6. Status */}
+                              <td className="px-2 py-2.5 text-center font-mono">
+                                {item.status === 'DEPLOY' ? (
+                                  <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                    DEPLOY
+                                  </span>
+                                ) : item.status === 'APPROVE' ? (
+                                  <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                    APPROVE
+                                  </span>
+                                ) : item.status === 'EXPIRED' ? (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1464,51 +1622,76 @@ export default function PolicyBundlesView({
                                       defaultDate.setDate(defaultDate.getDate() + 90);
                                       setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
                                     }}
-                                    className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
-                                    title="Expired: Tombol OFF dan terkunci. Ubah tanggal expired terlebih dahulu untuk mengaktifkan."
+                                    title="Tiket Expired. Klik untuk memperpanjang tanggal expired."
+                                    className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                                   >
-                                    <span className="sr-only">Expired toggle disabled</span>
-                                    <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs transition-transform translate-x-0" />
+                                    EXPIRED
                                   </button>
-                                  <button 
-                                    type="button"
-                                    onClick={() => {
-                                      setExtendModalItem(item);
-                                      const defaultDate = new Date();
-                                      defaultDate.setDate(defaultDate.getDate() + 90);
-                                      setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                    }}
-                                    className="text-[9px] font-mono text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
-                                  >
-                                    extend
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center">
-                                  <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={item.status === 'DEPLOY'}
-                                    onClick={() => handleToggleDeploy(item)}
-                                    className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                      item.status === 'DEPLOY' 
-                                        ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
-                                        : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
-                                    }`}
-                                    title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
-                                  >
-                                    <span className="sr-only">Toggle Deploy</span>
-                                    <span
-                                      className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                        item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                ) : (
+                                  <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                    WAITING
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* 7. Deploy Toggle Switch */}
+                              <td className="px-2 py-2.5 text-center">
+                                {item.status === 'EXPIRED' || item.isExpired ? (
+                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExtendModalItem(item);
+                                        const defaultDate = new Date();
+                                        defaultDate.setDate(defaultDate.getDate() + 90);
+                                        setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                      }}
+                                      className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
+                                      title="Expired: Tombol OFF dan terkunci. Ubah tanggal expired terlebih dahulu untuk mengaktifkan."
+                                    >
+                                      <span className="sr-only">Expired toggle disabled</span>
+                                      <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs transition-transform translate-x-0" />
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setExtendModalItem(item);
+                                        const defaultDate = new Date();
+                                        defaultDate.setDate(defaultDate.getDate() + 90);
+                                        setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                      }}
+                                      className="text-[9px] font-mono text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
+                                    >
+                                      extend
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center">
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={item.status === 'DEPLOY'}
+                                      onClick={() => handleToggleDeploy(item)}
+                                      className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                        item.status === 'DEPLOY' 
+                                          ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                          : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                       }`}
-                                    />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))
+                                      title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
+                                    >
+                                      <span className="sr-only">Toggle Deploy</span>
+                                      <span
+                                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                          item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                        }`}
+                                      />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

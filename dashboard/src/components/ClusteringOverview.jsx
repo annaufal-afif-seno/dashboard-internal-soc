@@ -214,6 +214,9 @@ export default function ClusteringOverview({
           actor: suppForm.actor || undefined,
           source_ip: suppForm.actor || undefined,
           activity: suppForm.activity || undefined,
+          aggregation_id: selectedAlert?.aggregation_id || undefined,
+          category: selectedAlert?.category || 'SYSTEM_HEALTH',
+          subcategory: Array.isArray(selectedAlert?.classification_groups) ? selectedAlert.classification_groups.join(', ') : (selectedAlert?.classification_groups || 'general'),
         }
       };
 
