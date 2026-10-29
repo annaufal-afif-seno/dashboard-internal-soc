@@ -4,7 +4,9 @@ import {
 
   Search, RefreshCw, Copy, Check, X, Terminal, Shield,
 
-  ArrowRight, Filter, AlertTriangle, Layers, Globe, Server, FileText, ChevronUp, ChevronDown, ExternalLink
+  ArrowRight, Filter, AlertTriangle, Layers, Globe, Server, FileText, ChevronUp, ChevronDown, ExternalLink,
+
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 
 } from 'lucide-react';
 
@@ -49,8 +51,6 @@ export default function RawAlertsQueue({
   const [copiedId, setCopiedId] = useState(null);
 
   const [networkError, setNetworkError] = useState(false);
-
-  const [jumpPageInput, setJumpPageInput] = useState('');
 
   const [levelCounts, setLevelCounts] = useState({
 
@@ -185,24 +185,6 @@ export default function RawAlertsQueue({
   };
 
 
-
-  const handleJumpPage = (e) => {
-
-    e.preventDefault();
-
-    const p = parseInt(jumpPageInput, 10);
-
-    const maxPage = Math.max(1, Math.ceil(totalRecords / pageSize));
-
-    if (!isNaN(p) && p >= 1 && p <= maxPage) {
-
-      setCurrentPage(p);
-
-      setJumpPageInput('');
-
-    }
-
-  };
 
 
 
@@ -342,7 +324,22 @@ export default function RawAlertsQueue({
 
   return (
 
-    <div className="w-full flex flex-col gap-4">
+    <div 
+      className="w-full flex flex-col gap-4 rawalerts-trebuchet-wrapper"
+      style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}
+    >
+      <style>{`
+        .rawalerts-trebuchet-wrapper,
+        .rawalerts-trebuchet-wrapper *,
+        .rawalerts-trebuchet-wrapper text,
+        .rawalerts-trebuchet-wrapper tspan,
+        .rawalerts-trebuchet-wrapper input,
+        .rawalerts-trebuchet-wrapper select,
+        .rawalerts-trebuchet-wrapper textarea,
+        .rawalerts-trebuchet-wrapper button {
+          font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif !important;
+        }
+      `}</style>
 
       {/* 4 Severity Level Metric Summary Cards */}
 
@@ -913,131 +910,167 @@ export default function RawAlertsQueue({
 
 
 
-        {/* Pagination Footer */}
+        {/* Table Footer: Pagination Controls */}
 
-        <div className={`p-4 border-t flex items-center justify-between text-xs flex-wrap gap-3 ${
+        <div className={`p-3.5 border-t flex flex-wrap items-center justify-between gap-3 text-xs ${
 
-          isDark ? 'border-slate-800 text-slate-400 bg-[#0a0e1a]' : 'border-slate-200 text-slate-500 bg-[#F0F5FA]/40'
+          isDark ? 'border-slate-800 bg-[#070b14] text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
 
         }`}>
 
-          <div>
+          {/* Info baris */}
 
-            {loading && alerts.length === 0 ? (
+          <div className="flex items-center gap-2 font-mono text-[11px]">
 
-              <span className="font-mono text-xs">Memuat data alert...</span>
+            <span>
 
-            ) : alerts.length === 0 ? (
+              Menampilkan {alerts.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0} - {Math.min(totalRecords, currentPage * pageSize)} dari {totalRecords.toLocaleString()} alert
 
-              <span className="font-mono text-xs">0 alert</span>
-
-            ) : (
-
-              <>
-
-                Showing <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{(currentPage - 1) * pageSize + 1}</span> to <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{Math.min(currentPage * pageSize, totalRecords)}</span> of <span className={`font-mono font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{totalRecords.toLocaleString()}</span> alerts
-
-              </>
-
-            )}
+            </span>
 
           </div>
 
 
 
-          <div className="flex items-center gap-2">
+          {/* Navigasi Halaman */}
+
+          <div className="flex items-center gap-1.5">
 
             <button
+
+              type="button"
+
+              onClick={() => setCurrentPage(1)}
+
+              disabled={currentPage <= 1 || loading}
+
+              className={`p-1.5 rounded border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+
+                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-200 text-slate-700'
+
+              }`}
+
+              title="Halaman Pertama"
+
+            >
+
+              <ChevronsLeft className="w-3.5 h-3.5" />
+
+            </button>
+
+            <button
+
+              type="button"
 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
 
-              disabled={currentPage === 1 || loading}
+              disabled={currentPage <= 1 || loading}
 
-              className={`px-3 py-1 rounded-lg border text-xs font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+              className={`p-1.5 rounded border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
 
-                isDark 
-
-                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' 
-
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs'
+                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-200 text-slate-700'
 
               }`}
 
+              title="Halaman Sebelumnya"
+
             >
 
-              Prev
+              <ChevronLeft className="w-3.5 h-3.5" />
 
             </button>
 
-            <span className={`font-mono text-xs px-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
 
-              {currentPage.toLocaleString()} / {totalPages.toLocaleString()}
+
+            <span className="px-2.5 py-1 font-mono text-xs font-semibold">
+
+              Halaman {currentPage} dari {Math.max(1, Math.ceil(totalRecords / pageSize))}
 
             </span>
 
+
+
             <button
 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              type="button"
 
-              disabled={currentPage === totalPages || loading}
+              onClick={() => setCurrentPage(p => Math.min(Math.max(1, Math.ceil(totalRecords / pageSize)), p + 1))}
 
-              className={`px-3 py-1 rounded-lg border text-xs font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+              disabled={currentPage >= Math.max(1, Math.ceil(totalRecords / pageSize)) || loading}
 
-                isDark 
+              className={`p-1.5 rounded border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
 
-                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' 
+                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-200 text-slate-700'
 
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs'
+              }`}
+
+              title="Halaman Berikutnya"
+
+            >
+
+              <ChevronRight className="w-3.5 h-3.5" />
+
+            </button>
+
+            <button
+
+              type="button"
+
+              onClick={() => setCurrentPage(Math.max(1, Math.ceil(totalRecords / pageSize)))}
+
+              disabled={currentPage >= Math.max(1, Math.ceil(totalRecords / pageSize)) || loading}
+
+              className={`p-1.5 rounded border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+
+                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-200 text-slate-700'
+
+              }`}
+
+              title="Halaman Terakhir"
+
+            >
+
+              <ChevronsRight className="w-3.5 h-3.5" />
+
+            </button>
+
+          </div>
+
+
+
+          {/* Page size dropdown */}
+
+          <div className="flex items-center gap-1.5 text-xs font-mono">
+
+            <span>Per halaman:</span>
+
+            <select
+
+              value={pageSize}
+
+              onChange={(e) => {
+
+                setPageSize(Number(e.target.value));
+
+                setCurrentPage(1);
+
+              }}
+
+              className={`px-2 py-1 rounded border text-xs font-mono outline-none cursor-pointer ${
+
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
 
               }`}
 
             >
 
-              Next
+              <option value={25}>25</option>
 
-            </button>
+              <option value={50}>50</option>
 
+              <option value={100}>100</option>
 
-
-            {/* Jump to page form */}
-
-            <form onSubmit={handleJumpPage} className="flex items-center gap-1.5 ml-2">
-
-              <input
-
-                type="number"
-
-                min="1"
-
-                max={totalPages}
-
-                value={jumpPageInput}
-
-                onChange={(e) => setJumpPageInput(e.target.value)}
-
-                placeholder="Go to..."
-
-                className={`w-16 px-2 py-1 rounded border text-xs font-mono focus:outline-none ${
-
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-
-                }`}
-
-              />
-
-              <button
-
-                type="submit"
-
-                className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer"
-
-              >
-
-                Go
-
-              </button>
-
-            </form>
+            </select>
 
           </div>
 
@@ -1124,120 +1157,72 @@ export default function RawAlertsQueue({
             }`}>
 
               <div>
-
-                <span className={`block text-[10px] uppercase font-semibold tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID Alert:</span>
-
+                <span className={`block text-[10px] uppercase font-semibold tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ALERT ID:</span>
                 <div className="flex items-center justify-between mt-0.5">
-
                   <span className={`font-mono font-bold text-xs ${isDark ? 'text-white' : 'text-black'} select-all break-all`}>
-
                     {selectedAlert.id}
-
                   </span>
-
                   <button
-
                     type="button"
-
                     onClick={() => handleCopyLog(selectedAlert.id, 'copy_id')}
-
                     className={`p-1 rounded cursor-pointer transition-colors ${
-
                       isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
-
                     }`}
-
-                    title="Salin ID Alert"
-
+                    title="Salin Alert ID"
                   >
-
                     {copiedId === 'copy_id' ? (
-
                       <Check className="w-3.5 h-3.5 text-emerald-500" />
-
                     ) : (
-
                       <Copy className="w-3.5 h-3.5" />
-
                     )}
-
                   </button>
-
                 </div>
-
               </div>
 
-
-
               <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
                 <div>
-
-                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Timestamp:</span>
-
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TIMESTAMP:</span>
                   <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.timestamp}</span>
-
                 </div>
-
                 <div>
-
-                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tenant:</span>
-
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TENANT:</span>
                   <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.tenant_id || 'DEFAULT'}</span>
-
                 </div>
-
               </div>
-
-
 
               <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="overflow-hidden">
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ACTOR:</span>
+                  <span className={`font-mono font-bold break-all ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.actor || '-'}</span>
+                </div>
+                <div className="overflow-hidden">
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TARGET:</span>
+                  <span className={`font-mono font-bold break-all ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.target || '-'}</span>
+                </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
                 <div>
-
-                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Rule & Level:</span>
-
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>RULE ID:</span>
                   <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>
-
-                    Rule {selectedAlert.rule_id} · Lv {selectedAlert.rule_level}
-
+                    {selectedAlert.rule_id ? `Rule ${selectedAlert.rule_id}` : '-'}
                   </span>
-
                 </div>
-
                 <div>
-
-                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Actor (IP):</span>
-
-                  <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.actor || '-'}</span>
-
+                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>LEVEL:</span>
+                  <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>
+                    {selectedAlert.rule_level !== undefined && selectedAlert.rule_level !== null ? `Lv ${selectedAlert.rule_level}` : '-'}
+                  </span>
                 </div>
-
               </div>
 
-
-
               <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
-                <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Target (Agent/Host):</span>
-
-                <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.target || '-'}</span>
-
-              </div>
-
-
-
-              <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
-                <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Rule Description:</span>
-
+                <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>RULE DESCRIPTION:</span>
                 <span className={`font-medium block mt-0.5 leading-relaxed ${isDark ? 'text-white' : 'text-black'}`}>
-
                   {selectedAlert.rule_description || '-'}
-
                 </span>
-
               </div>
+
 
             </div>
 
@@ -1285,7 +1270,7 @@ export default function RawAlertsQueue({
 
                     }`}>
 
-                      ID AGGREGAT ALERT
+                      INTERVAL CLUSTER ID
 
                     </span>
 
@@ -1301,7 +1286,7 @@ export default function RawAlertsQueue({
 
                       }`}
 
-                      title="Salin ID Aggregat"
+                      title="Salin Interval Cluster ID"
 
                     >
 
@@ -1355,7 +1340,7 @@ export default function RawAlertsQueue({
 
                     }`}>
 
-                      CUMULATIVE ID
+                      CUMULATIVE CLUSTER ID
 
                     </span>
 
@@ -1371,7 +1356,7 @@ export default function RawAlertsQueue({
 
                       }`}
 
-                      title="Salin Cumulative ID"
+                      title="Salin Cumulative Cluster ID"
 
                     >
 
@@ -1425,7 +1410,7 @@ export default function RawAlertsQueue({
 
                     }`}>
 
-                      ID TIKET (TRIAGE)
+                      TICKET ID
 
                     </span>
 
@@ -1463,7 +1448,7 @@ export default function RawAlertsQueue({
 
                         }`}
 
-                        title="Salin ID Tiket"
+                        title="Salin Ticket ID"
 
                       >
 

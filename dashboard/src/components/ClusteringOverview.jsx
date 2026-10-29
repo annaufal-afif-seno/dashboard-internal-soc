@@ -2143,120 +2143,72 @@ export default function ClusteringOverview({
               }`}>
 
                 <div>
-
-                  <span className={`block text-[10px] uppercase font-semibold tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID ALERT:</span>
-
+                  <span className={`block text-[10px] uppercase font-semibold tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ALERT ID:</span>
                   <div className="flex items-center justify-between mt-0.5">
-
                     <span className={`font-mono font-bold text-xs ${isDark ? 'text-white' : 'text-black'} select-all break-all`}>
-
                       {selectedAlert.id}
-
                     </span>
-
                     <button
-
                       type="button"
-
                       onClick={() => handleCopyLog(selectedAlert.id, 'copy_id')}
-
                       className={`p-1 rounded cursor-pointer transition-colors ${
-
                         isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
-
                       }`}
-
-                      title="Salin ID Alert"
-
+                      title="Salin Alert ID"
                     >
-
                       {copiedId === 'copy_id' ? (
-
                         <Check className="w-3.5 h-3.5 text-emerald-500" />
-
                       ) : (
-
                         <Copy className="w-3.5 h-3.5" />
-
                       )}
-
                     </button>
-
                   </div>
-
                 </div>
 
-
-
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
                   <div>
-
                     <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TIMESTAMP:</span>
-
                     <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.timestamp}</span>
-
                   </div>
-
                   <div>
-
                     <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TENANT:</span>
-
                     <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.tenant_id || 'DEFAULT'}</span>
-
                   </div>
-
                 </div>
-
-
 
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                  <div className="overflow-hidden">
+                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ACTOR:</span>
+                    <span className={`font-mono font-bold break-all ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.actor || '-'}</span>
+                  </div>
+                  <div className="overflow-hidden">
+                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TARGET:</span>
+                    <span className={`font-mono font-bold break-all ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.target || '-'}</span>
+                  </div>
+                </div>
 
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
                   <div>
-
-                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>RULE & LEVEL:</span>
-
+                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>RULE ID:</span>
                     <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>
-
-                      Rule {selectedAlert.rule_id} · Lv {selectedAlert.rule_level}
-
+                      {selectedAlert.rule_id ? `Rule ${selectedAlert.rule_id}` : '-'}
                     </span>
-
                   </div>
-
                   <div>
-
-                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ACTOR (IP):</span>
-
-                    <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.actor || '-'}</span>
-
+                    <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>LEVEL:</span>
+                    <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>
+                      {selectedAlert.rule_level !== undefined && selectedAlert.rule_level !== null ? `Lv ${selectedAlert.rule_level}` : '-'}
+                    </span>
                   </div>
-
                 </div>
 
-
-
                 <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
-                  <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>TARGET (AGENT/HOST):</span>
-
-                  <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedAlert.target || '-'}</span>
-
-                </div>
-
-
-
-                <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80">
-
                   <span className={`block text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>RULE DESCRIPTION:</span>
-
                   <span className={`font-medium block mt-0.5 leading-relaxed ${isDark ? 'text-white' : 'text-black'}`}>
-
                     {selectedAlert.rule_description || '-'}
-
                   </span>
-
                 </div>
+
 
               </div>
 
@@ -2304,7 +2256,7 @@ export default function ClusteringOverview({
 
                       }`}>
 
-                        ID AGGREGAT ALERT
+                        INTERVAL CLUSTER ID
 
                       </span>
 
@@ -2320,7 +2272,7 @@ export default function ClusteringOverview({
 
                         }`}
 
-                        title="Salin ID Aggregat"
+                        title="Salin Interval Cluster ID"
 
                       >
 
@@ -2374,7 +2326,7 @@ export default function ClusteringOverview({
 
                       }`}>
 
-                        CUMULATIVE ID
+                        CUMULATIVE CLUSTER ID
 
                       </span>
 
@@ -2390,7 +2342,7 @@ export default function ClusteringOverview({
 
                         }`}
 
-                        title="Salin Cumulative ID"
+                        title="Salin Cumulative Cluster ID"
 
                       >
 
@@ -2444,7 +2396,7 @@ export default function ClusteringOverview({
 
                       }`}>
 
-                        ID TIKET (TRIAGE)
+                        TICKET ID
 
                       </span>
 
@@ -2482,7 +2434,7 @@ export default function ClusteringOverview({
 
                           }`}
 
-                          title="Salin ID Tiket"
+                          title="Salin Ticket ID"
 
                         >
 
