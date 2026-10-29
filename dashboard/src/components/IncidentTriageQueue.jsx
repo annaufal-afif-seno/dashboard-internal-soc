@@ -816,7 +816,7 @@ export default function IncidentTriageQueue({
 
   timeRange = 'semua',
 
-  customStartDate = '2026-07-01',
+  customStartDate = '2026-10-16',
 
   customEndDate = '2026-09-30',
 

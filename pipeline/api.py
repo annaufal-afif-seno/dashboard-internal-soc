@@ -240,6 +240,50 @@ def parse_flexible_wib_dt(val: str, is_end: bool = False) -> datetime:
     except Exception:
         return datetime.now(TZ_WIB)
 
+_EARLIEST_DATA_CACHE = None
+
+def get_earliest_data_range():
+    global _EARLIEST_DATA_CACHE, db_pool
+    if _EARLIEST_DATA_CACHE:
+        return _EARLIEST_DATA_CACHE
+    try:
+        if db_pool is None:
+            db_pool = pool.ThreadedConnectionPool(
+                minconn=DB_MINCONN,
+                maxconn=DB_MAXCONN,
+                host=DB_HOST,
+                port=DB_PORT,
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                connect_timeout=3
+            )
+        conn = db_pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT MIN(timestamp) FROM telemetry.raw_events")
+                row = cur.fetchone()
+                min_ts = row[0] if row else None
+                if min_ts:
+                    min_utc = min_ts if min_ts.tzinfo else min_ts.replace(tzinfo=timezone.utc)
+                    min_wib = min_utc.astimezone(TZ_WIB)
+                    earliest_wib_str = min_wib.strftime("%Y-%m-%d")
+                    earliest_utc_date = min_utc.date().isoformat()
+                    earliest_utc_str = f"{earliest_utc_date} 00:00:00"
+                    _EARLIEST_DATA_CACHE = (earliest_utc_str, earliest_wib_str)
+                    return _EARLIEST_DATA_CACHE
+        finally:
+            try:
+                db_pool.putconn(conn)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Could not determine earliest data range: {e}")
+    
+    _EARLIEST_DATA_CACHE = ("2026-10-15 00:00:00", "2026-10-16")
+    return _EARLIEST_DATA_CACHE
+
+
 def resolve_time_range(range_val: Optional[str], start: Optional[str] = None, end: Optional[str] = None):
     r = (range_val or "semua").lower()
     
@@ -266,7 +310,10 @@ def resolve_time_range(range_val: Optional[str], start: Optional[str] = None, en
         t_end = datetime(now_wib.year, now_wib.month, now_wib.day, 23, 59, 59, 999999, tzinfo=TZ_WIB)
         return t_start.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), t_end.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), start_m.strftime("%Y-%m-%d"), today_wib_str
     elif r in ("semua", "all"):
-        return "2026-07-01 00:00:00", "2026-10-31 23:59:59.999999", "2026-07-01", "2026-10-31"
+        earliest_start_utc, earliest_wib_str = get_earliest_data_range()
+        t_end = datetime(now_wib.year, now_wib.month, now_wib.day, 23, 59, 59, 999999, tzinfo=TZ_WIB)
+        end_utc_str = t_end.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        return earliest_start_utc, end_utc_str, earliest_wib_str, today_wib_str
     else:
         start_w = now_wib - timedelta(days=7)
         t_start = datetime(start_w.year, start_w.month, start_w.day, 0, 0, 0, tzinfo=TZ_WIB)
@@ -1509,33 +1556,38 @@ def get_raw_alerts(
 
         # High-performance level counts using pre-aggregated metrics.raw_severity_hourly & in-memory cache
         cache_key = f"{t_filter or 'ALL'}:{start_dt}:{end_dt}"
-        if not is_specific_tenant and not (start_dt and end_dt):
-            level_counts = dict(_GLOBAL_RAW_LEVEL_COUNTS)
-        elif is_specific_tenant and not (start_dt and end_dt) and t_filter in _TENANT_LEVEL_COUNTS_CACHE:
-            level_counts = dict(_TENANT_LEVEL_COUNTS_CACHE[t_filter])
-        elif cache_key in _TIME_TENANT_LEVEL_COUNTS_CACHE:
-            level_counts = dict(_TIME_TENANT_LEVEL_COUNTS_CACHE[cache_key])
-        else:
-            sev_params = []
-            sev_where = []
-            if is_specific_tenant:
-                sev_where.append("tenant_id = %s")
-                sev_params.append(t_filter)
+        now_ts = time.time()
+        if cache_key in _TIME_TENANT_LEVEL_COUNTS_CACHE:
+            cached_counts, exp_ts = _TIME_TENANT_LEVEL_COUNTS_CACHE[cache_key]
+            if now_ts < exp_ts:
+                level_counts = dict(cached_counts)
             else:
-                sev_where.append("tenant_id = 'ALL'")
+                level_counts = None
+        else:
+            level_counts = None
+
+        if level_counts is None:
+            sev_where = []
+            sev_params = []
+            if is_specific_tenant:
+                sev_where.append("r.tenant_id = %s")
+                sev_params.append(t_filter)
             if start_dt and end_dt:
-                sev_where.append("bucket_hour >= %s AND bucket_hour <= %s")
+                sev_where.append("r.timestamp >= %s AND r.timestamp <= %s")
                 sev_params.extend([start_dt, end_dt])
+            
+            where_sql = f"WHERE {' AND '.join(sev_where)}" if sev_where else ""
             try:
                 cur.execute(f"""
                     SELECT 
-                        COALESCE(SUM(total), 0) as total,
-                        COALESCE(SUM(critical), 0) as critical,
-                        COALESCE(SUM(high), 0) as high,
-                        COALESCE(SUM(medium), 0) as medium,
-                        COALESCE(SUM(low), 0) as low
-                    FROM metrics.raw_severity_hourly
-                    WHERE {' AND '.join(sev_where)};
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN n.rule_level >= 15 THEN 1 END) as critical,
+                        COUNT(CASE WHEN n.rule_level >= 12 AND n.rule_level <= 14 THEN 1 END) as high,
+                        COUNT(CASE WHEN n.rule_level >= 7 AND n.rule_level <= 11 THEN 1 END) as medium,
+                        COUNT(CASE WHEN n.rule_level < 7 THEN 1 END) as low
+                    FROM telemetry.normalized_events n
+                    JOIN telemetry.raw_events r ON n.raw_event_id = r.event_id AND n.event_timestamp = r.timestamp
+                    {where_sql};
                 """, sev_params)
                 lvl_row = cur.fetchone() or {}
                 level_counts = {
@@ -1546,14 +1598,12 @@ def get_raw_alerts(
                     "LOW": int(lvl_row.get("low") or 0),
                 }
             except Exception as e:
-                logger.warning(f"Could not query metrics.raw_severity_hourly: {e}, falling back to defaults")
+                logger.warning(f"Could not query live level counts: {e}")
                 conn.rollback()
-                level_counts = dict(_GLOBAL_RAW_LEVEL_COUNTS)
-            if level_counts["ALL"] == 0 and not (start_dt and end_dt):
-                level_counts = dict(_GLOBAL_RAW_LEVEL_COUNTS)
-            _TIME_TENANT_LEVEL_COUNTS_CACHE[cache_key] = level_counts
-            if is_specific_tenant and not (start_dt and end_dt):
-                _TENANT_LEVEL_COUNTS_CACHE[t_filter] = level_counts
+                level_counts = {
+                    "ALL": 0, "CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0
+                }
+            _TIME_TENANT_LEVEL_COUNTS_CACHE[cache_key] = (level_counts, now_ts + 5)
 
         total_records = level_counts["ALL"]
 

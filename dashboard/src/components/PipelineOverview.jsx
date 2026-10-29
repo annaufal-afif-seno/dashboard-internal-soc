@@ -263,7 +263,7 @@ const CustomDonutTooltip = ({ active, payload, isDark }) => {
 export default function PipelineOverview({ 
   onNavigate, 
   timeRange = 'semua', 
-  customStartDate = '2026-07-01', 
+  customStartDate = '2026-10-16', 
   customEndDate = '2026-10-31',
   selectedTenant = 'ALL',
   theme = 'dark'
