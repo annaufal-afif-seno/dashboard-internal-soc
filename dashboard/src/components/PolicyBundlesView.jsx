@@ -1961,15 +1961,8 @@ export default function PolicyBundlesView({
                                                   <td className="px-3 py-2  text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
                                                     {log.rule_id || '-'}
                                                   </td>
-                                                  <td className="px-3 py-2  text-[11px] text-slate-900 dark:text-white min-w-[320px]">
-                                                    <div 
-                                                      className={`p-2 rounded border  text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
-                                                        isDark ? 'bg-slate-900/80 border-slate-700/80 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
-                                                      }`}
-                                                      title="Klik / select untuk salin full log"
-                                                    >
-                                                      {log.full_log || log.payload || '-'}
-                                                    </div>
+                                                  <td className="px-3 py-2 text-xs font-mono text-slate-900 dark:text-white select-all break-all min-w-[320px]">
+                                                    {log.full_log || log.payload || '-'}
                                                   </td>
                                                 </tr>
                                               ))}
@@ -2117,20 +2110,19 @@ export default function PolicyBundlesView({
                                       <div className={`rounded-xl border p-3.5 ${
                                         isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
                                       }`}>
-                                        {/* Sub-table Header Bar */}
+                                        {/* Sub-table Header Bar: Detail only */}
                                         <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
                                           <div className="flex items-center gap-2">
-                                            <Layers className="w-3.5 h-3.5 text-indigo-400" />
                                             <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                              RINCIAN KLUSTER DI TIKET: <span className="text-indigo-600 dark:text-indigo-400 select-all">{item.ticketNo}</span>
-                                            </span>
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-semibold">
-                                              {clusters.length} Kluster
+                                              Detail
                                             </span>
                                           </div>
-                                          <span className="text-xs text-slate-500 dark:text-slate-400 italic">
-                                            Klik baris kluster untuk melihat rincian alert 1 per 1
-                                          </span>
+                                          {isClustersLoading && (
+                                            <div className="flex items-center gap-1.5 text-xs text-indigo-500">
+                                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                              <span>Memuat alert...</span>
+                                            </div>
+                                          )}
                                         </div>
 
                                         {isClustersLoading ? (
@@ -2189,11 +2181,9 @@ export default function PolicyBundlesView({
                                                           </div>
                                                         </td>
 
-                                                        {/* 2. KATEGORI (6 Kategori Utama) */}
+                                                        {/* 2. KATEGORI (Teks hitam tanpa kotak) */}
                                                         <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
-                                                          <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-tight whitespace-nowrap ${getCategoryBadge(cluster.category)}`}>
-                                                            {cluster.category || 'WEB_OPERATIONAL'}
-                                                          </span>
+                                                          {cluster.category || 'System / Availability'}
                                                         </td>
 
                                                         {/* 3. SUB KATEGORY */}
@@ -2217,95 +2207,83 @@ export default function PolicyBundlesView({
                                                         </td>
                                                       </tr>
 
-                                                      {/* Level 3: Nested Alerts Table (Raw Evidence 1 per 1) */}
+                                                      {/* Level 3: Nested Alerts Table (Detail, hitam semua tanpa kotak lagi) */}
                                                       {isClusterExpanded && (
-                                                        <tr className={isDark ? 'bg-[#090e1c]' : 'bg-slate-50'}>
-                                                          <td colSpan={6} className="p-3.5">
-                                                            <div className={`rounded-xl border p-3.5 ${
-                                                              isDark ? 'bg-[#0b1222] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
-                                                            }`}>
-                                                              {/* Alert Header Bar */}
-                                                              <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
-                                                                <div className="flex items-center gap-2">
-                                                                  <FileText className="w-3.5 h-3.5 text-cyan-500" />
-                                                                  <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                                                    RINCIAN ALERT 1 PER 1 (RAW FORENSIC EVIDENCE) - KLUSTER: <span className="text-cyan-600 dark:text-cyan-400 select-all">{cluster.aggregation_id}</span>
-                                                                  </span>
-                                                                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-50 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30 font-semibold">
-                                                                    {alerts.length} Alert
-                                                                  </span>
-                                                                </div>
+                                                        <tr className={isDark ? 'bg-slate-900/60' : 'bg-slate-50/70'}>
+                                                          <td colSpan={6} className="px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
+                                                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                                                              <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                                                                  Detail
+                                                                </span>
                                                               </div>
-
-                                                              {isAlertsLoading ? (
-                                                                <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
-                                                                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                                                                  <span>Memuat daftar raw alert...</span>
+                                                              {isAlertsLoading && (
+                                                                <div className="flex items-center gap-1.5 text-xs text-indigo-500">
+                                                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                  <span>Memuat alert...</span>
                                                                 </div>
-                                                              ) : alerts.length === 0 ? (
-                                                                <div className="text-center py-5 text-xs text-slate-400 italic">
-                                                                  Tidak ada raw alert evidence ditemukan untuk kluster ini.
-                                                                </div>
-                                                              ) : (
-                                                                <div className="overflow-x-auto">
-                                                                  <table className="w-full text-left text-xs border-collapse">
-                                                                    <thead>
-                                                                      <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
-                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
-                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
-                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
-                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white text-center">RULE ID</th>
-                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
-                                                                      </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                                                      {alerts.map((alertItem, aIdx) => (
-                                                                        <tr key={`${alertItem.alert_id || alertItem.event_id}-${aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                                                                          {/* 1. ALERT ID */}
-                                                                          <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
-                                                                            <div>{alertItem.alert_id || alertItem.event_id}</div>
-                                                                            {alertItem.timestamp && (
-                                                                              <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                                                                {alertItem.timestamp}
-                                                                              </div>
-                                                                            )}
-                                                                          </td>
-
-                                                                          {/* 2. AGENT */}
-                                                                          <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                            {alertItem.agent || alertItem.agent_name || cluster.target || '-'}
-                                                                          </td>
-
-                                                                          {/* 3. ACTOR */}
-                                                                          <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                            {alertItem.actor || alertItem.source_ip || cluster.actor || 'Internal / N/A'}
-                                                                          </td>
-
-                                                                          {/* 4. RULE ID */}
-                                                                          <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white text-center">
-                                                                            <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-bold text-[10.5px]">
-                                                                              {alertItem.rule_id || cluster.rule_id || '-'}
-                                                                            </span>
-                                                                          </td>
-
-                                                                          {/* 5. FULL LOG */}
-                                                                          <td className="px-3 py-2 text-[11px] text-slate-900 dark:text-white min-w-[320px]">
-                                                                            <div 
-                                                                              className={`p-2 rounded border text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
-                                                                                isDark ? 'bg-slate-900/80 border-slate-700/80 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
-                                                                              }`}
-                                                                              title="Klik / select untuk salin full log"
-                                                                            >
-                                                                              {alertItem.full_log || alertItem.payload || alertItem.raw_payload || alertItem.rule_description || '-'}
-                                                                            </div>
-                                                                          </td>
-                                                                        </tr>
-                                                                      ))}
-                                                                    </tbody>
-                                                                  </table>
-                                                                </div>
-                                                              )}
+                                                             )}
                                                             </div>
+
+                                                            {isAlertsLoading ? (
+                                                              <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
+                                                                <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                                                                <span>Memuat daftar raw alert...</span>
+                                                              </div>
+                                                            ) : alerts.length === 0 ? (
+                                                              <div className="text-center py-5 text-xs text-slate-400 italic">
+                                                                Tidak ada raw alert evidence ditemukan untuk kluster ini.
+                                                              </div>
+                                                            ) : (
+                                                              <div className="overflow-x-auto">
+                                                                <table className="w-full text-left text-xs border-collapse">
+                                                                  <thead>
+                                                                    <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
+                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
+                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
+                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
+                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">RULE ID</th>
+                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
+                                                                    </tr>
+                                                                  </thead>
+                                                                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                                    {alerts.map((alertItem, aIdx) => (
+                                                                      <tr key={`${alertItem.alert_id || alertItem.event_id}-${aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
+                                                                        {/* 1. ALERT ID (Hitam) */}
+                                                                        <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
+                                                                          <div>{alertItem.alert_id || alertItem.event_id}</div>
+                                                                          {alertItem.timestamp && (
+                                                                            <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                                                              {alertItem.timestamp}
+                                                                            </div>
+                                                                          )}
+                                                                        </td>
+
+                                                                        {/* 2. AGENT (Hitam) */}
+                                                                        <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                                          {alertItem.agent || alertItem.agent_name || cluster.target || '-'}
+                                                                        </td>
+
+                                                                        {/* 3. ACTOR (Hitam) */}
+                                                                        <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                                          {alertItem.actor || alertItem.source_ip || cluster.actor || 'Internal / N/A'}
+                                                                        </td>
+
+                                                                        {/* 4. RULE ID (Hitam tanpa kotak) */}
+                                                                        <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
+                                                                          {alertItem.rule_id || cluster.rule_id || '-'}
+                                                                        </td>
+
+                                                                        {/* 5. FULL LOG (Hitam tanpa kotak) */}
+                                                                        <td className="px-3 py-2 text-xs font-mono text-slate-900 dark:text-white select-all break-all min-w-[320px]">
+                                                                          {alertItem.full_log || alertItem.payload || alertItem.raw_payload || alertItem.rule_description || '-'}
+                                                                        </td>
+                                                                      </tr>
+                                                                    ))}
+                                                                  </tbody>
+                                                                </table>
+                                                              </div>
+                                                            )}
                                                           </td>
                                                         </tr>
                                                       )}
@@ -2461,19 +2439,19 @@ export default function PolicyBundlesView({
                                     <div className={`rounded-xl border p-3.5 ${
                                       isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
                                     }`}>
+                                      {/* Sub-table Header Bar: Detail only */}
                                       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
                                         <div className="flex items-center gap-2">
-                                          <Layers className="w-3.5 h-3.5 text-indigo-400" />
                                           <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                            RINCIAN KLUSTER DI KAMPANYE: <span className="text-indigo-600 dark:text-indigo-400 select-all">{item.ticketNo}</span>
-                                          </span>
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-semibold">
-                                            {campaignMembers.length} Kluster
+                                            Detail
                                           </span>
                                         </div>
-                                        <span className="text-xs text-slate-500 dark:text-slate-400 italic">
-                                          Klik baris kluster untuk melihat rincian alert 1 per 1
-                                        </span>
+                                        {isCampaignLoading && (
+                                          <div className="flex items-center gap-1.5 text-xs text-indigo-500">
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Memuat alert...</span>
+                                          </div>
+                                        )}
                                       </div>
 
                                       {isCampaignLoading ? (
@@ -2531,9 +2509,7 @@ export default function PolicyBundlesView({
                                                         </div>
                                                       </td>
                                                       <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
-                                                        <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-tight whitespace-nowrap ${getCategoryBadge(cluster.category)}`}>
-                                                          {cluster.category || 'DISCOVERY'}
-                                                        </span>
+                                                        {cluster.category || 'DISCOVERY'}
                                                       </td>
                                                       <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
                                                         {cluster.subcategory || cluster.mitre || 'system, logs'}
@@ -2549,85 +2525,83 @@ export default function PolicyBundlesView({
                                                       </td>
                                                     </tr>
 
-                                                    {/* LEVEL 3: RAW ALERTS SUB-SUB-TABLE */}
+                                                    {/* LEVEL 3: RAW ALERTS (Detail, hitam semua tanpa kotak lagi) */}
                                                     {isClusterExpanded && (
-                                                      <tr className={isDark ? 'bg-[#090e1c]' : 'bg-slate-50'}>
-                                                        <td colSpan={6} className="p-3.5">
-                                                          <div className={`rounded-xl border p-3.5 ${
-                                                            isDark ? 'bg-[#0b1222] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
-                                                          }`}>
-                                                            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
-                                                              <div className="flex items-center gap-2">
-                                                                <FileText className="w-3.5 h-3.5 text-cyan-500" />
-                                                                <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                                                  RINCIAN ALERT 1 PER 1 (RAW FORENSIC EVIDENCE) - KLUSTER: <span className="text-cyan-600 dark:text-cyan-400 select-all">{clusterId}</span>
-                                                                </span>
-                                                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-50 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30 font-semibold">
-                                                                  {alerts.length} Alert
-                                                                </span>
-                                                              </div>
+                                                      <tr className={isDark ? 'bg-slate-900/60' : 'bg-slate-50/70'}>
+                                                        <td colSpan={6} className="px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
+                                                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                                                            <div className="flex items-center gap-2">
+                                                              <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                                                                Detail
+                                                              </span>
                                                             </div>
-
-                                                            {isAlertsLoading ? (
-                                                              <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
-                                                                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                                                                <span>Memuat raw alerts...</span>
-                                                              </div>
-                                                            ) : alerts.length === 0 ? (
-                                                              <div className="text-center py-5 text-xs text-slate-400 italic">
-                                                                Tidak ada alert forensik terhubung.
-                                                              </div>
-                                                            ) : (
-                                                              <div className="overflow-x-auto">
-                                                                <table className="w-full text-left text-xs border-collapse">
-                                                                  <thead>
-                                                                    <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
-                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
-                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
-                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
-                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white text-center">RULE ID</th>
-                                                                      <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
-                                                                    </tr>
-                                                                  </thead>
-                                                                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                                                    {alerts.map((al, aIdx) => (
-                                                                      <tr key={`${al.event_id || aIdx}-${aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                                                                        <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
-                                                                          <div>{al.event_id || al.alert_id || '-'}</div>
-                                                                          {al.timestamp && (
-                                                                            <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                                                              {al.timestamp}
-                                                                            </div>
-                                                                          )}
-                                                                        </td>
-                                                                        <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                          {al.agent_name || cluster.target || item.target || '-'}
-                                                                        </td>
-                                                                        <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                          {al.username || al.source_ip || cluster.actor || item.actor || '-'}
-                                                                        </td>
-                                                                        <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white text-center">
-                                                                          <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-bold text-[10.5px]">
-                                                                            {al.rule_id || cluster.rule_id || '-'}
-                                                                          </span>
-                                                                        </td>
-                                                                        <td className="px-3 py-2 text-[11px] text-slate-900 dark:text-white min-w-[320px]">
-                                                                          <div 
-                                                                            className={`p-2 rounded border text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
-                                                                              isDark ? 'bg-slate-900/80 border-slate-700/80 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
-                                                                            }`}
-                                                                            title="Klik / select untuk salin full log"
-                                                                          >
-                                                                            {al.full_log || al.payload || al.raw_payload || al.rule_description || '-'}
-                                                                          </div>
-                                                                        </td>
-                                                                      </tr>
-                                                                    ))}
-                                                                  </tbody>
-                                                                </table>
+                                                            {isAlertsLoading && (
+                                                              <div className="flex items-center gap-1.5 text-xs text-indigo-500">
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                <span>Memuat alert...</span>
                                                               </div>
                                                             )}
                                                           </div>
+
+                                                          {isAlertsLoading ? (
+                                                            <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
+                                                              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                                                              <span>Memuat raw alerts...</span>
+                                                            </div>
+                                                          ) : alerts.length === 0 ? (
+                                                            <div className="text-center py-5 text-xs text-slate-400 italic">
+                                                              Tidak ada alert forensik terhubung.
+                                                            </div>
+                                                          ) : (
+                                                            <div className="overflow-x-auto">
+                                                              <table className="w-full text-left text-xs border-collapse">
+                                                                <thead>
+                                                                  <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">RULE ID</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
+                                                                  </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                                  {alerts.map((al, aIdx) => (
+                                                                    <tr key={`${al.event_id || aIdx}-${aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
+                                                                      {/* 1. ALERT ID (Hitam) */}
+                                                                      <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
+                                                                        <div>{al.event_id || al.alert_id || '-'}</div>
+                                                                        {al.timestamp && (
+                                                                          <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                                                            {al.timestamp}
+                                                                          </div>
+                                                                        )}
+                                                                      </td>
+
+                                                                      {/* 2. AGENT (Hitam) */}
+                                                                      <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                                        {al.agent_name || cluster.target || item.target || '-'}
+                                                                      </td>
+
+                                                                      {/* 3. ACTOR (Hitam) */}
+                                                                      <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                                        {al.username || al.source_ip || cluster.actor || item.actor || '-'}
+                                                                      </td>
+
+                                                                      {/* 4. RULE ID (Hitam tanpa kotak) */}
+                                                                      <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
+                                                                        {al.rule_id || cluster.rule_id || '-'}
+                                                                      </td>
+
+                                                                      {/* 5. FULL LOG (Hitam tanpa kotak) */}
+                                                                      <td className="px-3 py-2 text-xs font-mono text-slate-900 dark:text-white select-all break-all min-w-[320px]">
+                                                                        {al.full_log || al.payload || al.raw_payload || al.rule_description || '-'}
+                                                                      </td>
+                                                                    </tr>
+                                                                  ))}
+                                                                </tbody>
+                                                              </table>
+                                                            </div>
+                                                          )}
                                                         </td>
                                                       </tr>
                                                     )}
