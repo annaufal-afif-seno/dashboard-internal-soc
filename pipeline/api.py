@@ -1633,20 +1633,26 @@ def get_raw_alerts(
 
         if activity and activity.strip() and activity.strip().upper() != "ALL":
             act_str = activity.strip()
-            if "PAM Session Opened" in act_str:
+            if "PAM Session Opened" in act_str or "AUTH LOGIN [SUCCESS]" in act_str:
                 where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
-            elif "PAM Session Closed" in act_str:
+            elif "PAM Session Closed" in act_str or "AUTH SESSION [CLOSED]" in act_str:
                 where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
-            elif "SSH Authentication Success" in act_str:
+            elif "SSH Authentication Success" in act_str or "SSH LOGIN [SUCCESS]" in act_str:
                 where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
-            elif "SSH Authentication Failed" in act_str:
+            elif "SSH Authentication Failed" in act_str or "SSH LOGIN [FAILED]" in act_str:
                 where_clauses.append("(n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%')")
-            elif "Systemd Process Execution" in act_str:
+            elif "Systemd Process Execution" in act_str or "SERVICE [systemd] [FAILURE]" in act_str:
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
-            elif "Sudo Privilege" in act_str:
+            elif "Sudo Privilege" in act_str or "AUTH PRIVILEGE" in act_str:
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
-            elif "Docker" in act_str:
-                where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
+            elif "Docker" in act_str or "SERVICE [docker]" in act_str:
+                where_clauses.append("(n.rule_id IN (50100, 86003) OR n.rule_description ILIKE '%%docker%%')")
+            elif "PKG CONFIG" in act_str or "dpkg" in act_str.lower():
+                where_clauses.append("(n.rule_id IN (2902, 2903, 2904) OR n.rule_description ILIKE '%%dpkg%%')")
+            elif "FILE MODIFIED" in act_str:
+                where_clauses.append("(n.rule_id IN (550, 554) OR n.rule_description ILIKE '%%integrity checksum changed%%')")
+            elif "FILE DELETED" in act_str:
+                where_clauses.append("(n.rule_id = 553 OR n.rule_description ILIKE '%%file deleted%%')")
             elif "CVE" in act_str.upper():
                 m_cve = re.search(r'(CVE-\d{4}-\d+)', act_str, re.IGNORECASE)
                 if m_cve:
@@ -4752,20 +4758,26 @@ def get_clustering_overview(
                 
         if filter_activity and filter_activity.strip().upper() not in ("ALL", "LAINNYA"):
             f_act = filter_activity.strip()
-            if "PAM Session Opened" in f_act:
+            if "PAM Session Opened" in f_act or "AUTH LOGIN [SUCCESS]" in f_act:
                 where_clauses.append("(n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%')")
-            elif "PAM Session Closed" in f_act:
+            elif "PAM Session Closed" in f_act or "AUTH SESSION [CLOSED]" in f_act:
                 where_clauses.append("(n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%')")
-            elif "SSH Authentication Success" in f_act:
+            elif "SSH Authentication Success" in f_act or "SSH LOGIN [SUCCESS]" in f_act:
                 where_clauses.append("(n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%')")
-            elif "SSH Authentication Failed" in f_act:
+            elif "SSH Authentication Failed" in f_act or "SSH LOGIN [FAILED]" in f_act:
                 where_clauses.append("(n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%')")
-            elif "Systemd Process Execution" in f_act:
+            elif "Systemd Process Execution" in f_act or "SERVICE [systemd] [FAILURE]" in f_act:
                 where_clauses.append("(n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd%%')")
-            elif "Sudo Privilege" in f_act:
+            elif "Sudo Privilege" in f_act or "AUTH PRIVILEGE" in f_act:
                 where_clauses.append("(n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo%%')")
-            elif "Docker" in f_act:
-                where_clauses.append("(n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%')")
+            elif "Docker" in f_act or "SERVICE [docker]" in f_act:
+                where_clauses.append("(n.rule_id IN (50100, 86003) OR n.rule_description ILIKE '%%docker%%')")
+            elif "PKG CONFIG" in f_act or "dpkg" in f_act.lower():
+                where_clauses.append("(n.rule_id IN (2902, 2903, 2904) OR n.rule_description ILIKE '%%dpkg%%')")
+            elif "FILE MODIFIED" in f_act:
+                where_clauses.append("(n.rule_id IN (550, 554) OR n.rule_description ILIKE '%%integrity checksum changed%%')")
+            elif "FILE DELETED" in f_act:
+                where_clauses.append("(n.rule_id = 553 OR n.rule_description ILIKE '%%file deleted%%')")
             elif "CVE" in f_act.upper():
                 m_cve = re.search(r'(CVE-\d{4}-\d+)', f_act, re.IGNORECASE)
                 if m_cve:
@@ -4892,69 +4904,57 @@ def get_clustering_overview(
                 "id": "cluster-activity",
                 "title": "ACTIVITY",
                 **build_donut("""CASE
-                    -- 1. Standard Web Combined Access Log ("GET /path HTTP/1.1" 404)
-                    WHEN r.raw_payload ~ '"[A-Z]+\\s+/[^"\\s]*\\s+HTTP/[0-9.]+"\\s+\\d{3}'
-                    THEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[1] || ' ' ||
-                         CASE 
-                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/service/%%' THEN '/service/*'
-                             WHEN (regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, '"([A-Z]+)\\s+([^"\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
+                    -- 1. Web Traffic (Access Logs, Nginx errors, Probes)
+                    WHEN n.rule_id IN (31101, 31301, 31533) OR r.raw_payload ~* 'HTTP/[0-9.]+|"protocol"\\s*:\s*"(GET|POST|HEAD|PUT|DELETE)"'
+                    THEN COALESCE(
+                             (regexp_match(r.raw_payload, '"protocol"\\s*:\s*"([A-Z]+)"'))[1],
+                             (regexp_match(r.raw_payload, '\\"(GET|POST|HEAD|PUT|DELETE)\\s+'))[1],
+                             (regexp_match(r.raw_payload, 'request:\\s*\\?"([A-Z]+)\\s+'))[1],
+                             'GET'
+                         ) || ' ' ||
+                         CASE
+                             WHEN r.raw_payload ~* '/\\.env' THEN '/.env*'
+                             WHEN r.raw_payload ~* '/(wp-|wordpress|wp/)' THEN '/wp-*'
+                             WHEN r.raw_payload ~* '/administrator/' THEN '/administrator/*'
+                             WHEN r.raw_payload ~* '/api/' THEN '/api/*'
+                             WHEN r.raw_payload ~* '/service/' THEN '/service/*'
+                             WHEN r.raw_payload ~* '/id/eprint/' THEN '/id/eprint/*'
+                             WHEN r.raw_payload ~* '/favicon\\.ico' THEN '/favicon.ico'
+                             ELSE '/*'
                          END ||
-                         ' [' || (regexp_match(r.raw_payload, '"[A-Z]+\\s+[^"]+\\s+HTTP/[0-9.]+"\\s+(\\d{3})'))[1] || ']'
+                         ' [' || 
+                         COALESCE(
+                             (regexp_match(r.raw_payload, '"data"\\s*:\s*\\{[^}]*"(?:id|status)"\\s*:\s*"(\\d{3})"'))[1],
+                             (regexp_match(r.raw_payload, 'HTTP/[0-9.]+\\"\\s+(\\d{3})'))[1],
+                             (regexp_match(r.raw_payload, '\\((\\d{3}):'))[1],
+                             CASE WHEN n.rule_id = 31101 THEN '400' WHEN n.rule_id = 31533 THEN '200' ELSE '404' END
+                         ) || ']'
 
-                    -- 2. JSON data.protocol & data.url (Wazuh JSON stream format)
-                    WHEN r.raw_payload LIKE '{"%%' AND r.raw_payload LIKE '%%"protocol":%%' AND r.raw_payload LIKE '%%"url":%%'
-                    THEN COALESCE((regexp_match(r.raw_payload, '"protocol"\\s*:\\s*"([A-Z]+)"'))[1], 'HTTP') || ' ' || 
-                         CASE 
-                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/service/%%' THEN '/service/*'
-                             WHEN (regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, '"url"\\s*:\\s*"([^"?#]+)'))[1], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
-                         END ||
-                         CASE 
-                             WHEN (regexp_match(r.raw_payload, '"(?:id|status)"\\s*:\\s*"?(\\d{3})"?'))[1] IS NOT NULL
-                             THEN ' [' || (regexp_match(r.raw_payload, '"(?:id|status)"\\s*:\\s*"?(\\d{3})"?'))[1] || ']' 
-                             ELSE '' 
-                         END
+                    -- 2. Auth Events
+                    WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'AUTH LOGIN [SUCCESS]'
+                    WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'AUTH SESSION [CLOSED]'
+                    WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH LOGIN [SUCCESS]'
+                    WHEN n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%' THEN 'SSH LOGIN [FAILED]'
+                    WHEN n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo to root%%' THEN 'AUTH PRIVILEGE [sudo] [ESCALATION]'
 
-                    -- 3. Nginx Error Logs (request: "METHOD /path")
-                    WHEN r.raw_payload LIKE '%%request:%%'
-                    THEN COALESCE((regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\\s?#]+)'))[1], 'HTTP') || ' ' ||
-                         CASE 
-                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/administrator/%%' THEN '/administrator/*'
-                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/wp-%%' THEN '/wp-*'
-                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/service/%%' THEN '/service/*'
-                             WHEN (regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2] LIKE '/id/eprint/%%' THEN '/id/eprint/*'
-                             ELSE COALESCE(NULLIF(regexp_replace(regexp_replace((regexp_match(r.raw_payload, 'request:\\s*\\\?"([A-Z]+)\\s+([^"\\\s?#]+)'))[2], '/[0-9a-fA-F-]{8,}(?=/|$)', '/*', 'g'), '/[0-9]+(?=/|$)', '/*', 'g'), ''), '/')
-                         END ||
-                         CASE 
-                             WHEN r.raw_payload ~ '\\((\\d{3}):' THEN ' [' || (regexp_match(r.raw_payload, '\\((\\d{3}):'))[1] || ']'
-                             ELSE ''
-                         END
+                    -- 3. Services / Daemon
+                    WHEN n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd: service exited%%' THEN 'SERVICE [systemd] [FAILURE]'
+                    WHEN n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%' OR n.rule_id = 86003 THEN 'SERVICE [docker] [ERROR]'
 
-                    -- 4. CVE & Vulnerability Detector
-                    WHEN n.rule_description ~* 'CVE-\d{4}-\d+'
-                    THEN CASE 
-                        WHEN n.rule_description ILIKE '%%solved%%' OR n.rule_description ILIKE '%%mitigated%%'
-                            THEN (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1] || ' [SOLVED: ' || COALESCE((regexp_match(n.rule_description, '(?i)affected\s+([a-zA-Z0-9_\-\.\+]+)'))[1], 'pkg') || ']'
-                        WHEN n.rule_description ILIKE '%%affects%%'
-                            THEN (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1] || ' (affects ' || COALESCE((regexp_match(n.rule_description, '(?i)affects\s+([a-zA-Z0-9_\-\.\+]+)'))[1], 'pkg') || ')'
-                        ELSE (regexp_match(n.rule_description, '(?i)(CVE-\d{4}-\d+)'))[1]
-                    END
+                    -- 4. Packaging / Sysadmin
+                    WHEN n.rule_id IN (2902, 2903, 2904) OR n.rule_description ILIKE '%%dpkg%%' THEN 'PKG CONFIG [dpkg] [EVENT]'
 
-                    -- 5. System & Auth Events
-                    WHEN n.rule_id = 5501 OR n.rule_description ILIKE '%%pam: login session opened%%' THEN 'PAM Session Opened'
-                    WHEN n.rule_id = 5502 OR n.rule_description ILIKE '%%pam: login session closed%%' THEN 'PAM Session Closed'
-                    WHEN n.rule_id = 5715 OR n.rule_description ILIKE '%%sshd: authentication success%%' THEN 'SSH Authentication Success'
-                    WHEN n.rule_id IN (5710, 5712, 5716, 5720) OR n.rule_description ILIKE '%%sshd:%%failed%%' THEN 'SSH Authentication Failed'
-                    WHEN n.rule_id = 40704 OR n.rule_description ILIKE '%%systemd: service exited%%' THEN 'Systemd Process Execution'
-                    WHEN n.rule_id IN (5401, 5402) OR n.rule_description ILIKE '%%sudo to root%%' THEN 'Sudo Privilege Escalation'
-                    WHEN n.rule_id = 50100 OR n.rule_description ILIKE '%%docker%%' THEN 'Docker Container Error'
-                    
-                    ELSE TRIM(TRAILING '.' FROM COALESCE(n.rule_description, 'General System Event'))
+                    -- 5. FIM / File Integrity
+                    WHEN n.rule_id IN (550, 554) OR n.rule_description ILIKE '%%integrity checksum changed%%' THEN 'FILE MODIFIED [system] [FIM]'
+                    WHEN n.rule_id = 553 OR n.rule_description ILIKE '%%file deleted%%' THEN 'FILE DELETED [system] [FIM]'
+                    WHEN n.rule_id = 594 OR n.rule_description ILIKE '%%log rotate%%' THEN 'LOG ROTATE [system] [OSSEC]'
+
+                    -- 6. CVE
+                    WHEN n.rule_description ~* 'CVE-\\d{4}-\\d+'
+                    THEN (regexp_match(n.rule_description, '(?i)(CVE-\\d{4}-\\d+)'))[1] || ' [DETECTED]'
+
+                    -- Universal Fallback
+                    ELSE TRIM(TRAILING '.' FROM COALESCE(n.rule_description, 'General Security Event'))
                 END""", needs_norm=True)
             }
         }
