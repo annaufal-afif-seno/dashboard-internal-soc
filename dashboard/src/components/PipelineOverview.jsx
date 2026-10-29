@@ -336,7 +336,7 @@ export default function PipelineOverview({
     : "-";
   const totalCampaigns = (data?.total_campaigns !== undefined && data?.total_campaigns !== null)
     ? Number(data.total_campaigns).toLocaleString()
-    : "17";
+    : "13";
 
   const reductionChartData = (data?.reduction_data || defaultReductionData).map(d => {
     const rawVal = d.ingest ?? d.ingested ?? d.raw ?? 0;
@@ -532,7 +532,7 @@ export default function PipelineOverview({
           }`}>{totalTickets}</div>
         </div>
 
-        {/* Card 4: Threat */}
+        {/* Card 4: Incident */}
         <div className={`py-4 px-3.5 border rounded-xl transition-all flex flex-col items-center justify-center text-center ${
           isDark 
             ? 'bg-[#0a0e1a] border-slate-800 hover:border-slate-700' 
@@ -540,7 +540,7 @@ export default function PipelineOverview({
         }`}>
           <span className={`text-xs font-bold tracking-wider uppercase mb-1 ${
             isDark ? 'text-slate-400' : 'text-slate-900'
-          }`}>THREAT</span>
+          }`}>INCIDENT</span>
           <div className={`text-2xl font-bold font-mono tracking-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>{totalThreats}</div>
@@ -597,7 +597,7 @@ export default function PipelineOverview({
                   <span className="w-2.5 h-1 rounded-full bg-[#f59e0b]"></span> Ticket
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <span className="w-2.5 h-1 rounded-full bg-[#f43f5e]"></span> Threat
+                  <span className="w-2.5 h-1 rounded-full bg-[#f43f5e]"></span> Incident
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <span className="w-2.5 h-1 rounded-full bg-[#10b981]"></span> Groundtruth
@@ -629,7 +629,7 @@ export default function PipelineOverview({
                 <Area type="monotone" dataKey="ingest" name="Ingest" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#ingestGrad)" dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="aggregate" name="Cluster" stroke="#818cf8" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="ticket" name="Ticket" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="threat" name="Threat" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="threat" name="Incident" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="groundtruth" name="Groundtruth" stroke="#10b981" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
