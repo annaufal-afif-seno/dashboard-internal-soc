@@ -36,6 +36,7 @@ export default function PolicyBundlesView({
   const [sessionAppliedTenants, setSessionAppliedTenants] = useState({});
   const [activeRightTab, setActiveRightTab] = useState('XML'); // 'XML' | 'CDB'
   const [tenantFilterStatus, setTenantFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'WAITING' | 'EXPIRED'
+  const [bundleFilterMode, setBundleFilterMode] = useState('cluster'); // 'cluster' | 'ticket' | 'campaign'
   const [applyingTenant, setApplyingTenant] = useState(false);
   const [copiedCodeSnippet, setCopiedCodeSnippet] = useState(false);
   const [isEditingCode, setIsEditingCode] = useState(false);
@@ -576,7 +577,7 @@ export default function PolicyBundlesView({
   }, [apiTenants, activeTuningRequests, rules, groups]);
 
   // Helper for Mockup 2: items for selected tenant
-  const getTenantTableItems = (tenantName) => {
+  const getTenantTableItems = (tenantName, mode = bundleFilterMode) => {
     if (!tenantName) return [];
 
     const isAppliedInSession = !!sessionAppliedTenants[tenantName];
@@ -735,18 +736,78 @@ export default function PolicyBundlesView({
       }
     });
 
+    if (mode === 'cluster') {
+      const clusterMap = new Map();
+      items.forEach((it) => {
+        const sidsKey = Array.isArray(it.sids) && it.sids.length > 0 ? it.sids.sort().join(',') : (it.raw?.rule_id || '0');
+        const key = `${sidsKey}_${it.target || '-'}_${it.actor || '-'}`;
+        if (!clusterMap.has(key)) {
+          clusterMap.set(key, {
+            ...it,
+            id: `CLUSTER-${tenantName}-${clusterMap.size + 1}`,
+            ticketNo: `Cluster: Rule ${sidsKey}`,
+            incidentTitle: `${it.incidentTitle || 'Cluster Policy'} (1 ticket)`,
+            ticketCount: 1,
+            ticketList: [it.ticketNo]
+          });
+        } else {
+          const c = clusterMap.get(key);
+          c.ticketCount += 1;
+          c.ticketList.push(it.ticketNo);
+          c.incidentTitle = `${c.incidentTitle.replace(/ \(\d+ tickets?\)$/, '')} (${c.ticketCount} tickets)`;
+          if (it.status === 'DEPLOY') c.status = 'DEPLOY';
+          else if (it.status === 'EXPIRED' && c.status !== 'DEPLOY') c.status = 'EXPIRED';
+        }
+      });
+      return Array.from(clusterMap.values());
+    }
+
+    if (mode === 'campaign') {
+      const campaignMap = new Map();
+      items.forEach((it) => {
+        const campKey = it.actor && it.actor !== '-' && it.actor !== 'Internal / N/A' ? it.actor : (it.target || 'Default Campaign');
+        if (!campaignMap.has(campKey)) {
+          campaignMap.set(campKey, {
+            ...it,
+            id: `CAMP-${tenantName}-${campaignMap.size + 1}`,
+            ticketNo: `Campaign: ${campKey}`,
+            incidentTitle: `Threat Activity from ${campKey} (1 ticket on ${it.target})`,
+            ticketCount: 1,
+            targets: new Set([it.target]),
+            ticketList: [it.ticketNo]
+          });
+        } else {
+          const camp = campaignMap.get(campKey);
+          camp.ticketCount += 1;
+          camp.targets.add(it.target);
+          camp.ticketList.push(it.ticketNo);
+          camp.incidentTitle = `Threat Activity from ${campKey} (${camp.ticketCount} tickets on ${camp.targets.size} targets)`;
+          if (it.status === 'DEPLOY') camp.status = 'DEPLOY';
+          else if (it.status === 'EXPIRED' && camp.status !== 'DEPLOY') camp.status = 'EXPIRED';
+        }
+      });
+      return Array.from(campaignMap.values());
+    }
+
     return items;
   };
 
-  // Calculate real metrics for Mockup 1 (huruf x diisi oleh angka aslinya)
+  // Calculate real metrics for Mockup 1 (supports by cluster, by ticket, by campaign)
   const getTenantStats = (tenantName) => {
-    const items = getTenantTableItems(tenantName);
+    const rawItems = getTenantTableItems(tenantName, 'ticket');
+    const items = getTenantTableItems(tenantName, bundleFilterMode);
     const deployCount = items.filter(it => it.status === 'DEPLOY').length;
     const approveCount = items.filter(it => it.status === 'APPROVE').length;
     const expiredCount = items.filter(it => it.status === 'EXPIRED').length;
 
+    let modeLabel = 'suppression ticket';
+    if (bundleFilterMode === 'cluster') modeLabel = 'suppression cluster';
+    else if (bundleFilterMode === 'campaign') modeLabel = 'suppression campaign';
+
     return {
-      totalTickets: items.length,
+      modeLabel,
+      totalCount: items.length,
+      totalTickets: rawItems.length,
       deployCount,
       approveCount,
       expiredCount,
@@ -1075,6 +1136,50 @@ export default function PolicyBundlesView({
       {/* ===================================================================== */}
       {!selectedTenantView && (
         <div className="space-y-4">
+          {/* Filter Toggle: by cluster | by ticket | by campaign */}
+          <div className="flex items-center justify-between pb-1">
+            <div className={`p-1 rounded-xl border flex items-center gap-1 shrink-0 ${
+              isDark ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-200/90'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setBundleFilterMode('cluster')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  bundleFilterMode === 'cluster'
+                    ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                }`}
+                style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+              >
+                by cluster
+              </button>
+              <button
+                type="button"
+                onClick={() => setBundleFilterMode('ticket')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  bundleFilterMode === 'ticket'
+                    ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                }`}
+                style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+              >
+                by ticket
+              </button>
+              <button
+                type="button"
+                onClick={() => setBundleFilterMode('campaign')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  bundleFilterMode === 'campaign'
+                    ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                }`}
+                style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+              >
+                by campaign
+              </button>
+            </div>
+          </div>
+
           {/* Dynamic 2x2 Grid of Tenant Boxes */}
           <div className="grid grid-cols-2 gap-5 pt-1">
             {discoveredTenants.map(tenantName => {
@@ -1126,13 +1231,13 @@ export default function PolicyBundlesView({
                     <div className={`flex items-center justify-between py-1 border-b ${
                       isDark ? 'border-slate-800/40' : 'border-slate-100'
                     }`}>
-                      <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        suppression ticket
+                      <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`} style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                        {stats.modeLabel}
                       </span>
                       <span className={`text-sm sm:text-base font-black px-2.5 py-0.5 rounded ${
                         isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-900'
                       }`}>
-                        {stats.totalTickets}
+                        {stats.totalCount}
                       </span>
                     </div>
 
@@ -1181,7 +1286,7 @@ export default function PolicyBundlesView({
       {/* MOCKUP 2: SUB-FITUR PER TENANT (SPLIT VIEW TABLE & WAZUH APPLY) */}
       {/* ===================================================================== */}
       {selectedTenantView && (() => {
-        const rawItems = getTenantTableItems(selectedTenantView);
+        const rawItems = getTenantTableItems(selectedTenantView, bundleFilterMode);
         const filteredItems = rawItems.filter(it => {
           if (tenantFilterStatus === 'DEPLOY' || tenantFilterStatus === 'ACTIVE') return it.status === 'DEPLOY';
           if (tenantFilterStatus === 'APPROVE' || tenantFilterStatus === 'WAITING') return it.status === 'APPROVE';
@@ -1220,8 +1325,48 @@ export default function PolicyBundlesView({
                 </span>
               </div>
 
-              {/* Right Controls matching sketch: [ All v ] filter dropdown and [ X ] close button */}
-              <div className="flex items-center gap-3">
+              {/* Right Controls matching sketch: [ Filter Toggle ] + [ All v ] filter dropdown and [ X ] close button */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className={`p-0.5 rounded-lg border flex items-center gap-1 shrink-0 ${
+                  isDark ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-200/90'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setBundleFilterMode('cluster')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      bundleFilterMode === 'cluster'
+                        ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                        : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                    }`}
+                    style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+                  >
+                    by cluster
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBundleFilterMode('ticket')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      bundleFilterMode === 'ticket'
+                        ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                        : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                    }`}
+                    style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+                  >
+                    by ticket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBundleFilterMode('campaign')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      bundleFilterMode === 'campaign'
+                        ? (isDark ? 'bg-slate-800 text-white shadow-xs border border-slate-600' : 'bg-white text-slate-900 shadow-xs border border-slate-200/80')
+                        : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
+                    }`}
+                    style={{ fontFamily: "'Trebuchet MS', sans-serif" }}
+                  >
+                    by campaign
+                  </button>
+                </div>
                 <div className="relative">
                   <select
                     value={tenantFilterStatus}
