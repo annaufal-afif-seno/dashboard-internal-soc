@@ -108,6 +108,62 @@ export default function PolicyBundlesView({
     return 'bg-slate-700/30 text-slate-300 border border-slate-600/30';
   };
 
+  // Mapper ke 6 Kategori Utama (Pure Categories) & Sub Kategori Standar
+  const mapTo6CategoryTaxonomy = (rawCat, rawSubcat) => {
+    const cat = String(rawCat || '').toUpperCase();
+    const sub = String(rawSubcat || '').toLowerCase();
+
+    // 1. Identity / Access
+    if (cat.includes('AUTH') || cat.includes('IDENTITY') || sub.includes('auth') || sub.includes('login') || sub.includes('pam')) {
+      if (sub.includes('success') || cat.includes('SUCCESS')) return { category: 'Identity / Access', subcategory: 'Auth Success' };
+      if (sub.includes('fail') || cat.includes('FAILURE')) return { category: 'Identity / Access', subcategory: 'Auth Failure' };
+      if (sub.includes('privilege') || cat.includes('PRIVILEGE')) return { category: 'Identity / Access', subcategory: 'Privilege Escalation' };
+      return { category: 'Identity / Access', subcategory: 'Auth Anomaly' };
+    }
+
+    // 2. Malware
+    if (cat.includes('MALWARE') || cat.includes('RANSOMWARE') || sub.includes('ransom') || sub.includes('rootkit') || sub.includes('trojan') || sub.includes('yara')) {
+      if (sub.includes('ransom') || cat.includes('RANSOMWARE')) return { category: 'Malware', subcategory: 'Ransomware' };
+      if (sub.includes('rootkit') || sub.includes('backdoor')) return { category: 'Malware', subcategory: 'Rootkit / Backdoor' };
+      return { category: 'Malware', subcategory: 'Virus / Trojan (YARA)' };
+    }
+
+    // 3. Vulnerability
+    if (cat.includes('VULN') || sub.includes('cve') || sub.includes('patch')) {
+      if (sub.includes('patch') || sub.includes('outdated')) return { category: 'Vulnerability', subcategory: 'Missing Patch / Outdated' };
+      return { category: 'Vulnerability', subcategory: 'CVE Detected' };
+    }
+
+    // 4. Configuration / Compliance
+    if (cat.includes('COMPLIANCE') || cat.includes('CONFIGURATION') || cat.includes('INTEGRITY') || cat.includes('FIM') || sub.includes('fim') || sub.includes('cis') || sub.includes('sca')) {
+      if (sub.includes('fim') || cat.includes('FILE_INTEGRITY')) return { category: 'Configuration / Compliance', subcategory: 'File Integrity (FIM)' };
+      if (sub.includes('cis') || sub.includes('sca') || cat.includes('CONFIGURATION')) return { category: 'Configuration / Compliance', subcategory: 'SCA / CIS Benchmark' };
+      return { category: 'Configuration / Compliance', subcategory: 'Policy Violation' };
+    }
+
+    // 5. System / Availability
+    if (cat.includes('SYSTEM') || cat.includes('OPERATIONAL') || cat.includes('HEALTH') || cat.includes('CLOUD') || cat.includes('CONTAINER') || sub.includes('nginx') || sub.includes('web') || sub.includes('operational')) {
+      if (cat.includes('WEB_OPERATIONAL') || sub.includes('nginx') || sub.includes('web') || sub.includes('operational')) {
+        return { category: 'System / Availability', subcategory: 'Web Operational' };
+      }
+      if (cat.includes('CLOUD') || cat.includes('CONTAINER') || sub.includes('docker') || sub.includes('container')) {
+        return { category: 'System / Availability', subcategory: 'Cloud / Container Event' };
+      }
+      return { category: 'System / Availability', subcategory: 'Service Health / Error' };
+    }
+
+    // 6. Attack
+    if (cat.includes('ATTACK') || cat.includes('DISCOVERY') || cat.includes('LATERAL') || cat.includes('COMMAND') || sub.includes('attack')) {
+      if (sub.includes('recon') || sub.includes('scan') || cat.includes('DISCOVERY')) return { category: 'Attack', subcategory: 'Recon / Scan' };
+      if (sub.includes('lateral') || cat.includes('LATERAL_MOVEMENT')) return { category: 'Attack', subcategory: 'Lateral Movement' };
+      if (sub.includes('c2') || cat.includes('COMMAND_AND_CONTROL')) return { category: 'Attack', subcategory: 'Command & Control' };
+      if (sub.includes('exploit') || sub.includes('rce')) return { category: 'Attack', subcategory: 'Exploitation / RCE' };
+      return { category: 'Attack', subcategory: 'Web Attack' };
+    }
+
+    return { category: rawCat || 'System / Availability', subcategory: rawSubcat || 'Web Operational' };
+  };
+
   // Dedicated Tenant View & False Positive Tuning Tickets State (Mockup 1 & 2)
   const [selectedTenantView, setSelectedTenantView] = useState(null);
   const [apiTenants, setApiTenants] = useState([]);
@@ -729,17 +785,19 @@ export default function PolicyBundlesView({
           r.scope_definition?.interval_id ||
           (r.id === 'SUP-2026-004' ? 'agg_a6a3a89343674692a23a8420c95eecef' : (r.ticketId || r.id));
 
-        const clusterCategory = 
+        const rawClusterCat = 
           r.scope_definition?.category || 
           r.scopeDefinition?.category || 
-          r.category || 
-          'WEB_OPERATIONAL';
+          r.category;
 
-        const clusterSubcategory = 
+        const rawClusterSubcat = 
           r.scope_definition?.subcategory || 
           r.scopeDefinition?.subcategory || 
-          r.subcategory || 
-          'nginx, web';
+          r.subcategory;
+
+        const mappedTaxonomy = mapTo6CategoryTaxonomy(rawClusterCat, rawClusterSubcat);
+        const clusterCategory = mappedTaxonomy.category;
+        const clusterSubcategory = mappedTaxonomy.subcategory;
 
         const clusterAgent = 
           r.scope_definition?.agent || 
@@ -1720,13 +1778,13 @@ export default function PolicyBundlesView({
                                   </td>
 
                                   {/* 2. KATEGORI */}
-                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold uppercase text-slate-900 dark:text-white">
-                                    {item.category || 'WEB_OPERATIONAL'}
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
+                                    {item.category || 'System / Availability'}
                                   </td>
 
                                   {/* 3. SUB KATEGORI */}
                                   <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                    {item.subcategory || 'nginx, web'}
+                                    {item.subcategory || 'Web Operational'}
                                   </td>
 
                                   {/* 4. AGENT */}
