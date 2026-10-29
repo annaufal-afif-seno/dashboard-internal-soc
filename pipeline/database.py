@@ -763,7 +763,7 @@ class DatabaseManager:
         if not evidence_links:
             return 0
         query = """
-        INSERT INTO aggregate_evidence_mapping (aggregation_id, raw_event_id, event_timestamp)
+        INSERT INTO suppression.aggregate_evidence_mapping (aggregation_id, raw_event_id, event_timestamp)
         VALUES %s
         ON CONFLICT (aggregation_id, raw_event_id) DO NOTHING;
         """

@@ -22,9 +22,81 @@ import sys
 import time
 import json
 import signal
+import hashlib
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
+
+def build_standalone_p4_ticket(c_agg: Dict[str, Any]) -> Dict[str, Any]:
+    agg_id = c_agg.get("aggregation_id")
+    tenant_id = c_agg.get("tenant_id") or "DEFAULT"
+    actor = c_agg.get("actor") or c_agg.get("source_ip") or "NO_ACTOR"
+    target = c_agg.get("target") or c_agg.get("agent_name") or f"agent-{c_agg.get('agent_id', '000')}"
+    w_start = c_agg.get("window_start") or datetime.now(timezone.utc)
+    w_end = c_agg.get("window_end") or w_start
+    rdesc = c_agg.get("rule_description") or "Security Alert Window"
+    rid = c_agg.get("rule_id", 0)
+    cat = c_agg.get("category") or "SYSTEM_HEALTH"
+    ev_count = c_agg.get("event_count", 1)
+
+    inc_hash = hashlib.md5(f"P4_{agg_id}_{actor}_{target}".encode()).hexdigest()[:16].upper()
+    incident_id = f"INC-P4-{inc_hash}"
+    triage_id = f"TRG-P4-{inc_hash}"
+    sla_deadline = (w_start + timedelta(days=7)) if isinstance(w_start, datetime) else None
+
+    return {
+        "incident_id": incident_id,
+        "triage_id": triage_id,
+        "correlation_rule_id": "CORR-ENTITY",
+        "tenant_id": tenant_id,
+        "title": f"[P4] Rule {rid}: {rdesc[:70]} on {target} by {actor}",
+        "narrative": f"Operational triage cluster for [{target}] ({ev_count} events). Category: {cat}. Assigned P4 operational triage queue (7-day SLA).",
+        "initial_access_vector": "NETWORK_EXPLOITATION",
+        "attacker_source_ip": actor if not str(actor).startswith(("proc:", "service:", "user:", "NO_ACTOR")) else None,
+        "compromised_account": actor[5:] if str(actor).startswith("user:") else None,
+        "target_host": target,
+        "incident_status": "DETECTED",
+        "priority": "P4",
+        "triage_status": "OPEN",
+        "first_seen_at": w_start,
+        "last_seen_at": w_end,
+        "priority_established_at": w_start,
+        "sla_deadline": sla_deadline,
+        "sla_minutes": 10080,
+        "stages": [
+            {
+                "incident_id": incident_id,
+                "sequence_order": 1,
+                "stage_name": cat,
+                "reference_id": agg_id,
+                "evidence_type": "AGGREGATED_ALERT",
+                "stage_description": f"Cluster: Rule {rid} ({rdesc[:60]})",
+                "recorded_at": w_start
+            }
+        ],
+        "ticket_aggregates": [
+            {
+                "aggregation_id": agg_id,
+                "is_induk": True,
+                "is_escalation_trigger": False,
+                "added_at": w_start
+            }
+        ],
+        "triage_queue": {
+            "triage_id": triage_id,
+            "incident_id": incident_id,
+            "priority": "P4",
+            "triage_status": "OPEN",
+            "priority_established_at": w_start,
+            "first_detected_at": w_start,
+            "priority_changed_at": w_start,
+            "sla_deadline": sla_deadline,
+            "threat_intel_status": "AVAILABLE",
+            "ground_truth_status": "ACT NEED",
+            "tenant_id": tenant_id
+        }
+    }
+
 
 # Tambahkan root directory ke sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -239,14 +311,22 @@ def process_raw_stream_batch(
                 evidence_batch.append((agg_id, ev_id, ev_ts))
 
             incs = correlation.process_aggregate(c_agg)
-            for inc in incs:
-                if inc.get("_ticket_action") == "APPEND":
-                    continue
-                score_rec, factors, triage = scorer.evaluate_incident_risk(inc)
-                inc["calculated_score"] = score_rec
-                inc["risk_factors"] = factors
-                inc["triage_queue"] = triage
-                new_incidents.append(inc)
+            if not incs:
+                p4_inc = build_standalone_p4_ticket(c_agg)
+                score_rec, factors, triage = scorer.evaluate_incident_risk(p4_inc)
+                p4_inc["calculated_score"] = score_rec
+                p4_inc["risk_factors"] = factors
+                p4_inc["triage_queue"] = triage
+                new_incidents.append(p4_inc)
+            else:
+                for inc in incs:
+                    if inc.get("_ticket_action") == "APPEND":
+                        continue
+                    score_rec, factors, triage = scorer.evaluate_incident_risk(inc)
+                    inc["calculated_score"] = score_rec
+                    inc["risk_factors"] = factors
+                    inc["triage_queue"] = triage
+                    new_incidents.append(inc)
 
     # Simpan ke Database
     if norm_batch:
@@ -337,7 +417,38 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
     remaining = dedup.flush_all()
     if remaining:
         print(f"[*] Flushing {len(remaining)} in-flight aggregates ke database...")
+        rem_evidence = []
+        rem_incidents = []
+        for c_agg in remaining:
+            c_agg["is_suppressed"] = False
+            c_agg["status"] = "CLOSED"
+            agg_id = c_agg.get("aggregation_id")
+            for (ev_id, ev_ts) in c_agg.get("raw_evidence", []):
+                rem_evidence.append((agg_id, ev_id, ev_ts))
+
+            incs = correlation.process_aggregate(c_agg)
+            if not incs:
+                p4_inc = build_standalone_p4_ticket(c_agg)
+                score_rec, factors, triage = scorer.evaluate_incident_risk(p4_inc)
+                p4_inc["calculated_score"] = score_rec
+                p4_inc["risk_factors"] = factors
+                p4_inc["triage_queue"] = triage
+                rem_incidents.append(p4_inc)
+            else:
+                for inc in incs:
+                    if inc.get("_ticket_action") == "APPEND":
+                        continue
+                    score_rec, factors, triage = scorer.evaluate_incident_risk(inc)
+                    inc["calculated_score"] = score_rec
+                    inc["risk_factors"] = factors
+                    inc["triage_queue"] = triage
+                    rem_incidents.append(inc)
+
         db.bulk_upsert_aggregated_alerts(remaining)
+        if rem_evidence:
+            db.bulk_insert_evidence_mapping(rem_evidence)
+        if rem_incidents:
+            db.bulk_insert_incidents_and_triage(rem_incidents)
 
     # Perbarui view EDF SLA
     try:

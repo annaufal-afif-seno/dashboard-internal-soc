@@ -1732,6 +1732,20 @@ class CorrelationEngine:
                         ),
                     )
 
+                    # Also insert into soc_ops.ticket_aggregates so lineage is 100% complete
+                    cur.execute(
+                        """
+                        INSERT INTO soc_ops.ticket_aggregates
+                            (ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at)
+                        VALUES (
+                            COALESCE((SELECT triage_id FROM soc_ops.soc_triage_queue WHERE incident_id = %s LIMIT 1), %s),
+                            %s, %s, %s, %s
+                        )
+                        ON CONFLICT (ticket_id, aggregation_id) DO NOTHING;
+                        """,
+                        (incident_id, incident_id, agg_id, False, False, last_naive),
+                    )
+
                     # 3. Fetch all stages and re-evaluate stateful priority
                     cur.execute(
                         """

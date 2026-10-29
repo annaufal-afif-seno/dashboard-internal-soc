@@ -1859,7 +1859,7 @@ def get_raw_alerts(
                 logger.warning(f"Error querying aggregate lineage: {le}")
 
             # Dynamic relational resolution for unmapped events (optimized windowed lookup)
-            unresolved = [r for r in rows if r["event_id"] not in lineage_map or not lineage_map[r["event_id"]].get("aggregation_id")][:10]
+            unresolved = [r for r in rows if r["event_id"] not in lineage_map or not lineage_map[r["event_id"]].get("aggregation_id")]
             for r in unresolved:
                 eid = r["event_id"]
                 ts = r["timestamp"]
@@ -1884,10 +1884,41 @@ def get_raw_alerts(
                     """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("target"), r.get("actor"), ts, ts, ts))
                     m_row = cur.fetchone()
                     if m_row and m_row.get("aggregation_id"):
+                        ticket_val = m_row.get("ticket_id")
+                        if not ticket_val:
+                            agg_id_val = m_row["aggregation_id"]
+                            h = hashlib.md5(f"P4_{agg_id_val}".encode()).hexdigest()[:16].upper()
+                            ticket_val = f"TRG-P4-{h}"
+                            inc_id_val = f"INC-P4-{h}"
+                            try:
+                                cur.execute("""
+                                    INSERT INTO correlation.correlated_incidents (
+                                        incident_id, correlation_rule_id, tenant_id, title, narrative,
+                                        incident_status, first_seen_at, last_seen_at
+                                    ) VALUES (%s, 'CORR-ENTITY', %s, %s, %s, 'DETECTED', %s, %s)
+                                    ON CONFLICT (incident_id) DO NOTHING;
+                                """, (inc_id_val, r.get("tenant_id", "DEFAULT"), f"[P4] Operational Cluster for Rule {r.get('rule_id')}", "Auto-linked operational triage ticket.", ts, ts))
+                                cur.execute("""
+                                    INSERT INTO soc_ops.soc_triage_queue (
+                                        triage_id, incident_id, priority, triage_status,
+                                        priority_established_at, first_detected_at, priority_changed_at,
+                                        sla_deadline, threat_intel_status, ground_truth_status, tenant_id
+                                    ) VALUES (%s, %s, 'P4', 'OPEN', %s, %s, %s, %s + interval '7 days', 'AVAILABLE', 'ACT NEED', %s)
+                                    ON CONFLICT (triage_id) DO NOTHING;
+                                """, (ticket_val, inc_id_val, ts, ts, ts, ts, r.get("tenant_id", "DEFAULT")))
+                                cur.execute("""
+                                    INSERT INTO soc_ops.ticket_aggregates (
+                                        ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at
+                                    ) VALUES (%s, %s, true, false, %s)
+                                    ON CONFLICT (ticket_id, aggregation_id) DO NOTHING;
+                                """, (ticket_val, agg_id_val, ts))
+                            except Exception:
+                                pass
+
                         lineage_map[eid] = {
                             "aggregation_id": m_row["aggregation_id"],
                             "cumulative_id": m_row.get("cumulative_id"),
-                            "ticket_id": m_row.get("ticket_id")
+                            "ticket_id": ticket_val
                         }
                         try:
                             cur.execute("""
