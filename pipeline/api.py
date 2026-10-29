@@ -1928,12 +1928,13 @@ def get_raw_alerts(
                         LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
                         WHERE (ag.tenant_id = %s OR %s IS NULL)
                           AND (ag.rule_id = %s OR %s IS NULL)
-                          AND (ag.actor = %s OR ag.target = %s OR %s IS NULL)
+                          AND (ag.actor = %s OR %s IS NULL)
+                          AND (ag.target = %s OR %s IS NULL)
                           AND ag.window_start >= (%s::timestamptz - interval '7 days')
                           AND ag.window_start <= (%s::timestamptz + interval '7 days')
                         ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                         LIMIT 1;
-                    """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("target"), r.get("actor"), ts, ts, ts))
+                    """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("actor"), r.get("target"), r.get("target"), ts, ts, ts))
                     m_row = cur.fetchone()
                     if m_row and m_row.get("aggregation_id"):
                         ticket_val = m_row.get("ticket_id")
@@ -2080,7 +2081,7 @@ def get_raw_alert_lineage(
             
         # Fallback: dynamically find real matching aggregated_alert
         cur.execute("""
-            SELECT r.event_id, r.timestamp, r.tenant_id, r.source_ip, r.agent_name, n.rule_id
+            SELECT r.event_id, r.timestamp, r.tenant_id, r.source_ip, r.username, r.agent_name, n.rule_id
             FROM telemetry.raw_events r
             LEFT JOIN LATERAL (
                 SELECT rule_id, rule_level, rule_description
@@ -2093,6 +2094,7 @@ def get_raw_alert_lineage(
         """, (event_id,))
         raw_row = cur.fetchone()
         if raw_row:
+            actor_val = raw_row.get("source_ip") or (f"user:{raw_row.get('username')}" if raw_row.get("username") and raw_row.get("username") != "none" else None) or "NO_ACTOR"
             cur.execute("""
                 SELECT 
                     ag.aggregation_id,
@@ -2105,10 +2107,11 @@ def get_raw_alert_lineage(
                 LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
                 WHERE (ag.tenant_id = %s OR %s IS NULL)
                   AND (ag.rule_id = %s OR %s IS NULL)
-                  AND (ag.actor = %s OR ag.target = %s OR %s IS NULL)
+                  AND (ag.actor = %s OR %s IS NULL)
+                  AND (ag.target = %s OR %s IS NULL)
                 ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                 LIMIT 1;
-            """, (raw_row.get("tenant_id"), raw_row.get("tenant_id"), raw_row.get("rule_id"), raw_row.get("rule_id"), raw_row.get("source_ip"), raw_row.get("agent_name"), raw_row.get("source_ip"), raw_row.get("timestamp")))
+            """, (raw_row.get("tenant_id"), raw_row.get("tenant_id"), raw_row.get("rule_id"), raw_row.get("rule_id"), actor_val, actor_val, raw_row.get("agent_name"), raw_row.get("agent_name"), raw_row.get("timestamp")))
             match_row = cur.fetchone()
             if match_row and match_row.get("aggregation_id"):
                 try:
