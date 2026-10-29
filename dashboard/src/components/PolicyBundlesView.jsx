@@ -576,225 +576,159 @@ export default function PolicyBundlesView({
     });
   }, [apiTenants, activeTuningRequests, rules, groups]);
 
-  // Helper for Mockup 2: items for selected tenant
+  // Helper for Mockup 2: items for selected tenant based on strict origin
   const getTenantTableItems = (tenantName, mode = bundleFilterMode) => {
     if (!tenantName) return [];
 
     const isAppliedInSession = !!sessionAppliedTenants[tenantName];
 
-    // Rules for this tenant
+    // Filter rules specific to this tenant
     const tRules = rules.filter(r => {
-      const t = r.tenantId || r.tenant_id || 'DEFAULT';
+      const t = r.tenantId || r.tenant_id || r.scopeDefinition?.tenant_id || r.scope_definition?.tenant_id;
       return t === tenantName || (tenantName === 'TenantA' && t === 'DEFAULT');
     });
 
-    // Approved tickets for this tenant (originating from approved false positives)
-    const reqs = activeTuningRequests.filter(req => {
-      const t = req.tenant_id || req.tenant || 'DEFAULT';
-      const matches = t === tenantName || (tenantName === 'TenantA' && t === 'DEFAULT');
-      if (!matches) return false;
+    // -------------------------------------------------------------
+    // SUB-FILTER 1: BY CLUSTER
+    // HANYA memuat kluster yang SUDAH DI-FLAG dari fitur Clustering!
+    // -------------------------------------------------------------
+    if (mode === 'cluster') {
+      const clusterItems = [];
+      tRules.forEach((r, idx) => {
+        const isClusterFlag = 
+          r.origin === 'cluster' ||
+          r.scopeDefinition?.agent || 
+          r.scope_definition?.agent || 
+          r.scopeDefinition?.rule_id || 
+          r.scope_definition?.rule_id || 
+          (r.name && (r.name.toLowerCase().includes('cluster') || r.name.toLowerCase().includes('noise proposal')));
+        
+        if (!isClusterFlag) return;
 
-      const dec = decisionMap[req.triage_id] || decisionMap[req.incident_id];
-      if (dec && (dec.status === 'reject' || dec.status === 'REJECT')) return false;
-
-      const isApprovedInDecision = dec && (dec.status === 'approve' || dec.status === 'APPROVED');
-      const isApprovedInReq = req.is_approved || String(req.fp_status || '').toLowerCase() === 'approve' || String(req.triage_status || '').toUpperCase() === 'APPROVED';
-      const hasLinkedRule = !!req.existing_suppression_id || tRules.some(r => 
-        r.ticketId === req.triage_id || 
-        r.ticketId === req.incident_id ||
-        r.id === req.existing_suppression_id ||
-        r.id === req.suppression_id ||
-        r.scopeDefinition?.referenced_ticket_id === req.triage_id
-      );
-
-      return isApprovedInDecision || isApprovedInReq || hasLinkedRule;
-    });
-
-    const items = [];
-
-    // Map requests
-    reqs.forEach((req, idx) => {
-      const linkedRule = tRules.find(r => 
-        r.ticketId === req.triage_id || 
-        r.ticketId === req.incident_id ||
-        r.id === req.existing_suppression_id ||
-        r.id === req.suppression_id ||
-        r.scopeDefinition?.referenced_ticket_id === req.triage_id
-      );
-
-      const itemKey = req.triage_id || req.incident_id || req.suppression_id || `SUP-${idx}`;
-
-      // 1. Expiration check: check custom expiration or DB expiration
-      let isExpired = false;
-      const currentExpDate = itemExpirations[itemKey] || linkedRule?.expires_date || linkedRule?.expiration || req.expires_date;
-      if (currentExpDate) {
-        const expObj = new Date(currentExpDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (expObj <= today) {
-          isExpired = true;
-        }
-      } else if (linkedRule) {
-        if ((linkedRule.daysRemaining !== undefined && linkedRule.daysRemaining <= 0) || linkedRule.status === 'EXPIRED') {
-          isExpired = true;
-        }
-      }
-
-      // 2. Lifecycle Status: FP approved -> default APPROVE; toggle ON -> DEPLOY; expired -> EXPIRED
-      let itemStatus = 'APPROVE';
-      if (isExpired) {
-        itemStatus = 'EXPIRED';
-      } else if (itemDeployToggles[itemKey] !== undefined) {
-        itemStatus = itemDeployToggles[itemKey] ? 'DEPLOY' : 'APPROVE';
-      } else if (isAppliedInSession) {
-        itemStatus = 'DEPLOY';
-      } else if (linkedRule?.status === 'ACTIVE' || linkedRule?.status === 'DEPLOY' || linkedRule?.status === 'TUNED_IN_WAZUH_XML') {
-        itemStatus = 'DEPLOY';
-      } else {
-        itemStatus = 'APPROVE';
-      }
-
-      // Classification label without S1-S5 prefix (cukup FALSE POSITIVE, KNOWN GOOD, dll)
-      let classi = 'FALSE POSITIVE';
-      const rLower = (req.false_positive_reason || '').toLowerCase();
-      if (rLower.includes('known') || rLower.includes('healthcheck') || rLower.includes('benign')) {
-        classi = 'KNOWN GOOD';
-      } else if (rLower.includes('admin') || rLower.includes('sudo') || rLower.includes('elevat')) {
-        classi = 'CONDITIONAL';
-      } else if (rLower.includes('scanner') || rLower.includes('pentest')) {
-        classi = 'EXCEPTION';
-      } else if (rLower.includes('maint') || rLower.includes('patch')) {
-        classi = 'MAINTENANCE';
-      }
-
-      items.push({
-        id: req.suppression_id || req.triage_id || `SUP-2026-${100 + idx}`,
-        ticketNo: req.triage_id || req.incident_id || `TRG-${tenantName}-${idx + 1}`,
-        incidentTitle: req.judul_insiden || 'Security Incident Tuning',
-        classi,
-        actor: req.attacker_source_ip && req.attacker_source_ip !== '-' ? req.attacker_source_ip : 'Internal / N/A',
-        target: req.target_host && req.target_host !== '-' ? req.target_host : '-',
-        status: itemStatus,
-        isExpired,
-        expirationDate: currentExpDate,
-        sids: req.rule_ids && req.rule_ids.length > 0 ? req.rule_ids : (req.sids || [5502, 5501]),
-        raw: req,
-        isRule: false
-      });
-    });
-
-    // Also include any rules in tRules not already matched
-    tRules.forEach((r, idx) => {
-      const exists = items.some(it => it.id === r.id || it.ticketNo === r.ticketId);
-      if (!exists) {
-        const ruleKey = r.ticketId || r.id || `RULE-${idx}`;
+        const ruleKey = r.ticketId || r.id || `CLUSTER-${idx}`;
         let isExp = false;
         const currentExpDate = itemExpirations[ruleKey] || r.expires_date || r.expiration;
         if (currentExpDate) {
           const expObj = new Date(currentExpDate);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          if (expObj <= today) {
-            isExp = true;
-          }
-        } else if ((r.daysRemaining !== undefined && r.daysRemaining <= 0) || r.status === 'EXPIRED') {
-          isExp = true;
+          if (expObj <= today) isExp = true;
         }
 
-        let ruleStatus = 'APPROVE';
+        // Status awal adalah WAITING (usulan baru masuk), kecuali analis menyetujui / men-deploy
+        let ruleStatus = 'WAITING';
         if (isExp) {
           ruleStatus = 'EXPIRED';
         } else if (itemDeployToggles[ruleKey] !== undefined) {
-          ruleStatus = itemDeployToggles[ruleKey] ? 'DEPLOY' : 'APPROVE';
+          ruleStatus = itemDeployToggles[ruleKey] ? 'DEPLOY' : 'WAITING';
         } else if (isAppliedInSession) {
           ruleStatus = 'DEPLOY';
-        } else if (r.status === 'ACTIVE' || r.status === 'DEPLOY' || r.status === 'TUNED_IN_WAZUH_XML') {
+        } else if (r.status === 'DEPLOY') {
           ruleStatus = 'DEPLOY';
-        } else {
+        } else if (r.status === 'APPROVE') {
           ruleStatus = 'APPROVE';
         }
 
-        let classiRule = 'KNOWN GOOD';
-        if (r.classification) {
-          classiRule = r.classification.replace(/^S\d+\s*•\s*/i, '').replace(/^S\d+_/i, '').replace(/_/g, ' ').toUpperCase();
-        }
-
-        items.push({
-          id: r.id || `SUP-${idx}`,
+        clusterItems.push({
+          id: r.id || `CLUSTER-${tenantName}-${idx + 1}`,
           ticketNo: r.ticketId || r.id,
-          incidentTitle: r.name || 'Suppression Rule',
-          classi: classiRule,
-          actor: r.actorIp || 'Internal / N/A',
-          target: r.targetHost || '-',
+          incidentTitle: r.name || 'Cluster Noise Proposal',
+          classi: 'FALSE POSITIVE',
+          actor: r.actorIp || r.scope_definition?.actor || r.scopeDefinition?.actor || 'Internal / N/A',
+          target: r.targetHost || r.scope_definition?.agent || r.scopeDefinition?.agent || '-',
           status: ruleStatus,
           isExpired: isExp,
           expirationDate: currentExpDate,
-          sids: r.sids || [5501],
+          sids: r.sids || [r.scope_definition?.rule_id || 5501],
           raw: r,
-          isRule: true
+          isRule: true,
+          origin: 'cluster'
         });
-      }
-    });
-
-    if (mode === 'cluster') {
-      const clusterMap = new Map();
-      items.forEach((it) => {
-        const sidsKey = Array.isArray(it.sids) && it.sids.length > 0 ? it.sids.sort().join(',') : (it.raw?.rule_id || '0');
-        const key = `${sidsKey}_${it.target || '-'}_${it.actor || '-'}`;
-        if (!clusterMap.has(key)) {
-          clusterMap.set(key, {
-            ...it,
-            id: `CLUSTER-${tenantName}-${clusterMap.size + 1}`,
-            ticketNo: `Cluster: Rule ${sidsKey}`,
-            incidentTitle: `${it.incidentTitle || 'Cluster Policy'} (1 ticket)`,
-            ticketCount: 1,
-            ticketList: [it.ticketNo]
-          });
-        } else {
-          const c = clusterMap.get(key);
-          c.ticketCount += 1;
-          c.ticketList.push(it.ticketNo);
-          c.incidentTitle = `${c.incidentTitle.replace(/ \(\d+ tickets?\)$/, '')} (${c.ticketCount} tickets)`;
-          if (it.status === 'DEPLOY') c.status = 'DEPLOY';
-          else if (it.status === 'EXPIRED' && c.status !== 'DEPLOY') c.status = 'EXPIRED';
-        }
       });
-      return Array.from(clusterMap.values());
+      return clusterItems;
     }
 
+    // -------------------------------------------------------------
+    // SUB-FILTER 2: BY TICKET
+    // HANYA memuat tiket yang MASUK dari proses Triage berstatus BENIGN!
+    // -------------------------------------------------------------
+    if (mode === 'ticket') {
+      const ticketItems = [];
+      const reqs = activeTuningRequests.filter(req => {
+        const t = req.tenant_id || req.tenant || 'DEFAULT';
+        return t === tenantName || (tenantName === 'TenantA' && t === 'DEFAULT');
+      });
+
+      reqs.forEach((req, idx) => {
+        const itemKey = req.triage_id || req.incident_id || `TRG-${idx}`;
+        let isExp = false;
+        const currentExpDate = itemExpirations[itemKey] || req.expires_date;
+        if (currentExpDate) {
+          const expObj = new Date(currentExpDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (expObj <= today) isExp = true;
+        }
+
+        // Status tiket yang baru masuk adalah WAITING (belum di-approve atau di-deploy di Policy Bundle)
+        let itemStatus = 'WAITING';
+        if (isExp) {
+          itemStatus = 'EXPIRED';
+        } else if (itemDeployToggles[itemKey] !== undefined) {
+          itemStatus = itemDeployToggles[itemKey] ? 'DEPLOY' : 'WAITING';
+        } else if (isAppliedInSession) {
+          itemStatus = 'DEPLOY';
+        } else if (req.status === 'DEPLOY') {
+          itemStatus = 'DEPLOY';
+        } else if (req.is_approved_in_bundle || req.status === 'APPROVE') {
+          itemStatus = 'APPROVE';
+        }
+
+        let classi = 'FALSE POSITIVE';
+        const rLower = (req.false_positive_reason || '').toLowerCase();
+        if (rLower.includes('known') || rLower.includes('healthcheck') || rLower.includes('benign')) {
+          classi = 'KNOWN GOOD';
+        } else if (rLower.includes('admin') || rLower.includes('sudo') || rLower.includes('elevat')) {
+          classi = 'CONDITIONAL';
+        }
+
+        ticketItems.push({
+          id: req.suppression_id || req.triage_id || `SUP-${tenantName}-${idx + 1}`,
+          ticketNo: req.triage_id || req.incident_id || `TRG-${tenantName}-${idx + 1}`,
+          incidentTitle: req.judul_insiden || 'Security Incident Tuning',
+          classi,
+          actor: req.attacker_source_ip && req.attacker_source_ip !== '-' ? req.attacker_source_ip : 'Internal / N/A',
+          target: req.target_host && req.target_host !== '-' ? req.target_host : '-',
+          status: itemStatus,
+          isExpired: isExp,
+          expirationDate: currentExpDate,
+          sids: req.rule_ids && req.rule_ids.length > 0 ? req.rule_ids : [5502, 5501],
+          raw: req,
+          isRule: false,
+          origin: 'ticket'
+        });
+      });
+      return ticketItems;
+    }
+
+    // -------------------------------------------------------------
+    // SUB-FILTER 3: BY CAMPAIGN
+    // HANYA memuat kampanye yang MASUK dari proses Threat Campaign!
+    // -------------------------------------------------------------
     if (mode === 'campaign') {
-      const campaignMap = new Map();
-      items.forEach((it) => {
-        const campKey = it.actor && it.actor !== '-' && it.actor !== 'Internal / N/A' ? it.actor : (it.target || 'Default Campaign');
-        if (!campaignMap.has(campKey)) {
-          campaignMap.set(campKey, {
-            ...it,
-            id: `CAMP-${tenantName}-${campaignMap.size + 1}`,
-            ticketNo: `Campaign: ${campKey}`,
-            incidentTitle: `Threat Activity from ${campKey} (1 ticket on ${it.target})`,
-            ticketCount: 1,
-            targets: new Set([it.target]),
-            ticketList: [it.ticketNo]
-          });
-        } else {
-          const camp = campaignMap.get(campKey);
-          camp.ticketCount += 1;
-          camp.targets.add(it.target);
-          camp.ticketList.push(it.ticketNo);
-          camp.incidentTitle = `Threat Activity from ${campKey} (${camp.ticketCount} tickets on ${camp.targets.size} targets)`;
-          if (it.status === 'DEPLOY') camp.status = 'DEPLOY';
-          else if (it.status === 'EXPIRED' && camp.status !== 'DEPLOY') camp.status = 'EXPIRED';
-        }
-      });
-      return Array.from(campaignMap.values());
+      // Kondisi nyata: belum ada kampanye yang di-flag / diapprove benign
+      return [];
     }
 
-    return items;
+    return [];
   };
 
-  // Calculate real metrics for Mockup 1 (supports by cluster, by ticket, by campaign)
+  // Calculate real metrics for Mockup 1:
+  // - totalCount: Jumlah yang masuk per sub-filter (by cluster, by ticket, by campaign)
+  // - deployCount: Berapa yang sudah di-deploy (default 0 jika belum ada yang di-deploy)
+  // - approveCount: Berapa yang sudah di-approve (default 0 jika belum ada yang di-approve)
+  // - expiredCount: Berapa yang sudah kedaluwarsa (default 0 jika belum ada yang expired)
   const getTenantStats = (tenantName) => {
-    const rawItems = getTenantTableItems(tenantName, 'ticket');
     const items = getTenantTableItems(tenantName, bundleFilterMode);
     const deployCount = items.filter(it => it.status === 'DEPLOY').length;
     const approveCount = items.filter(it => it.status === 'APPROVE').length;
@@ -806,13 +740,12 @@ export default function PolicyBundlesView({
 
     return {
       modeLabel,
-      totalCount: items.length,
-      totalTickets: rawItems.length,
-      deployCount,
-      approveCount,
-      expiredCount,
+      totalCount: items.length, // JUMLAH YANG MASUK
+      deployCount,              // SUDAH DEPLOY (0 jika belum ada)
+      approveCount,             // SUDAH APPROVE (0 jika belum ada)
+      expiredCount,             // EXPIRED (0 jika belum ada)
       activeCount: deployCount,
-      waitingCount: approveCount
+      waitingCount: items.filter(it => it.status === 'WAITING').length
     };
   };
 
@@ -1498,7 +1431,7 @@ export default function PolicyBundlesView({
                                 <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                   APPROVE
                                 </span>
-                              ) : (
+                              ) : item.status === 'EXPIRED' ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1512,6 +1445,10 @@ export default function PolicyBundlesView({
                                 >
                                   EXPIRED
                                 </button>
+                              ) : (
+                                <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                  WAITING
+                                </span>
                               )}
                             </td>
 
