@@ -2595,22 +2595,15 @@ export default function ClusteringOverview({
       {/* SUPPRESSION FORM MODAL (Formulir Supresi dari Icon Bendera Merah) */}
       {showSuppressionModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className={`${isDark ? 'bg-[#0b0f19] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} border rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in duration-150`}>
+          <div style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }} className={`${isDark ? 'bg-[#0b0f19] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} border rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in duration-150`}>
             
             {/* Modal Header */}
             <div className={`flex items-center justify-between border-b pb-3.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
-                  <Flag className="w-4 h-4 fill-red-500" />
-                </div>
-                <div>
-                  <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Alert Suppression Form
-                  </h3>
-                  <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Configure suppression policy based on 5 cluster dimensions & SLA
-                  </p>
-                </div>
+                <Flag className="w-5 h-5 fill-red-500 text-red-500 shrink-0" />
+                <h3 className={`text-base font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Cluster Suppression Form
+                </h3>
               </div>
               <button
                 type="button"
