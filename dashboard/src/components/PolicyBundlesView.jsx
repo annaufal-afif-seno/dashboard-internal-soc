@@ -38,6 +38,10 @@ export default function PolicyBundlesView({
   const [clusterAlertsMap, setClusterAlertsMap] = useState({});
   const [clusterAlertsLoading, setClusterAlertsLoading] = useState({});
 
+  const [expandedClusterId, setExpandedClusterId] = useState(null);
+  const [clusterLogsMap, setClusterLogsMap] = useState({});
+  const [loadingClusterLogs, setLoadingClusterLogs] = useState(false);
+
   const toggleExpandTicket = async (ticketId) => {
     if (!ticketId) return;
     const isCurrentlyExpanded = !expandedTicketIds[ticketId];
