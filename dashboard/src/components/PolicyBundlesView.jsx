@@ -1113,7 +1113,7 @@ export default function PolicyBundlesView({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}>
       {/* Toast Notification */}
       {toast && (
         <div className={`p-3 rounded-lg text-xs flex items-center justify-between shadow-lg border ${
