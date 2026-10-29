@@ -8,11 +8,11 @@ import {
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 
 const defaultReductionData = [
-  { day: 'Oct 15', ingest: 15, ingested: 15, suppressed: 0, aggregate: 15, aggregated: 15, ticket: 15, ticketing: 15, threat: 0, groundtruth: 0, raw: 15, visible: 30 },
-  { day: 'Oct 16', ingest: 2928, ingested: 2928, suppressed: 0, aggregate: 305, aggregated: 305, ticket: 218, ticketing: 218, threat: 9, groundtruth: 0, raw: 2928, visible: 523 },
-  { day: 'Oct 17', ingest: 900, ingested: 900, suppressed: 0, aggregate: 174, aggregated: 174, ticket: 75, ticketing: 75, threat: 0, groundtruth: 0, raw: 900, visible: 249 },
-  { day: 'Oct 18', ingest: 510, ingested: 510, suppressed: 0, aggregate: 157, aggregated: 157, ticket: 10, ticketing: 10, threat: 0, groundtruth: 0, raw: 510, visible: 167 },
-  { day: 'Oct 19', ingest: 1035, ingested: 1035, suppressed: 0, aggregate: 58, aggregated: 58, ticket: 23, ticketing: 23, threat: 3, groundtruth: 23, raw: 1035, visible: 81 },
+  { day: 'Oct 15', ingest: 15, ingested: 15, suppressed: 0, aggregate: 15, aggregated: 15, ticket: 15, ticketing: 15, threat: 0, groundtruth: 0, campaign: 0, raw: 15, visible: 30 },
+  { day: 'Oct 16', ingest: 2928, ingested: 2928, suppressed: 0, aggregate: 305, aggregated: 305, ticket: 218, ticketing: 218, threat: 9, groundtruth: 0, campaign: 7, raw: 2928, visible: 523 },
+  { day: 'Oct 17', ingest: 900, ingested: 900, suppressed: 0, aggregate: 174, aggregated: 174, ticket: 75, ticketing: 75, threat: 0, groundtruth: 0, campaign: 3, raw: 900, visible: 249 },
+  { day: 'Oct 18', ingest: 510, ingested: 510, suppressed: 0, aggregate: 157, aggregated: 157, ticket: 10, ticketing: 10, threat: 0, groundtruth: 0, campaign: 3, raw: 510, visible: 167 },
+  { day: 'Oct 19', ingest: 1035, ingested: 1035, suppressed: 0, aggregate: 58, aggregated: 58, ticket: 23, ticketing: 23, threat: 3, groundtruth: 23, campaign: 5, raw: 1035, visible: 81 },
 ];
 
 const defaultPriorityData = [
@@ -344,6 +344,7 @@ export default function PipelineOverview({
     const tickVal = d.ticket ?? d.ticketing ?? d.correlated ?? 0;
     const thrVal = d.threat ?? Math.round((d.correlated || 0) * 0.12);
     const gtVal = d.groundtruth ?? (d.gt ?? Math.round((d.threat || 0) * 0.8));
+    const campVal = d.campaign ?? d.campaigns ?? 0;
     return {
       ...d,
       ingest: rawVal,
@@ -353,7 +354,8 @@ export default function PipelineOverview({
       ticket: tickVal,
       ticketing: tickVal,
       threat: thrVal,
-      groundtruth: gtVal
+      groundtruth: gtVal,
+      campaign: campVal
     };
   });
 
@@ -577,7 +579,7 @@ export default function PipelineOverview({
 
       {/* Main Visualizations Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left: Volume Trend with 5 Stages */}
+        {/* Left: Volume Trend with 6 Stages */}
         <div className={`lg:col-span-8 p-5 border rounded-xl flex flex-col justify-between transition-colors ${
           isDark ? 'bg-[#0a0e1a] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
         }`}>
@@ -601,6 +603,9 @@ export default function PipelineOverview({
                 </span>
                 <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <span className="w-2.5 h-1 rounded-full bg-[#10b981]"></span> Groundtruth
+                </span>
+                <span className={`flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  <span className="w-2.5 h-1 rounded-full bg-[#a855f7]"></span> Campaign
                 </span>
               </div>
             </div>
@@ -631,6 +636,7 @@ export default function PipelineOverview({
                 <Area type="monotone" dataKey="ticket" name="Ticket" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="threat" name="Incident" stroke="#f43f5e" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="groundtruth" name="Groundtruth" stroke="#10b981" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="campaign" name="Campaign" stroke="#a855f7" strokeWidth={2} fillOpacity={0} dot={false} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
