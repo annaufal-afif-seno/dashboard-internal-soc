@@ -248,7 +248,7 @@ export default function PolicyBundlesView({
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('/api/suppression/tuning-requests');
+      const res = await fetch('/api/suppression/tuning-requests?limit=2000');
       if (res.ok) {
         const data = await res.json();
         setInternalTuningRequests(data.requests || []);
@@ -1227,7 +1227,7 @@ export default function PolicyBundlesView({
       {!selectedTenantView && (
         <div className="space-y-4">
           {/* Filter Toggle: by cluster | by ticket | by campaign */}
-          <div className="flex items-center justify-between pb-1">
+          <div className="flex items-center justify-center pb-1">
             <div className={`p-1 rounded-xl border flex items-center gap-1 shrink-0 ${
               isDark ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-200/90'
             }`}>
