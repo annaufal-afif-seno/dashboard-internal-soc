@@ -526,7 +526,7 @@ export default function RawAlertsQueue({
                       }
                     }}
 
-                    placeholder="Search ID, IP, Host, Rule, agg_..., cum_..., TRG-..."
+                    placeholder="Search ID, IP, Host, Rule, agg_..., cum_..., TRG-..., CAMP-..."
 
                     className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs sm:text-[13px] font-normal focus:outline-none"
 
@@ -1452,6 +1452,41 @@ export default function RawAlertsQueue({
                     title={selectedAlert.ticket_id}
                   >
                     {selectedAlert.ticket_id || '-'}
+                  </span>
+                </div>
+
+                {/* CAMPAIGN ID */}
+                <div className={`p-2.5 rounded-lg border ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                      isDark ? 'text-slate-400' : 'text-slate-500'
+                    }`}>
+                      CAMPAIGN ID
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLog(selectedAlert.campaign_id, 'copy_camp')}
+                      className={`p-0.5 rounded cursor-pointer transition-colors ${
+                        isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
+                      }`}
+                      title="Salin Campaign ID"
+                    >
+                      {copiedId === 'copy_camp' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <span 
+                    className={`font-mono text-[11px] font-bold break-all block mt-1 select-all ${
+                      isDark ? 'text-white' : 'text-black'
+                    }`}
+                    title={selectedAlert.campaign_id}
+                  >
+                    {selectedAlert.campaign_id || '-'}
                   </span>
                 </div>
               </div>

@@ -818,6 +818,81 @@ def get_metrics_overview(
         else:
             total_gt = int(gt_counts.get("total_gt_window", 0) or 0)
 
+        # Daily campaigns mapping for trend chart (Active campaigns on that day/hour)
+        if is_specific_tenant:
+            if (range or "").strip().lower() in ("hari", "today", "day"):
+                cur.execute("""
+                    SELECT 
+                        to_char(h.h_wib, 'HH24:00') as key,
+                        COUNT(c.cluster_id) as campaign_count
+                    FROM (
+                        SELECT generate_series(
+                            (%s || ' 00:00:00')::timestamp,
+                            date_trunc('hour', (now() AT TIME ZONE 'Asia/Jakarta')),
+                            '1 hour'::interval
+                        ) AS h_wib
+                    ) h
+                    LEFT JOIN correlation.threat_campaign_clusters c ON (
+                        h.h_wib >= date_trunc('hour', c.first_activity_at AT TIME ZONE 'Asia/Jakarta')
+                        AND h.h_wib <= date_trunc('hour', c.last_activity_at AT TIME ZONE 'Asia/Jakarta')
+                        AND c.cluster_status != 'FALSE_CORRELATION'
+                        AND c.tenant_id = %s
+                    )
+                    GROUP BY h.h_wib;
+                """, (s_date, t_filter))
+            else:
+                cur.execute("""
+                    SELECT 
+                        to_char(d.d_date, 'Mon DD') as key,
+                        COUNT(c.cluster_id) as campaign_count
+                    FROM (
+                        SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date AS d_date
+                    ) d
+                    LEFT JOIN correlation.threat_campaign_clusters c ON (
+                        d.d_date >= (c.first_activity_at AT TIME ZONE 'Asia/Jakarta')::date 
+                        AND d.d_date <= (c.last_activity_at AT TIME ZONE 'Asia/Jakarta')::date
+                        AND c.cluster_status != 'FALSE_CORRELATION'
+                        AND c.tenant_id = %s
+                    )
+                    GROUP BY d.d_date;
+                """, (s_date, e_date, t_filter))
+        else:
+            if (range or "").strip().lower() in ("hari", "today", "day"):
+                cur.execute("""
+                    SELECT 
+                        to_char(h.h_wib, 'HH24:00') as key,
+                        COUNT(c.cluster_id) as campaign_count
+                    FROM (
+                        SELECT generate_series(
+                            (%s || ' 00:00:00')::timestamp,
+                            date_trunc('hour', (now() AT TIME ZONE 'Asia/Jakarta')),
+                            '1 hour'::interval
+                        ) AS h_wib
+                    ) h
+                    LEFT JOIN correlation.threat_campaign_clusters c ON (
+                        h.h_wib >= date_trunc('hour', c.first_activity_at AT TIME ZONE 'Asia/Jakarta')
+                        AND h.h_wib <= date_trunc('hour', c.last_activity_at AT TIME ZONE 'Asia/Jakarta')
+                        AND c.cluster_status != 'FALSE_CORRELATION'
+                    )
+                    GROUP BY h.h_wib;
+                """, (s_date,))
+            else:
+                cur.execute("""
+                    SELECT 
+                        to_char(d.d_date, 'Mon DD') as key,
+                        COUNT(c.cluster_id) as campaign_count
+                    FROM (
+                        SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date AS d_date
+                    ) d
+                    LEFT JOIN correlation.threat_campaign_clusters c ON (
+                        d.d_date >= (c.first_activity_at AT TIME ZONE 'Asia/Jakarta')::date 
+                        AND d.d_date <= (c.last_activity_at AT TIME ZONE 'Asia/Jakarta')::date
+                        AND c.cluster_status != 'FALSE_CORRELATION'
+                    )
+                    GROUP BY d.d_date;
+                """, (s_date, e_date))
+        campaigns_map = {r["key"]: int(r["campaign_count"]) for r in cur.fetchall()}
+
         reduction_data = []
         for d in daily_rows:
             ticket_val = int(d.get("correlated") or 0)
@@ -827,6 +902,7 @@ def get_metrics_overview(
             ingest_val = max(raw_ingest, agg_val)
             threat_val = min(int(threats_map.get(d["day"], 0)), ticket_val)
             gt_val = min(int(gt_map.get(d["day"], 0)), ticket_val)
+            camp_val = int(campaigns_map.get(d["day"], 0))
             reduction_data.append({
                 "day": d["day"],
                 "ingest": ingest_val,
@@ -841,6 +917,8 @@ def get_metrics_overview(
                 "ticketing": ticket_val,
                 "threat": threat_val,
                 "groundtruth": gt_val,
+                "campaign": camp_val,
+                "campaigns": camp_val,
                 "raw": ingest_val,
                 "visible": agg_val + ticket_val
             })
@@ -855,7 +933,7 @@ def get_metrics_overview(
                     "day": r["day"], "ingest": 0, "ingested": 0, "suppressed": 0,
                     "aggregate": 0, "aggregated": 0, "actionable": 0, "standalone": 0,
                     "correlated": 0, "ticket": 0, "ticketing": 0, "threat": 0,
-                    "groundtruth": 0, "raw": 0, "visible": 0
+                    "groundtruth": 0, "campaign": 0, "campaigns": 0, "raw": 0, "visible": 0
                 }
                 for r in cur.fetchall()
             ]
@@ -1059,17 +1137,28 @@ def get_metrics_overview(
             for r in live_feed_rows
         ]
 
-        # Total threat campaigns count
+        # Total threat campaigns count (Filtered to only CONFIRMED_THREAT and UNDER_INVESTIGATION, excluding BENIGN/FALSE_CORRELATION)
         try:
             if is_specific_tenant:
-                cur.execute("SELECT COUNT(*) as c_cnt FROM correlation.threat_campaign_clusters WHERE tenant_id = %s;", (t_filter,))
+                cur.execute("""
+                    SELECT COUNT(*) as c_cnt 
+                    FROM correlation.threat_campaign_clusters 
+                    WHERE tenant_id = %s 
+                      AND cluster_status IN ('CONFIRMED_THREAT', 'UNDER_INVESTIGATION')
+                      AND cluster_status != 'FALSE_CORRELATION';
+                """, (t_filter,))
             else:
-                cur.execute("SELECT COUNT(*) as c_cnt FROM correlation.threat_campaign_clusters;")
+                cur.execute("""
+                    SELECT COUNT(*) as c_cnt 
+                    FROM correlation.threat_campaign_clusters 
+                    WHERE cluster_status IN ('CONFIRMED_THREAT', 'UNDER_INVESTIGATION')
+                      AND cluster_status != 'FALSE_CORRELATION';
+                """)
             c_row = cur.fetchone()
-            total_campaigns = int(c_row["c_cnt"]) if c_row and c_row.get("c_cnt") is not None else 17
+            total_campaigns = int(c_row["c_cnt"]) if c_row and c_row.get("c_cnt") is not None else 13
         except Exception as ce:
             logger.warning(f"Error fetching total campaigns: {ce}")
-            total_campaigns = 17
+            total_campaigns = 13
 
         res_payload = {
             "total_raw_events": total_raw,
@@ -1706,6 +1795,13 @@ def get_raw_alerts(
                     WHERE cu.cumulative_id ILIKE %s
                 )""")
                 s_params.append(s)
+            elif raw_s.upper().startswith("CAMP-"):
+                s_conds.append("""r.event_id IN (
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                    JOIN correlation.cluster_members cm ON m.aggregation_id = cm.aggregation_id
+                    WHERE cm.cluster_id ILIKE %s
+                )""")
+                s_params.append(s)
             elif raw_s.upper().startswith("TRG-") or raw_s.upper().startswith("INC-"):
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
@@ -1734,8 +1830,12 @@ def get_raw_alerts(
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
                     JOIN correlation.incident_stages s ON m.aggregation_id = s.reference_id
                     WHERE s.incident_id ILIKE %s
+                    UNION
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                    JOIN correlation.cluster_members cm ON m.aggregation_id = cm.aggregation_id
+                    WHERE cm.cluster_id ILIKE %s
                 )""")
-                s_params.extend([s, s, s, s])
+                s_params.extend([s, s, s, s, s])
 
             where_clauses.append(f"({' OR '.join(s_conds)})")
             params.extend(s_params)
@@ -1903,16 +2003,26 @@ def get_raw_alerts(
                         m.raw_event_id,
                         m.aggregation_id,
                         cu.cumulative_id,
-                        COALESCE(ta.ticket_id, tq.triage_id, s.incident_id) as ticket_id
+                        (
+                            SELECT COALESCE(ta.ticket_id, tq.triage_id, s.incident_id)
+                            FROM soc_ops.ticket_aggregates ta
+                            LEFT JOIN soc_ops.soc_triage_queue tq ON ta.ticket_id = tq.triage_id
+                            LEFT JOIN correlation.incident_stages s ON ta.aggregation_id = s.reference_id
+                            WHERE ta.aggregation_id = m.aggregation_id
+                            LIMIT 1
+                        ) as ticket_id,
+                        (
+                            SELECT cm.cluster_id
+                            FROM correlation.cluster_members cm
+                            WHERE cm.aggregation_id = m.aggregation_id
+                            LIMIT 1
+                        ) as campaign_id
                     FROM suppression.aggregate_evidence_mapping m
                     LEFT JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
                     LEFT JOIN suppression.cumulative_alerts cu ON (
                         ag.deduplication_key = cu.deduplication_key 
                         OR (ag.tenant_id = cu.tenant_id AND ag.rule_id = cu.rule_id AND ag.target = cu.target AND (ag.actor = cu.actor OR ag.actor IS NULL OR cu.actor IS NULL OR ag.actor = 'NO_ACTOR' OR cu.actor = 'NO_ACTOR'))
                     )
-                    LEFT JOIN soc_ops.ticket_aggregates ta ON ag.aggregation_id = ta.aggregation_id
-                    LEFT JOIN correlation.incident_stages s ON ag.aggregation_id = s.reference_id
-                    LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
                     WHERE m.raw_event_id IN %s
                 """, (tuple(event_ids),))
                 for l_row in cur.fetchall():
@@ -1920,6 +2030,7 @@ def get_raw_alerts(
                     agg_val = l_row["aggregation_id"]
                     cum_val = l_row.get("cumulative_id")
                     tkt_val = l_row.get("ticket_id")
+                    camp_val = l_row.get("campaign_id")
                     if not tkt_val and agg_val:
                         h = hashlib.md5(f"P4_{agg_val}".encode()).hexdigest()[:16].upper()
                         tkt_val = f"TRG-P4-{h}"
@@ -1927,7 +2038,8 @@ def get_raw_alerts(
                         lineage_map[eid] = {
                             "aggregation_id": agg_val,
                             "cumulative_id": cum_val,
-                            "ticket_id": tkt_val
+                            "ticket_id": tkt_val,
+                            "campaign_id": camp_val
                         }
             except Exception as le:
                 logger.warning(f"Error querying aggregate lineage: {le}")
@@ -1948,15 +2060,25 @@ def get_raw_alerts(
                         SELECT 
                             ag.aggregation_id,
                             cu.cumulative_id,
-                            COALESCE(ta.ticket_id, tq.triage_id, s.incident_id) as ticket_id
+                            (
+                                SELECT COALESCE(ta.ticket_id, tq.triage_id, s.incident_id)
+                                FROM soc_ops.ticket_aggregates ta
+                                LEFT JOIN soc_ops.soc_triage_queue tq ON ta.ticket_id = tq.triage_id
+                                LEFT JOIN correlation.incident_stages s ON ta.aggregation_id = s.reference_id
+                                WHERE ta.aggregation_id = ag.aggregation_id
+                                LIMIT 1
+                            ) as ticket_id,
+                            (
+                                SELECT cm.cluster_id
+                                FROM correlation.cluster_members cm
+                                WHERE cm.aggregation_id = ag.aggregation_id
+                                LIMIT 1
+                            ) as campaign_id
                         FROM suppression.aggregated_alerts ag
                         LEFT JOIN suppression.cumulative_alerts cu ON (
                             ag.deduplication_key = cu.deduplication_key 
                             OR (ag.tenant_id = cu.tenant_id AND ag.rule_id = cu.rule_id AND ag.target = cu.target AND (ag.actor = cu.actor OR ag.actor IS NULL OR cu.actor IS NULL OR ag.actor = 'NO_ACTOR' OR cu.actor = 'NO_ACTOR'))
                         )
-                        LEFT JOIN soc_ops.ticket_aggregates ta ON ag.aggregation_id = ta.aggregation_id
-                        LEFT JOIN correlation.incident_stages s ON ag.aggregation_id = s.reference_id
-                        LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
                         WHERE (ag.tenant_id = %s OR %s IS NULL)
                           AND (ag.rule_id = %s OR %s IS NULL)
                           AND (ag.target = %s OR %s IS NULL)
@@ -1966,8 +2088,8 @@ def get_raw_alerts(
                               OR %s IS NULL
                               OR ag.actor IS NULL
                           )
-                          AND ag.window_start >= (%s::timestamptz - interval '7 days')
-                          AND ag.window_start <= (%s::timestamptz + interval '7 days')
+                          AND %s >= (ag.window_start - interval '30 seconds')
+                          AND %s <= (ag.window_end + interval '30 seconds')
                         ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                         LIMIT 1;
                     """, (tenant_id, tenant_id, rule_id, rule_id, target, target, actor, actor, actor, ts, ts, ts))
@@ -2008,7 +2130,8 @@ def get_raw_alerts(
                         lineage_map[eid] = {
                             "aggregation_id": agg_id_val,
                             "cumulative_id": cum_id_val,
-                            "ticket_id": ticket_val
+                            "ticket_id": ticket_val,
+                            "campaign_id": m_row.get("campaign_id") if m_row else None
                         }
                         try:
                             cur.execute("""
@@ -2140,7 +2263,8 @@ def get_raw_alerts(
                 "full_log": raw_log,
                 "aggregation_id": agg_id,
                 "cumulative_id": cum_id,
-                "ticket_id": ticket_id
+                "ticket_id": ticket_id,
+                "campaign_id": lin.get("campaign_id")
             })
 
         return {
@@ -2223,9 +2347,11 @@ def get_raw_alert_lineage(
                   AND (ag.rule_id = %s OR %s IS NULL)
                   AND (ag.actor = %s OR %s IS NULL)
                   AND (ag.target = %s OR %s IS NULL)
+                  AND %s >= (ag.window_start - interval '30 seconds')
+                  AND %s <= (ag.window_end + interval '30 seconds')
                 ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                 LIMIT 1;
-            """, (raw_row.get("tenant_id"), raw_row.get("tenant_id"), raw_row.get("rule_id"), raw_row.get("rule_id"), actor_val, actor_val, raw_row.get("agent_name"), raw_row.get("agent_name"), raw_row.get("timestamp")))
+            """, (raw_row.get("tenant_id"), raw_row.get("tenant_id"), raw_row.get("rule_id"), raw_row.get("rule_id"), actor_val, actor_val, raw_row.get("agent_name"), raw_row.get("agent_name"), raw_row.get("timestamp"), raw_row.get("timestamp"), raw_row.get("timestamp")))
             match_row = cur.fetchone()
             if match_row and match_row.get("aggregation_id"):
                 try:
@@ -2623,9 +2749,12 @@ def get_aggregate_full_logs(aggregation_id: str, conn = Depends(get_db_connectio
                         r.event_id, r.timestamp, r.source_ip, r.destination_ip, r.agent_name, r.username, r.raw_payload,
                         n.rule_id, n.rule_description
                     FROM suppression.aggregate_evidence_mapping m
+                    JOIN suppression.aggregated_alerts a ON m.aggregation_id = a.aggregation_id
                     JOIN telemetry.raw_events r ON m.raw_event_id = r.event_id
                     LEFT JOIN telemetry.normalized_events n ON r.event_id = n.raw_event_id
                     WHERE m.aggregation_id = %s
+                      AND r.timestamp BETWEEN (a.window_start - interval '30 seconds') AND (a.window_end + interval '30 seconds')
+                      AND (r.agent_name = a.target OR a.target IS NULL OR a.target = 'unknown')
                     ORDER BY r.event_id, r.timestamp ASC
                 ) sub
                 ORDER BY sub.timestamp ASC
