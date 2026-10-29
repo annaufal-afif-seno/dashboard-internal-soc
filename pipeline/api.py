@@ -1564,40 +1564,116 @@ def get_raw_alerts(
         if search and search.strip():
             raw_s = search.strip()
             s = f"%{raw_s}%"
-            if raw_s.upper() == "NO_ACTOR":
-                where_clauses.append("((r.source_ip IS NULL OR r.source_ip = '') AND (r.username IS NULL OR r.username = '' OR r.username = 'none'))")
-            elif raw_s.startswith("agg_"):
-                where_clauses.append('''r.event_id IN (
+            s_conds = []
+            s_params = []
+
+            # 1. Event ID (full or partial match)
+            s_conds.append("r.event_id ILIKE %s")
+            s_params.append(s)
+
+            # 2. Timestamp (WIB string "Oct 29, 09:15:47 WIB", ISO "2026-10-29", UK "29/10/2026", Month name "October")
+            s_conds.append("TO_CHAR(r.timestamp AT TIME ZONE 'Asia/Jakarta', 'Mon DD, HH24:MI:SS WIB YYYY-MM-DD DD/MM/YYYY HH12:MI:SS AM PM FMMonth') ILIKE %s")
+            s_params.append(s)
+
+            # 3. Tenant (e.g. DEFAULT, TenantD, etc.)
+            s_conds.append("r.tenant_id ILIKE %s")
+            s_params.append(s)
+
+            # 4. Rule ID (e.g. 5502, Rule 5502) and Rule Level (Lv 3, Level 5)
+            s_conds.append("CAST(n.rule_id AS TEXT) ILIKE %s")
+            s_params.append(s)
+
+            m_rule_digits = re.search(r'\b(\d+)\b', raw_s)
+            if m_rule_digits:
+                try:
+                    s_conds.append("n.rule_id = %s")
+                    s_params.append(int(m_rule_digits.group(1)))
+                except ValueError:
+                    pass
+
+            m_lv = re.search(r'(?:lv|level)\s*(\d+)', raw_s, re.IGNORECASE)
+            if m_lv:
+                try:
+                    s_conds.append("n.rule_level = %s")
+                    s_params.append(int(m_lv.group(1)))
+                except ValueError:
+                    pass
+
+            # 5. Rule Description
+            s_conds.append("n.rule_description ILIKE %s")
+            s_params.append(s)
+
+            # 6. Actor (source IP, username, 'user:root', NO_ACTOR)
+            s_conds.append("r.source_ip ILIKE %s")
+            s_params.append(s)
+            s_conds.append("r.username ILIKE %s")
+            s_params.append(s)
+            s_conds.append("('user:' || COALESCE(r.username, '')) ILIKE %s")
+            s_params.append(s)
+            if "NO_ACTOR" in raw_s.upper() or "NO ACTOR" in raw_s.upper():
+                s_conds.append("((r.source_ip IS NULL OR r.source_ip = '') AND (r.username IS NULL OR r.username = '' OR r.username = 'none'))")
+
+            # 7. Target (agent name, agent ID, agent IP, destination IP)
+            s_conds.append("r.agent_name ILIKE %s")
+            s_params.append(s)
+            s_conds.append("r.agent_id ILIKE %s")
+            s_params.append(s)
+            s_conds.append("r.agent_ip ILIKE %s")
+            s_params.append(s)
+            s_conds.append("r.destination_ip ILIKE %s")
+            s_params.append(s)
+
+            # 8. Full Log Payload (raw syslog/JSON string)
+            s_conds.append("r.raw_payload ILIKE %s")
+            s_params.append(s)
+
+            # 9. Lineage: Aggregation ID, Cumulative ID, Ticket ID
+            if raw_s.startswith("agg_"):
+                s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id ILIKE %s
-                )''')
-                params.append(s)
+                )""")
+                s_params.append(s)
             elif raw_s.startswith("cum_"):
-                where_clauses.append('''r.event_id IN (
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                s_conds.append("""r.event_id IN (
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
                     JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
                     JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
                     WHERE cu.cumulative_id ILIKE %s
-                )''')
-                params.append(s)
+                )""")
+                s_params.append(s)
             elif raw_s.startswith("TRG-") or raw_s.startswith("INC-"):
-                where_clauses.append('''r.event_id IN (
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                s_conds.append("""r.event_id IN (
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
                     JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id
                     WHERE ta.ticket_id ILIKE %s
-                )''')
-                params.append(s)
-            elif len(raw_s) == 20 and not re.search(r'\s', raw_s):
-                where_clauses.append("r.event_id = %s")
-                params.append(raw_s)
-            elif re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', raw_s):
-                where_clauses.append("(r.source_ip = %s OR r.destination_ip = %s)")
-                params.extend([raw_s, raw_s])
-            elif raw_s.isdigit():
-                where_clauses.append("(r.event_id ILIKE %s OR r.source_ip ILIKE %s OR r.agent_name ILIKE %s OR n.rule_id = %s)")
-                params.extend([s, s, s, int(raw_s)])
+                    UNION
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                    JOIN correlation.incident_stages s ON m.aggregation_id = s.reference_id
+                    WHERE s.incident_id ILIKE %s
+                )""")
+                s_params.extend([s, s])
             else:
-                where_clauses.append("(r.event_id ILIKE %s OR r.source_ip ILIKE %s OR r.agent_name ILIKE %s OR r.username ILIKE %s)")
-                params.extend([s, s, s, s])
+                # General term or partial lineage ID without prefix
+                s_conds.append("""r.event_id IN (
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id ILIKE %s
+                    UNION
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
+                    JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
+                    JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
+                    WHERE cu.cumulative_id ILIKE %s
+                    UNION
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
+                    JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id
+                    WHERE ta.ticket_id ILIKE %s
+                    UNION
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                    JOIN correlation.incident_stages s ON m.aggregation_id = s.reference_id
+                    WHERE s.incident_id ILIKE %s
+                )""")
+                s_params.extend([s, s, s, s])
+
+            where_clauses.append(f"({' OR '.join(s_conds)})")
+            params.extend(s_params)
 
         # Cluster-specific filters from Clustering Dashboard
         if rule_id and rule_id.strip() and rule_id.strip().upper() != "ALL":
@@ -1688,7 +1764,7 @@ def get_raw_alerts(
             (activity and activity.strip() and activity.strip().upper() != "ALL")
         )
         where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-        order_clause = "" if has_sub_filter else "ORDER BY r.timestamp DESC"
+        order_clause = "ORDER BY r.timestamp DESC"
         query = f"""
             SELECT 
                 r.event_id,
@@ -1733,10 +1809,22 @@ def get_raw_alerts(
             (activity and activity.strip() and activity.strip().upper() != "ALL")
         )
         if has_sub_filter:
-            if len(rows) < limit:
-                total_records = offset + len(rows)
+            if offset == 0 and len(rows) < limit:
+                total_records = len(rows)
             else:
-                total_records = max(1000, offset + limit * 5)
+                try:
+                    cur.execute(f"""
+                        SELECT COUNT(*)
+                        FROM telemetry.normalized_events n
+                        JOIN telemetry.raw_events r ON n.raw_event_id = r.event_id AND n.event_timestamp = r.timestamp
+                        {where_str};
+                    """, params)
+                    cnt_row = cur.fetchone()
+                    total_records = cnt_row["count"] if isinstance(cnt_row, dict) else (cnt_row[0] if cnt_row else len(rows))
+                except Exception as ce:
+                    logger.warning(f"Error calculating filtered total count: {ce}")
+                    conn.rollback()
+                    total_records = offset + len(rows) if len(rows) < limit else max(1000, offset + limit * 5)
         elif level_filter and level_filter != "ALL":
             total_records = level_counts.get(level_filter, total_records)
 

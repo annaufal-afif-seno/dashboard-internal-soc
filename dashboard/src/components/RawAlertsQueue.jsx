@@ -494,7 +494,14 @@ export default function RawAlertsQueue({
 
                     value={searchQuery}
 
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchQuery(val);
+                      if (val === '') {
+                        setCurrentPage(1);
+                        setTimeout(fetchAlerts, 50);
+                      }
+                    }}
 
                     placeholder="Search ID, IP, Host, Rule, agg_..., cum_..., TRG-..."
 

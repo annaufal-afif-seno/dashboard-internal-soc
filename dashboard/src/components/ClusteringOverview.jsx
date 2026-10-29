@@ -1500,7 +1500,14 @@ export default function ClusteringOverview({
 
                     value={alertsSearchInput}
 
-                    onChange={(e) => setAlertsSearchInput(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAlertsSearchInput(val);
+                      if (val === '') {
+                        setAlertsSearchQuery('');
+                        setAlertsPage(1);
+                      }
+                    }}
 
                     placeholder="Search ID, IP, Host, Rule, agg_..., cum_..., TRG-..."
 
