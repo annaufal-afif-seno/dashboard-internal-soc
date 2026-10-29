@@ -1917,11 +1917,17 @@ def get_raw_alerts(
                 """, (tuple(event_ids),))
                 for l_row in cur.fetchall():
                     eid = l_row["raw_event_id"]
-                    if eid not in lineage_map or (not lineage_map[eid].get("ticket_id") and l_row.get("ticket_id")):
+                    agg_val = l_row["aggregation_id"]
+                    cum_val = l_row.get("cumulative_id")
+                    tkt_val = l_row.get("ticket_id")
+                    if not tkt_val and agg_val:
+                        h = hashlib.md5(f"P4_{agg_val}".encode()).hexdigest()[:16].upper()
+                        tkt_val = f"TRG-P4-{h}"
+                    if eid not in lineage_map or (not lineage_map[eid].get("ticket_id") and tkt_val):
                         lineage_map[eid] = {
-                            "aggregation_id": l_row["aggregation_id"],
-                            "cumulative_id": l_row["cumulative_id"],
-                            "ticket_id": l_row["ticket_id"]
+                            "aggregation_id": agg_val,
+                            "cumulative_id": cum_val,
+                            "ticket_id": tkt_val
                         }
             except Exception as le:
                 logger.warning(f"Error querying aggregate lineage: {le}")

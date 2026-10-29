@@ -1190,7 +1190,16 @@ export default function PolicyBundlesView({
   };
 
   return (
-    <div className="space-y-4" style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}>
+    <div 
+      className="policy-bundle-feature space-y-4" 
+      style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}
+    >
+      <style>{`
+        .policy-bundle-feature,
+        .policy-bundle-feature * {
+          font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif !important;
+        }
+      `}</style>
       {/* Toast Notification */}
       {toast && (
         <div className={`p-3 rounded-lg text-xs flex items-center justify-between shadow-lg border ${
@@ -1281,7 +1290,7 @@ export default function PolicyBundlesView({
                         {displayName.toUpperCase()}
                       </h3>
                       {tenantName === 'SOC_CORE' && (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 font-bold uppercase tracking-wider">
+                        <span className="text-[10px]  px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 font-bold uppercase tracking-wider">
                           Internal
                         </span>
                       )}
@@ -1292,27 +1301,27 @@ export default function PolicyBundlesView({
                         e.stopPropagation();
                         setSelectedTenantView(tenantName);
                       }}
-                      className={`text-xs font-semibold px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 group-hover:scale-105 cursor-pointer ${
+                      className={`text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer hover:underline ${
                         isDark 
-                          ? 'bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-400 border-indigo-500/30' 
-                          : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200/80'
+                          ? 'text-indigo-400 hover:text-indigo-300' 
+                          : 'text-indigo-600 hover:text-indigo-700'
                       }`}
                     >
                       <span>detail</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                     </button>
                   </div>
 
                   {/* Card Body: 4 rows with real numbers */}
-                  <div className="space-y-3 font-mono text-xs sm:text-sm">
+                  <div className="space-y-3 text-xs sm:text-sm">
                     <div className={`flex items-center justify-between py-1 border-b ${
                       isDark ? 'border-slate-800/40' : 'border-slate-100'
                     }`}>
-                      <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`} style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                      <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         {stats.modeLabel}
                       </span>
-                      <span className={`text-sm sm:text-base font-black px-2.5 py-0.5 rounded ${
-                        isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-900'
+                      <span className={`text-sm sm:text-base font-bold ${
+                        isDark ? 'text-slate-100' : 'text-slate-900'
                       }`}>
                         {stats.totalCount}
                       </span>
@@ -1325,7 +1334,7 @@ export default function PolicyBundlesView({
                         <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400"></span>
                         DEPLOY
                       </span>
-                      <span className="text-sm sm:text-base font-black text-blue-500 dark:text-blue-400 px-2.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                      <span className="text-sm sm:text-base font-bold text-blue-500 dark:text-blue-400">
                         {stats.deployCount}
                       </span>
                     </div>
@@ -1337,7 +1346,7 @@ export default function PolicyBundlesView({
                         <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                         APPROVE
                       </span>
-                      <span className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="text-sm sm:text-base font-bold text-emerald-600 dark:text-emerald-400">
                         {stats.approveCount}
                       </span>
                     </div>
@@ -1347,7 +1356,7 @@ export default function PolicyBundlesView({
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                         EXPIRED
                       </span>
-                      <span className="text-sm sm:text-base font-black text-rose-500 dark:text-rose-400 px-2.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">
+                      <span className="text-sm sm:text-base font-bold text-rose-500 dark:text-rose-400">
                         {stats.expiredCount}
                       </span>
                     </div>
@@ -1385,19 +1394,19 @@ export default function PolicyBundlesView({
               isDark ? 'bg-[#0a0f1d] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
               <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-mono uppercase tracking-wider text-slate-400">suppression</span>
+                <span className="text-xs sm:text-sm  uppercase tracking-wider text-slate-400">suppression</span>
                 <span className="text-slate-600 font-bold">/</span>
                 <button 
                   onClick={() => {
                     setIsEditingCode(false);
                     setSelectedTenantView(null);
                   }}
-                  className="text-xs sm:text-sm font-mono uppercase tracking-wider text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="text-xs sm:text-sm  uppercase tracking-wider text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
                   policy bundle
                 </button>
                 <span className="text-slate-600 font-bold">/</span>
-                <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-indigo-400 font-mono">
+                <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-indigo-400 ">
                   {formatTenantDisplay(selectedTenantView)}
                 </span>
               </div>
@@ -1500,11 +1509,18 @@ export default function PolicyBundlesView({
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
                         </tr>
+                      ) : bundleFilterMode === 'ticket' ? (
+                        <tr>
+                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[170px]">TICKET ID</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">AGENT</th>
+                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">ACTOR</th>
+                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
+                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                        </tr>
                       ) : (
                         <tr>
-                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">
-                            {bundleFilterMode === 'campaign' ? 'NO Campaign' : 'NO Ticket'}
-                          </th>
+                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px]">NO Campaign</th>
                           <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">classification</th>
                           <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">actor</th>
                           <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">target</th>
@@ -1514,12 +1530,12 @@ export default function PolicyBundlesView({
                         </tr>
                       )}
                     </thead>
-                    <tbody className={`divide-y font-sans ${
+                    <tbody className={`divide-y  ${
                       isDark ? 'divide-slate-800/60 bg-[#0a0e1a]' : 'divide-slate-100 bg-white'
                     }`}>
                       {filteredItems.length === 0 ? (
                         <tr>
-                          <td colSpan={bundleFilterMode === 'cluster' ? 8 : 7} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={bundleFilterMode === 'cluster' ? 8 : bundleFilterMode === 'ticket' ? 6 : 7} className="py-12 text-center text-slate-400 text-xs">
                             {bundleFilterMode === 'cluster' 
                               ? 'Tidak ada kluster atau kebijakan yang cocok dengan filter.'
                               : bundleFilterMode === 'campaign'
@@ -1547,14 +1563,14 @@ export default function PolicyBundlesView({
                                   title="Klik baris untuk melihat rincian alert di kluster ini"
                                 >
                                   {/* 1. CLUSTER ID (Interval Cluster ID) */}
-                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
+                                  <td className="px-3 py-2.5  whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
                                     <div className="flex items-center gap-1.5">
                                       {isExpanded ? (
                                         <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
                                       ) : (
                                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                       )}
-                                      <span className="font-mono text-slate-900 dark:text-white select-all">
+                                      <span className=" text-slate-900 dark:text-white select-all">
                                         {item.clusterId || item.ticketNo}
                                       </span>
                                     </div>
@@ -1571,22 +1587,22 @@ export default function PolicyBundlesView({
                                   </td>
 
                                   {/* 4. AGENT */}
-                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.agent || item.target}>
+                                  <td className="px-3 py-2.5  whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.agent || item.target}>
                                     {item.agent || item.target || '-'}
                                   </td>
 
                                   {/* 5. ACTOR */}
-                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
+                                  <td className="px-3 py-2.5  whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
                                     {item.actor || 'Internal / N/A'}
                                   </td>
 
                                   {/* 6. ACTIVITY (Format Normalisasi) */}
-                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
+                                  <td className="px-3 py-2.5  whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
                                     {item.activity || 'GET /.env* [111]'}
                                   </td>
 
                                   {/* 7. Status */}
-                                  <td className="px-3 py-2.5 text-center font-mono whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                  <td className="px-3 py-2.5 text-center  whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                     {item.status === 'DEPLOY' ? (
                                       <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                         DEPLOY
@@ -1670,12 +1686,12 @@ export default function PolicyBundlesView({
                                             <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
                                               Rincian Alert Dalam Kluster ({currentLogs.length || 1} alert)
                                             </span>
-                                            <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                            <span className=" text-[10px] text-slate-500 dark:text-slate-400">
                                               [{clusterKey}]
                                             </span>
                                           </div>
                                           {isFetchingLogs && (
-                                            <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-mono">
+                                            <div className="flex items-center gap-1.5 text-xs text-indigo-500 ">
                                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                               <span>Memuat alert...</span>
                                             </div>
@@ -1693,7 +1709,7 @@ export default function PolicyBundlesView({
                                                 <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
                                               </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-sans">
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 ">
                                               {(currentLogs.length > 0 ? currentLogs : [
                                                 {
                                                   event_id: item.alertId || item.clusterId || 'ALERT-001',
@@ -1704,21 +1720,21 @@ export default function PolicyBundlesView({
                                                 }
                                               ]).map((log, lIdx) => (
                                                 <tr key={`${log.event_id || lIdx}-${lIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                                                  <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
+                                                  <td className="px-3 py-2  text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
                                                     {log.event_id || log.alert_id || '-'}
                                                   </td>
-                                                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                  <td className="px-3 py-2  text-xs whitespace-nowrap text-slate-900 dark:text-white">
                                                     {log.agent_name || log.agent || '-'}
                                                   </td>
-                                                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                  <td className="px-3 py-2  text-xs whitespace-nowrap text-slate-900 dark:text-white">
                                                     {log.source_ip || log.actor || '-'}
                                                   </td>
-                                                  <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
+                                                  <td className="px-3 py-2  text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
                                                     {log.rule_id || '-'}
                                                   </td>
-                                                  <td className="px-3 py-2 font-mono text-[11px] text-slate-900 dark:text-white min-w-[320px]">
+                                                  <td className="px-3 py-2  text-[11px] text-slate-900 dark:text-white min-w-[320px]">
                                                     <div 
-                                                      className={`p-2 rounded border font-mono text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
+                                                      className={`p-2 rounded border  text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
                                                         isDark ? 'bg-slate-900/80 border-slate-700/80 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
                                                       }`}
                                                       title="Klik / select untuk salin full log"
@@ -1739,17 +1755,382 @@ export default function PolicyBundlesView({
                             );
                           }
 
-                          // TICKET / CAMPAIGN VIEW (7 columns)
+                          // SUB-FILTER: BY TICKET VIEW (Nested 3-Level Expandable Table)
+                          if (bundleFilterMode === 'ticket') {
+                            const isTicketExpanded = !!expandedTicketIds[item.ticketNo];
+                            const clusters = ticketClustersMap[item.ticketNo] || [];
+                            const isClustersLoading = !!ticketClustersLoading[item.ticketNo];
+
+                            return (
+                              <React.Fragment key={`${item.id}-${idx}`}>
+                                <tr
+                                  onClick={() => toggleExpandTicket(item.ticketNo)}
+                                  className={`transition-colors cursor-pointer select-none ${
+                                    isTicketExpanded 
+                                      ? (isDark ? 'bg-indigo-950/30 border-l-2 border-indigo-500' : 'bg-indigo-50/70 border-l-2 border-indigo-500')
+                                      : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
+                                  }`}
+                                >
+                                  {/* 1. TICKET ID */}
+                                  <td className="px-2.5 py-2.5 ">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="p-0.5 rounded hover:bg-indigo-500/20 text-indigo-400">
+                                        {isTicketExpanded ? (
+                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform text-indigo-400" />
+                                        ) : (
+                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 transition-transform text-slate-400 group-hover:text-indigo-400" />
+                                        )}
+                                      </span>
+                                      <span className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight select-all">
+                                        {item.ticketNo}
+                                      </span>
+                                    </div>
+                                    <div className="text-[9.5px] text-slate-400  leading-tight mt-0.5 ml-5 break-words">
+                                      {item.incidentTitle}
+                                    </div>
+                                  </td>
+
+                                  {/* 2. AGENT */}
+                                  <td className="px-2 py-2.5  text-[10px] text-slate-300 break-words leading-tight" title={item.agent || item.target}>
+                                    {item.agent || item.target || '-'}
+                                  </td>
+
+                                  {/* 3. ACTOR */}
+                                  <td className="px-2 py-2.5  text-[10px] text-slate-300 break-all leading-tight">
+                                    {item.actor || 'Internal / N/A'}
+                                  </td>
+
+                                  {/* 4. Action */}
+                                  <td className="px-1 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleActionClick(item)}
+                                      className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
+                                      title="Edit / Tinjau Parameter Supresi"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
+                                    </button>
+                                  </td>
+
+                                  {/* 5. Status */}
+                                  <td className="px-2 py-2.5 text-center " onClick={(e) => e.stopPropagation()}>
+                                    {item.status === 'DEPLOY' ? (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        DEPLOY
+                                      </span>
+                                    ) : item.status === 'APPROVE' ? (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        APPROVE
+                                      </span>
+                                    ) : item.status === 'EXPIRED' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExtendModalItem(item);
+                                          const defaultDate = new Date();
+                                          defaultDate.setDate(defaultDate.getDate() + 90);
+                                          setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                        }}
+                                        title="Tiket Expired. Klik untuk memperpanjang tanggal expired."
+                                        className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                                      >
+                                        EXPIRED
+                                      </button>
+                                    ) : (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        WAITING
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* 6. Deploy Toggle Switch */}
+                                  <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                    {item.status === 'EXPIRED' || item.isExpired ? (
+                                      <div className="flex flex-col items-center justify-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setExtendModalItem(item);
+                                            const defaultDate = new Date();
+                                            defaultDate.setDate(defaultDate.getDate() + 90);
+                                            setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                          }}
+                                          className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
+                                          title="Expired: Tombol OFF dan terkunci. Ubah tanggal expired terlebih dahulu untuk mengaktifkan."
+                                        >
+                                          <span className="sr-only">Expired toggle disabled</span>
+                                          <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs transition-transform translate-x-0" />
+                                        </button>
+                                        <button 
+                                          type="button"
+                                          onClick={() => {
+                                            setExtendModalItem(item);
+                                            const defaultDate = new Date();
+                                            defaultDate.setDate(defaultDate.getDate() + 90);
+                                            setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                          }}
+                                          className="text-[9px]  text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
+                                        >
+                                          extend
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-center">
+                                        <button
+                                          type="button"
+                                          role="switch"
+                                          aria-checked={item.status === 'DEPLOY'}
+                                          onClick={() => handleToggleDeploy(item)}
+                                          className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            item.status === 'DEPLOY' 
+                                              ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                              : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
+                                          }`}
+                                          title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
+                                        >
+                                          <span className="sr-only">Toggle Deploy</span>
+                                          <span
+                                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                              item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                            }`}
+                                          />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+
+                                {/* SUB-TABLE: RINCIAN KLUSTER DALAM TIKET */}
+                                {isTicketExpanded && (
+                                  <tr key={`${item.id}-clusters-subtable`} className="border-b border-indigo-500/20">
+                                    <td colSpan={6} className={`p-3 ${isDark ? 'bg-[#070c18]' : 'bg-slate-50'}`}>
+                                      <div className="rounded-lg border border-indigo-500/30 overflow-hidden shadow-xs">
+                                        {/* Sub-table Header Bar */}
+                                        <div className={`px-3 py-2 flex items-center justify-between border-b border-indigo-500/20 ${
+                                          isDark ? 'bg-indigo-950/40 text-slate-200' : 'bg-indigo-50 text-indigo-900'
+                                        }`}>
+                                          <div className="flex items-center gap-2">
+                                            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span className="text-[11px] font-bold tracking-wide">
+                                              RINCIAN KLUSTER DI TIKET: <span className=" text-indigo-400 select-all">{item.ticketNo}</span>
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded text-[9.5px]  bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
+                                              {clusters.length} Kluster
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400  italic">
+                                            Klik baris kluster untuk melihat rincian alert 1 per 1
+                                          </span>
+                                        </div>
+
+                                        {isClustersLoading ? (
+                                          <div className="flex items-center justify-center py-6 text-xs text-slate-400 gap-2">
+                                            <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                                            <span>Memuat rincian kluster pada tiket...</span>
+                                          </div>
+                                        ) : clusters.length === 0 ? (
+                                          <div className="text-center py-6 text-xs text-slate-400 italic">
+                                            Tidak ada kluster terikat pada tiket ini.
+                                          </div>
+                                        ) : (
+                                          <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-[10px] border-collapse">
+                                              <thead className={`border-b text-[10px] font-semibold ${
+                                                isDark ? 'bg-[#091124] text-slate-300 border-indigo-500/20' : 'bg-indigo-100/50 text-slate-700 border-indigo-200'
+                                              }`}>
+                                                <tr>
+                                                  <th className="px-2.5 py-2 font-bold uppercase tracking-wider text-[10px] min-w-[140px]">CLUSTER ID</th>
+                                                  <th className="px-2 py-2 font-bold uppercase tracking-wider text-[10px]">KATEGORI</th>
+                                                  <th className="px-2 py-2 font-bold uppercase tracking-wider text-[10px]">SUB KATEGORY</th>
+                                                  <th className="px-2 py-2 font-bold uppercase tracking-wider text-[10px]">AGENT</th>
+                                                  <th className="px-2 py-2 font-bold uppercase tracking-wider text-[10px]">ACTOR</th>
+                                                  <th className="px-2.5 py-2 font-bold uppercase tracking-wider text-[10px] min-w-[160px]">ACTIVITY</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className={`divide-y  ${
+                                                isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'
+                                              }`}>
+                                                {clusters.map((cluster, cIdx) => {
+                                                  const clusterId = cluster.aggregation_id || `cluster-${cIdx}`;
+                                                  const isClusterExpanded = !!expandedClusterIds[clusterId];
+                                                  const alerts = clusterAlertsMap[clusterId] || [];
+                                                  const isAlertsLoading = !!clusterAlertsLoading[clusterId];
+
+                                                  return (
+                                                    <React.Fragment key={`${clusterId}-${cIdx}`}>
+                                                      <tr
+                                                        onClick={() => toggleExpandCluster(clusterId)}
+                                                        className={`transition-colors cursor-pointer select-none ${
+                                                          isClusterExpanded
+                                                            ? (isDark ? 'bg-cyan-950/25 border-l-2 border-cyan-400' : 'bg-cyan-50/70 border-l-2 border-cyan-500')
+                                                            : (isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50')
+                                                        }`}
+                                                      >
+                                                        {/* 1. CLUSTER ID (Interval Cluster ID) */}
+                                                        <td className="px-2.5 py-2 ">
+                                                          <div className="flex items-center gap-1.5">
+                                                            <span className="p-0.5 rounded text-cyan-400">
+                                                              {isClusterExpanded ? (
+                                                                <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform text-cyan-400" />
+                                                              ) : (
+                                                                <ChevronRight className="w-3.5 h-3.5 shrink-0 transition-transform text-slate-400 group-hover:text-cyan-400" />
+                                                              )}
+                                                            </span>
+                                                            <span className="font-bold text-[10px] text-cyan-400 break-all select-all leading-tight">
+                                                              {cluster.aggregation_id}
+                                                            </span>
+                                                          </div>
+                                                        </td>
+
+                                                        {/* 2. KATEGORI (6 Kategori Utama) */}
+                                                        <td className="px-2 py-2">
+                                                          <span className={`inline-block px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-tight whitespace-nowrap ${getCategoryBadge(cluster.category)}`}>
+                                                            {cluster.category || 'WEB_OPERATIONAL'}
+                                                          </span>
+                                                        </td>
+
+                                                        {/* 3. SUB KATEGORY */}
+                                                        <td className="px-2 py-2">
+                                                          <span className="text-[10px] font-medium text-slate-300 block whitespace-nowrap">
+                                                            {cluster.subcategory || (Array.isArray(cluster.classification_groups) ? cluster.classification_groups.join(', ') : cluster.classification_groups) || '-'}
+                                                          </span>
+                                                        </td>
+
+                                                        {/* 4. AGENT */}
+                                                        <td className="px-2 py-2  text-[10px] text-slate-300 break-words leading-tight" title={cluster.target || cluster.agent_name}>
+                                                          {cluster.target || cluster.agent_name || cluster.agent || '-'}
+                                                        </td>
+
+                                                        {/* 5. ACTOR */}
+                                                        <td className="px-2 py-2  text-[10px] text-slate-300 break-all leading-tight">
+                                                          {cluster.actor || cluster.source_ip || 'Internal / N/A'}
+                                                        </td>
+
+                                                        {/* 6. ACTIVITY (Format Normalisasi) */}
+                                                        <td className="px-2.5 py-2  text-[10px] text-amber-300/95 break-words leading-tight">
+                                                          {cluster.normalized_activity || cluster.activity || cluster.ioa_summary || cluster.rule_description || '-'}
+                                                        </td>
+                                                      </tr>
+
+                                                      {/* Level 3: Nested Alerts Table (Raw Evidence 1 per 1) */}
+                                                      {isClusterExpanded && (
+                                                        <tr key={`${clusterId}-alerts-subsubtable`} className="border-b border-cyan-500/20">
+                                                          <td colSpan={6} className={`p-3 ${isDark ? 'bg-[#03060d]' : 'bg-slate-100'}`}>
+                                                            <div className="rounded-lg border border-cyan-500/30 overflow-hidden shadow-xs">
+                                                              {/* Alert Header Bar */}
+                                                              <div className={`px-3 py-1.5 flex items-center justify-between border-b border-cyan-500/20 ${
+                                                                isDark ? 'bg-cyan-950/40 text-slate-200' : 'bg-cyan-100/60 text-cyan-900'
+                                                              }`}>
+                                                                <div className="flex items-center gap-2">
+                                                                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                                                  <span className="text-[10.5px] font-bold tracking-wide">
+                                                                    RINCIAN ALERT 1 PER 1 (RAW FORENSIC EVIDENCE) - KLUSTER: <span className=" text-cyan-400 select-all">{cluster.aggregation_id}</span>
+                                                                  </span>
+                                                                  <span className="px-1.5 py-0.5 rounded text-[9px]  bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">
+                                                                    {alerts.length} Alert
+                                                                  </span>
+                                                                </div>
+                                                              </div>
+
+                                                              {isAlertsLoading ? (
+                                                                <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
+                                                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                                                  <span>Memuat daftar raw alert...</span>
+                                                                </div>
+                                                              ) : alerts.length === 0 ? (
+                                                                <div className="text-center py-5 text-xs text-slate-400 italic">
+                                                                  Tidak ada raw alert evidence ditemukan untuk kluster ini.
+                                                                </div>
+                                                              ) : (
+                                                                <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                                                                  <table className="w-full text-left text-[9.5px] border-collapse">
+                                                                    <thead className={`sticky top-0 z-10 border-b text-[9.5px] font-semibold ${
+                                                                      isDark ? 'bg-[#060e1d] text-slate-300 border-cyan-500/20' : 'bg-cyan-100 text-slate-700 border-cyan-200'
+                                                                    }`}>
+                                                                      <tr>
+                                                                        <th className="px-2.5 py-1.5 font-bold uppercase tracking-wider text-[9.5px] min-w-[130px]">ALERT ID</th>
+                                                                        <th className="px-2 py-1.5 font-bold uppercase tracking-wider text-[9.5px]">AGENT</th>
+                                                                        <th className="px-2 py-1.5 font-bold uppercase tracking-wider text-[9.5px]">ACTOR</th>
+                                                                        <th className="px-2 py-1.5 font-bold uppercase tracking-wider text-[9.5px]">RULE ID</th>
+                                                                        <th className="px-2.5 py-1.5 font-bold uppercase tracking-wider text-[9.5px] min-w-[280px]">FULL LOG</th>
+                                                                      </tr>
+                                                                    </thead>
+                                                                    <tbody className={`divide-y  ${
+                                                                      isDark ? 'divide-slate-800/50 bg-[#02050b]' : 'divide-slate-200 bg-white'
+                                                                    }`}>
+                                                                      {alerts.map((alertItem, aIdx) => (
+                                                                        <tr key={`${alertItem.alert_id || alertItem.event_id}-${aIdx}`} className={`transition-colors ${
+                                                                          isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
+                                                                        }`}>
+                                                                          {/* 1. ALERT ID */}
+                                                                          <td className="px-2.5 py-2  align-top">
+                                                                            <span className="font-bold text-[9.5px] text-cyan-400 select-all block leading-tight">
+                                                                              {alertItem.alert_id || alertItem.event_id}
+                                                                            </span>
+                                                                            <span className="text-[8.5px] text-slate-500 block mt-0.5 leading-tight">
+                                                                              {alertItem.timestamp}
+                                                                            </span>
+                                                                          </td>
+
+                                                                          {/* 2. AGENT */}
+                                                                          <td className="px-2 py-2  text-[9.5px] text-slate-300 align-top break-words leading-tight">
+                                                                            {alertItem.agent || alertItem.agent_name || cluster.target || '-'}
+                                                                          </td>
+
+                                                                          {/* 3. ACTOR */}
+                                                                          <td className="px-2 py-2  text-[9.5px] text-slate-300 align-top break-all leading-tight">
+                                                                            {alertItem.actor || alertItem.source_ip || cluster.actor || 'Internal / N/A'}
+                                                                          </td>
+
+                                                                          {/* 4. RULE ID */}
+                                                                          <td className="px-2 py-2  text-[9.5px] align-top">
+                                                                            <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                                                                              {alertItem.rule_id || cluster.rule_id || '-'}
+                                                                            </span>
+                                                                          </td>
+
+                                                                          {/* 5. FULL LOG */}
+                                                                          <td className="px-2.5 py-2  text-[9px] align-top">
+                                                                            <div className="max-h-24 overflow-y-auto rounded bg-black/60 p-1.5 border border-slate-800 text-slate-300 select-all break-all whitespace-pre-wrap leading-tight">
+                                                                              {alertItem.full_log || alertItem.payload || '-'}
+                                                                            </div>
+                                                                          </td>
+                                                                        </tr>
+                                                                      ))}
+                                                                    </tbody>
+                                                                  </table>
+                                                                </div>
+                                                             )}
+                                                            </div>
+                                                          </td>
+                                                        </tr>
+                                                      )}
+                                                    </React.Fragment>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          }
+
+                          // CAMPAIGN VIEW (7 columns)
                           return (
                             <tr key={`${item.id}-${idx}`} className={`transition-colors ${
                               isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
                             }`}>
-                              {/* 1. NO Ticket */}
-                              <td className="px-2.5 py-2.5 font-mono">
+                              {/* 1. NO Campaign */}
+                              <td className="px-2.5 py-2.5 ">
                                 <div className="font-bold text-[10.5px] text-indigo-400 break-all leading-tight">
                                   {item.ticketNo}
                                 </div>
-                                <div className="text-[9.5px] text-slate-400 font-sans leading-tight mt-0.5 break-words">
+                                <div className="text-[9.5px] text-slate-400  leading-tight mt-0.5 break-words">
                                   {item.incidentTitle}
                                 </div>
                               </td>
@@ -1769,12 +2150,12 @@ export default function PolicyBundlesView({
                               </td>
 
                               {/* 3. Actor */}
-                              <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-all leading-tight">
+                              <td className="px-2 py-2.5  text-[10px] text-slate-300 break-all leading-tight">
                                 {item.actor}
                               </td>
 
                               {/* 4. Target */}
-                              <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-words leading-tight" title={item.target}>
+                              <td className="px-2 py-2.5  text-[10px] text-slate-300 break-words leading-tight" title={item.target}>
                                 {item.target}
                               </td>
 
@@ -1791,7 +2172,7 @@ export default function PolicyBundlesView({
                               </td>
 
                               {/* 6. Status */}
-                              <td className="px-2 py-2.5 text-center font-mono">
+                              <td className="px-2 py-2.5 text-center ">
                                 {item.status === 'DEPLOY' ? (
                                   <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                     DEPLOY
@@ -1809,7 +2190,7 @@ export default function PolicyBundlesView({
                                       defaultDate.setDate(defaultDate.getDate() + 90);
                                       setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
                                     }}
-                                    title="Tiket Expired. Klik untuk memperpanjang tanggal expired."
+                                    title="Kampanye Expired. Klik untuk memperpanjang tanggal expired."
                                     className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                                   >
                                     EXPIRED
@@ -1847,7 +2228,7 @@ export default function PolicyBundlesView({
                                         defaultDate.setDate(defaultDate.getDate() + 90);
                                         setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
                                       }}
-                                      className="text-[9px] font-mono text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
+                                      className="text-[9px]  text-rose-400 hover:text-rose-300 underline cursor-pointer leading-none"
                                     >
                                       extend
                                     </button>
@@ -1888,7 +2269,7 @@ export default function PolicyBundlesView({
                   isDark ? 'border-slate-800 text-slate-400 bg-[#090d16]' : 'border-slate-200 text-slate-500 bg-slate-50'
                 }`}>
                   <span>Total: <strong>{filteredItems.length}</strong> tiket/kebijakan</span>
-                  <span className="font-mono text-[10px] text-slate-500">
+                  <span className=" text-[10px] text-slate-500">
                     Isolation: {selectedTenantView} ({formatTenantDisplay(selectedTenantView)})
                   </span>
                 </div>
@@ -1916,7 +2297,7 @@ export default function PolicyBundlesView({
                           }
                           setActiveRightTab('XML');
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
                           activeRightTab === 'XML'
                             ? 'bg-indigo-600 text-white shadow-xs'
                             : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
@@ -1936,7 +2317,7 @@ export default function PolicyBundlesView({
                           }
                           setActiveRightTab('CDB');
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
                           activeRightTab === 'CDB'
                             ? 'bg-indigo-600 text-white shadow-xs'
                             : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
@@ -1957,13 +2338,13 @@ export default function PolicyBundlesView({
                           rows={20}
                           spellCheck={false}
                           placeholder={`Ketik / edit ${activeRightTab === 'XML' ? 'Wazuh XML rule' : 'CDB list whitelist'} di sini...`}
-                          className="code-terminal-box w-full p-3.5 rounded-xl border border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-300 font-mono text-[11px] leading-relaxed max-h-[460px] min-h-[380px] overflow-y-auto selection:bg-slate-200 outline-none resize-none font-normal shadow-xs"
+                          className="code-terminal-box w-full p-3.5 rounded-xl border border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-300  text-[11px] leading-relaxed max-h-[460px] min-h-[380px] overflow-y-auto selection:bg-slate-200 outline-none resize-none font-normal shadow-xs"
                           style={{ backgroundColor: '#ffffff', color: '#0f172a', colorScheme: 'light' }}
                         />
                       </div>
                     ) : (
                       <pre 
-                        className="code-terminal-box p-3.5 rounded-xl border border-slate-300 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[460px] min-h-[380px] overflow-y-auto selection:bg-slate-200 whitespace-pre shadow-xs"
+                        className="code-terminal-box p-3.5 rounded-xl border border-slate-300  text-[11px] leading-relaxed overflow-x-auto max-h-[460px] min-h-[380px] overflow-y-auto selection:bg-slate-200 whitespace-pre shadow-xs"
                         style={{ backgroundColor: '#ffffff', color: '#0f172a', colorScheme: 'light' }}
                       >
                         {displayedCode}
@@ -1982,7 +2363,7 @@ export default function PolicyBundlesView({
                       <button
                         type="button"
                         onClick={() => handleStartEdit(currentActiveCode)}
-                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-950/40 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white  font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-950/40 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                         title="Edit / Modifikasi XML Rule atau CDB List secara langsung"
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -1995,7 +2376,7 @@ export default function PolicyBundlesView({
                           type="button"
                           onClick={handleCancelEdit}
                           disabled={applyingTenant}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white border border-red-500 font-mono font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-950/40 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white border border-red-500  font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-950/40 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                           title="Batalkan perubahan dan kembalikan ke versi sebelum diedit"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -2006,7 +2387,7 @@ export default function PolicyBundlesView({
                           type="button"
                           onClick={() => handleApplyTenant(selectedTenantView)}
                           disabled={applyingTenant}
-                          className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+                          className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white  font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                           title="Apply aturan kustom langsung ke Wazuh Manager"
                         >
                           {applyingTenant ? (
@@ -2087,14 +2468,14 @@ export default function PolicyBundlesView({
                     </span>
                     <button
                       onClick={() => copyToClipboard(syncData.xml_rule)}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 font-mono text-[10px] cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1  text-[10px] cursor-pointer"
                     >
                       {copiedCode ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                       <span>{copiedCode ? 'Disalin!' : 'Salin XML'}</span>
                     </button>
                   </div>
                   <pre 
-                    className="code-terminal-box p-4 rounded-xl border border-slate-800 font-mono text-[11.5px] leading-relaxed overflow-x-auto !text-white"
+                    className="code-terminal-box p-4 rounded-xl border border-slate-800  text-[11.5px] leading-relaxed overflow-x-auto !text-white"
                     style={{ backgroundColor: '#080c14', color: '#f8fafc', colorScheme: 'dark' }}
                   >
                     {syncData.xml_rule}
@@ -2109,9 +2490,9 @@ export default function PolicyBundlesView({
                     </span>
                     {Object.entries(syncData.cdb_files).map(([path, content]) => (
                       <div key={path} className="mb-2">
-                        <span className="font-mono text-[10px] text-slate-300 block mb-1">{path}</span>
+                        <span className=" text-[10px] text-slate-300 block mb-1">{path}</span>
                         <pre 
-                          className="code-terminal-box p-3 rounded-lg border border-slate-800 font-mono text-[11px] !text-white"
+                          className="code-terminal-box p-3 rounded-lg border border-slate-800  text-[11px] !text-white"
                           style={{ backgroundColor: '#080c14', color: '#f8fafc', colorScheme: 'dark' }}
                         >
                           {content || '(Kosong)'}
@@ -2431,7 +2812,7 @@ export default function PolicyBundlesView({
                     value={newGroupForm.target_hostname}
                     onChange={(e) => setNewGroupForm({ ...newGroupForm, target_hostname: e.target.value })}
                     placeholder="Misal: hportal-prod-159"
-                    className={`w-full px-3 py-2 rounded-lg border font-mono ${
+                    className={`w-full px-3 py-2 rounded-lg border  ${
                       isDark ? 'bg-[#0c101c] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   />
@@ -2444,7 +2825,7 @@ export default function PolicyBundlesView({
                     value={newGroupForm.mitre_tactics}
                     onChange={(e) => setNewGroupForm({ ...newGroupForm, mitre_tactics: e.target.value })}
                     placeholder="Misal: TA0001, TA0008"
-                    className={`w-full px-3 py-2 rounded-lg border font-mono ${
+                    className={`w-full px-3 py-2 rounded-lg border  ${
                       isDark ? 'bg-[#0c101c] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   />
@@ -2538,13 +2919,13 @@ export default function PolicyBundlesView({
                       <div key={sl.list_id} className="p-3 rounded-lg border border-slate-800 bg-[#090d16] flex items-center justify-between gap-3 text-xs">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-cyan-400">{sl.list_id}</span>
+                            <span className=" font-bold text-cyan-400">{sl.list_id}</span>
                             <span className="font-bold text-slate-200">{sl.list_name}</span>
-                            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">{sl.list_type}</span>
+                            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400  text-[10px]">{sl.list_type}</span>
                           </div>
                           <div className="text-[11px] text-slate-400 mt-1">{sl.description || `${vals.length} entri`}</div>
                         </div>
-                        <div className="font-mono text-xs text-slate-300 bg-slate-800/80 px-2 py-1 rounded">
+                        <div className=" text-xs text-slate-300 bg-slate-800/80 px-2 py-1 rounded">
                           {vals.length} values
                         </div>
                       </div>
@@ -2566,7 +2947,7 @@ export default function PolicyBundlesView({
                     value={newCdbForm.list_name}
                     onChange={(e) => setNewCdbForm({ ...newCdbForm, list_name: e.target.value })}
                     placeholder="Misal: trusted-scanners"
-                    className={`w-full px-3 py-1.5 rounded-lg border font-mono ${
+                    className={`w-full px-3 py-1.5 rounded-lg border  ${
                       isDark ? 'bg-[#0c101c] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   />
@@ -2596,7 +2977,7 @@ export default function PolicyBundlesView({
                   value={newCdbForm.valuesText}
                   onChange={(e) => setNewCdbForm({ ...newCdbForm, valuesText: e.target.value })}
                   placeholder="192.168.30.114&#10;103.19.110.156&#10;10.10.50.0/24"
-                  className={`w-full px-3 py-2 rounded-lg border font-mono text-[11px] ${
+                  className={`w-full px-3 py-2 rounded-lg border  text-[11px] ${
                     isDark ? 'bg-[#0c101c] border-slate-700 text-cyan-300' : 'bg-white border-slate-300 text-slate-900'
                   }`}
                 />
@@ -2686,7 +3067,7 @@ export default function PolicyBundlesView({
                         />
                         <div>
                           <div className="font-bold flex items-center gap-2">
-                            <span className="font-mono text-indigo-400">{r.id}</span>
+                            <span className=" text-indigo-400">{r.id}</span>
                             <span className="truncate max-w-[240px]">{r.name}</span>
                           </div>
                           <div className="text-[10px] text-slate-500">
@@ -2743,7 +3124,7 @@ export default function PolicyBundlesView({
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     Perpanjang Masa Berlaku Supresi
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <p className="text-xs text-slate-400 ">
                     Tiket: <span className="text-indigo-400 font-semibold">{extendModalItem.ticketNo}</span> • {extendModalItem.incidentTitle}
                   </p>
                 </div>
@@ -2809,7 +3190,7 @@ export default function PolicyBundlesView({
                   min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                   value={newExpirationDate}
                   onChange={(e) => setNewExpirationDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-sm focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white  text-sm focus:outline-none focus:border-indigo-500"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
                   Maksimal SLA supresi adalah 180 hari sesuai governance SOC.
