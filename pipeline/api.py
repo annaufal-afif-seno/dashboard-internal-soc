@@ -3157,6 +3157,7 @@ def get_ticket_forensics(triage_id: str, conn = Depends(get_db_connection)):
         ls_val = ticket.get('last_seen_at') or ticket.get('updated_at') or fs_val
         first_seen = fs_val.strftime('%Y-%m-%d %H:%M:%S WIB') if isinstance(fs_val, (datetime, date)) else (f'{fs_val} WIB' if fs_val else '-')
         last_seen = ls_val.strftime('%Y-%m-%d %H:%M:%S WIB') if isinstance(ls_val, (datetime, date)) else (f'{ls_val} WIB' if ls_val else '-')
+        return {
             "ticket": {
                 "triage_id": ticket['triage_id'],
                 "incident_id": ticket['incident_id'],
