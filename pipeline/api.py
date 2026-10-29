@@ -2382,6 +2382,7 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                 a.actor, a.target, a.event_count, a.window_start, a.window_end, 
                 a.window_duration_seconds, a.ioa_summary, a.tenant_id,
                 a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id, a.dominant_http_status,
+                a.classification_groups,
                 ta.is_induk, ta.is_escalation_trigger
             FROM soc_ops.ticket_aggregates ta
             JOIN suppression.aggregated_alerts a ON a.aggregation_id = ta.aggregation_id
@@ -2398,6 +2399,7 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                     a.actor, a.target, a.event_count, a.window_start, a.window_end, 
                     a.window_duration_seconds, a.ioa_summary, a.tenant_id,
                     a.log_source, a.distinct_ioas, a.distinct_iocs, a.mitre_tactics, a.mitre_technique_id, a.dominant_http_status,
+                    a.classification_groups,
                     (s.sequence_order = 1) AS is_induk, FALSE AS is_escalation_trigger
                 FROM soc_ops.soc_triage_queue t
                 JOIN correlation.incident_stages s ON t.incident_id = s.incident_id
@@ -2415,7 +2417,8 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                     aggregation_id, rule_id, rule_description, category, 
                     actor, target, event_count, window_start, window_end, 
                     window_duration_seconds, ioa_summary, tenant_id,
-                    log_source, distinct_ioas, distinct_iocs, mitre_tactics, mitre_technique_id, dominant_http_status
+                    log_source, distinct_ioas, distinct_iocs, mitre_tactics, mitre_technique_id, dominant_http_status,
+                    classification_groups
                 FROM suppression.aggregated_alerts
                 WHERE aggregation_id = %s;
             """, (triage_id,))
@@ -2535,11 +2538,21 @@ def get_ticket_aggregates(triage_id: str, conn = Depends(get_db_connection)):
                 except Exception: m_tactics = [m_tactics] if m_tactics else []
             m_tactics = m_tactics or []
 
+            cls_raw = r.get("classification_groups") or []
+            if isinstance(cls_raw, str):
+                try: cls_list = json.loads(cls_raw)
+                except Exception: cls_list = [cls_raw]
+            else:
+                cls_list = list(cls_raw) if cls_raw else []
+            subcat_str = ", ".join(str(g) for g in cls_list) if cls_list else "-"
+
             aggs.append({
                 "aggregation_id": r["aggregation_id"],
                 "rule_id": str(r["rule_id"]),
                 "rule_description": r["rule_description"] or f"Rule {r['rule_id']}",
                 "category": r["category"] or "SECURITY",
+                "classification_groups": cls_list,
+                "subcategory": subcat_str,
                 "actor": r["actor"] or "Unknown Actor",
                 "target": r["target"] or "Unknown Target",
                 "event_count": r["event_count"],
@@ -2598,10 +2611,10 @@ def get_aggregate_full_logs(aggregation_id: str, conn = Depends(get_db_connectio
             cur.execute("""
                 SELECT 
                     sub.event_id, sub.timestamp, sub.source_ip, sub.destination_ip, sub.agent_name, sub.raw_payload,
-                    sub.rule_id, sub.rule_description
+                    sub.rule_id, sub.rule_description, sub.username
                 FROM (
                     SELECT DISTINCT ON (r.event_id)
-                        r.event_id, r.timestamp, r.source_ip, r.destination_ip, r.agent_name, r.raw_payload,
+                        r.event_id, r.timestamp, r.source_ip, r.destination_ip, r.agent_name, r.username, r.raw_payload,
                         n.rule_id, n.rule_description
                     FROM suppression.aggregate_evidence_mapping m
                     JOIN telemetry.raw_events r ON m.raw_event_id = r.event_id
@@ -2655,6 +2668,7 @@ def get_aggregate_full_logs(aggregation_id: str, conn = Depends(get_db_connectio
                 final_payload = raw_pl
 
             # Format JSON payloads for multi-line display
+            parsed_json = None
             if final_payload.startswith("{") and final_payload.endswith("}"):
                 try:
                     parsed_json = json.loads(final_payload)
@@ -2662,14 +2676,49 @@ def get_aggregate_full_logs(aggregation_id: str, conn = Depends(get_db_connectio
                 except Exception:
                     pass
 
+            actor = r.get("source_ip") or (f"user:{r['username']}" if r.get("username") else None)
+            if not actor or actor == "-":
+                if parsed_json and isinstance(parsed_json, dict):
+                    data_block = parsed_json.get("data", {})
+                    candidate_actor = data_block.get("srcip") or data_block.get("dstuser") or data_block.get("srcuser")
+                    if candidate_actor:
+                        actor = str(candidate_actor)
+                        if not actor.startswith("user:") and not re.match(r'^\d+\.\d+\.\d+\.\d+$', actor):
+                            actor = f"user:{actor}"
+            if not actor:
+                actor = "-"
+
+            # Rule ID extraction with JSON fallback
+            rule_id = str(r.get("rule_id") or "")
+            if not rule_id or rule_id == "None" or rule_id == "-":
+                if parsed_json and isinstance(parsed_json, dict):
+                    candidate_rule = parsed_json.get("rule", {}).get("id")
+                    if candidate_rule:
+                        rule_id = str(candidate_rule)
+            if not rule_id or rule_id == "None":
+                rule_id = "-"
+
+            # Full Log extraction
+            full_log_str = ""
+            if parsed_json and isinstance(parsed_json, dict):
+                full_log_str = parsed_json.get("full_log") or parsed_json.get("data", {}).get("full_log") or ""
+            if not full_log_str:
+                full_log_str = final_payload
+
             logs.append({
                 "seq": i + 1,
                 "event_id": r["event_id"],
+                "alert_id": r["event_id"],
                 "timestamp": t_str,
                 "source_ip": r["source_ip"] or "-",
                 "destination_ip": r["destination_ip"] or "-",
                 "agent_name": r["agent_name"] or "-",
-                "payload": final_payload
+                "agent": r["agent_name"] or "-",
+                "actor": actor,
+                "rule_id": rule_id,
+                "rule_description": r.get("rule_description") or "-",
+                "payload": final_payload,
+                "full_log": full_log_str
             })
         return {"total": len(logs), "aggregation_id": aggregation_id, "logs": logs}
     finally:

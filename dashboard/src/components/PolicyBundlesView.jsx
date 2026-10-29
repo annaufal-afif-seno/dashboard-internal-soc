@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layers, Plus, X, Search, Check, AlertCircle, RefreshCw, 
-  Shield, FileText, CheckCircle2, ChevronDown, ChevronUp,
+  Shield, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight,
   Copy, CheckCheck, Play, Server, Database, Globe, Tag,
   ExternalLink, Boxes, ArrowRight, ArrowLeft, Clock, ShieldCheck,
   Code, Filter, Terminal, Sparkles, Pencil, Calendar, Trash2,
@@ -28,6 +28,80 @@ export default function PolicyBundlesView({
   const [expandedGroupId, setExpandedGroupId] = useState(null);
   const [groupDetails, setGroupDetails] = useState({});
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Nested expandable sub-tables for 'by ticket' view
+  const [expandedTicketIds, setExpandedTicketIds] = useState({});
+  const [ticketClustersMap, setTicketClustersMap] = useState({});
+  const [ticketClustersLoading, setTicketClustersLoading] = useState({});
+
+  const [expandedClusterIds, setExpandedClusterIds] = useState({});
+  const [clusterAlertsMap, setClusterAlertsMap] = useState({});
+  const [clusterAlertsLoading, setClusterAlertsLoading] = useState({});
+
+  const toggleExpandTicket = async (ticketId) => {
+    if (!ticketId) return;
+    const isCurrentlyExpanded = !expandedTicketIds[ticketId];
+    setExpandedTicketIds(prev => ({
+      ...prev,
+      [ticketId]: isCurrentlyExpanded
+    }));
+
+    if (isCurrentlyExpanded && !ticketClustersMap[ticketId]) {
+      setTicketClustersLoading(prev => ({ ...prev, [ticketId]: true }));
+      try {
+        const res = await fetch(`/api/triage/${ticketId}/aggregates`);
+        if (res.ok) {
+          const data = await res.json();
+          setTicketClustersMap(prev => ({ ...prev, [ticketId]: data.aggregates || [] }));
+        } else {
+          setTicketClustersMap(prev => ({ ...prev, [ticketId]: [] }));
+        }
+      } catch (err) {
+        console.warn('Fetch ticket clusters error:', err);
+        setTicketClustersMap(prev => ({ ...prev, [ticketId]: [] }));
+      } finally {
+        setTicketClustersLoading(prev => ({ ...prev, [ticketId]: false }));
+      }
+    }
+  };
+
+  const toggleExpandCluster = async (clusterId) => {
+    if (!clusterId) return;
+    const isCurrentlyExpanded = !expandedClusterIds[clusterId];
+    setExpandedClusterIds(prev => ({
+      ...prev,
+      [clusterId]: isCurrentlyExpanded
+    }));
+
+    if (isCurrentlyExpanded && !clusterAlertsMap[clusterId]) {
+      setClusterAlertsLoading(prev => ({ ...prev, [clusterId]: true }));
+      try {
+        const res = await fetch(`/api/aggregates/${clusterId}/logs`);
+        if (res.ok) {
+          const data = await res.json();
+          setClusterAlertsMap(prev => ({ ...prev, [clusterId]: data.logs || [] }));
+        } else {
+          setClusterAlertsMap(prev => ({ ...prev, [clusterId]: [] }));
+        }
+      } catch (err) {
+        console.warn('Fetch cluster alerts error:', err);
+        setClusterAlertsMap(prev => ({ ...prev, [clusterId]: [] }));
+      } finally {
+        setClusterAlertsLoading(prev => ({ ...prev, [clusterId]: false }));
+      }
+    }
+  };
+
+  const getCategoryBadge = (category) => {
+    const cat = String(category || '').toUpperCase();
+    if (cat.includes('WEB')) return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+    if (cat.includes('AUTH_SUCCESS') || cat.includes('SUCCESS')) return 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
+    if (cat.includes('AUTH_FAIL') || cat.includes('FAILURE')) return 'bg-rose-500/15 text-rose-400 border border-rose-500/30';
+    if (cat.includes('PRIVILEGE') || cat.includes('ESCALAT')) return 'bg-purple-500/15 text-purple-400 border border-purple-500/30';
+    if (cat.includes('SYSTEM') || cat.includes('HEALTH')) return 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30';
+    if (cat.includes('INTEGRITY') || cat.includes('FIM')) return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+    return 'bg-slate-700/30 text-slate-300 border border-slate-600/30';
+  };
 
   // Dedicated Tenant View & False Positive Tuning Tickets State (Mockup 1 & 2)
   const [selectedTenantView, setSelectedTenantView] = useState(null);
@@ -740,8 +814,9 @@ export default function PolicyBundlesView({
           ticketNo: req.triage_id || req.incident_id || `TRG-${tenantName}-${idx + 1}`,
           incidentTitle: req.judul_insiden || 'Security Incident Tuning',
           classi,
-          actor: req.attacker_source_ip && req.attacker_source_ip !== '-' ? req.attacker_source_ip : 'Internal / N/A',
-          target: req.target_host && req.target_host !== '-' ? req.target_host : '-',
+          actor: req.attacker_source_ip && req.attacker_source_ip !== '-' ? req.attacker_source_ip : (req.actor || 'Internal / N/A'),
+          agent: req.target_host && req.target_host !== '-' ? req.target_host : (req.agent || req.agent_name || '-'),
+          target: req.target_host && req.target_host !== '-' ? req.target_host : (req.agent || req.agent_name || '-'),
           status: itemStatus,
           isExpired: isExp,
           expirationDate: currentExpDate,
@@ -924,6 +999,32 @@ export default function PolicyBundlesView({
       showNotification('Terjadi kesalahan saat apply ke Wazuh', 'error');
     } finally {
       setApplyingTenant(false);
+    }
+  };
+
+  const handleToggleClusterRow = async (item) => {
+    const key = item.clusterId || item.id || item.ticketNo;
+    if (expandedClusterId === key) {
+      setExpandedClusterId(null);
+      return;
+    }
+    setExpandedClusterId(key);
+    if (!clusterLogsMap[key]) {
+      setLoadingClusterLogs(true);
+      try {
+        const res = await fetch(`/api/aggregates/${key}/logs`);
+        if (res.ok) {
+          const data = await res.json();
+          setClusterLogsMap(prev => ({ ...prev, [key]: data.logs || [] }));
+        } else {
+          setClusterLogsMap(prev => ({ ...prev, [key]: [] }));
+        }
+      } catch (e) {
+        console.warn('Failed to load cluster logs:', e);
+        setClusterLogsMap(prev => ({ ...prev, [key]: [] }));
+      } finally {
+        setLoadingClusterLogs(false);
+      }
     }
   };
 
@@ -1390,15 +1491,14 @@ export default function PolicyBundlesView({
                     }`}>
                       {bundleFilterMode === 'cluster' ? (
                         <tr>
-                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[130px]">CLUSTER ID</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">KATEGORI</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">SUB KATEGORI</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">AGENT</th>
-                          <th className="px-2 py-2.5 font-bold uppercase tracking-wider text-[10px]">ACTOR</th>
-                          <th className="px-2.5 py-2.5 font-bold uppercase tracking-wider text-[10px] min-w-[160px]">ACTIVITY</th>
-                          <th className="px-1 py-2.5 text-center font-bold uppercase tracking-wider text-[10px] w-7">action</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">status</th>
-                          <th className="px-2 py-2.5 text-center font-bold uppercase tracking-wider text-[10px]">deploy</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">CLUSTER ID</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">KATEGORI</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">SUB KATEGORI</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">AGENT</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTIVITY</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
                         </tr>
                       ) : (
                         <tr>
@@ -1419,7 +1519,7 @@ export default function PolicyBundlesView({
                     }`}>
                       {filteredItems.length === 0 ? (
                         <tr>
-                          <td colSpan={bundleFilterMode === 'cluster' ? 9 : 7} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={bundleFilterMode === 'cluster' ? 8 : 7} className="py-12 text-center text-slate-400 text-xs">
                             {bundleFilterMode === 'cluster' 
                               ? 'Tidak ada kluster atau kebijakan yang cocok dengan filter.'
                               : bundleFilterMode === 'campaign'
@@ -1430,125 +1530,212 @@ export default function PolicyBundlesView({
                       ) : (
                         filteredItems.map((item, idx) => {
                           if (bundleFilterMode === 'cluster') {
+                            const clusterKey = item.clusterId || item.id || item.ticketNo;
+                            const isExpanded = expandedClusterId === clusterKey;
+                            const currentLogs = clusterLogsMap[clusterKey] || [];
+                            const isFetchingLogs = loadingClusterLogs && isExpanded && !clusterLogsMap[clusterKey];
+
                             return (
-                              <tr key={`${item.id}-${idx}`} className={`transition-colors ${
-                                isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
-                              }`}>
-                                {/* 1. CLUSTER ID (Interval Cluster ID) */}
-                                <td className="px-2.5 py-2.5 font-mono">
-                                  <div className="font-bold text-[10px] text-indigo-400 break-all leading-tight select-all">
-                                    {item.clusterId || item.ticketNo}
-                                  </div>
-                                </td>
+                              <React.Fragment key={`${item.id}-${idx}`}>
+                                <tr 
+                                  onClick={() => handleToggleClusterRow(item)}
+                                  className={`transition-colors cursor-pointer select-none ${
+                                    isExpanded
+                                      ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300')
+                                      : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
+                                  }`}
+                                  title="Klik baris untuk melihat rincian alert di kluster ini"
+                                >
+                                  {/* 1. CLUSTER ID (Interval Cluster ID) */}
+                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
+                                    <div className="flex items-center gap-1.5">
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      )}
+                                      <span className="font-mono text-slate-900 dark:text-white select-all">
+                                        {item.clusterId || item.ticketNo}
+                                      </span>
+                                    </div>
+                                  </td>
 
-                                {/* 2. KATEGORI */}
-                                <td className="px-2 py-2.5">
-                                  <span className="text-[10px] font-bold uppercase tracking-tight text-emerald-400 block whitespace-nowrap">
+                                  {/* 2. KATEGORI */}
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold uppercase text-slate-900 dark:text-white">
                                     {item.category || 'WEB_OPERATIONAL'}
-                                  </span>
-                                </td>
+                                  </td>
 
-                                {/* 3. SUB KATEGORI */}
-                                <td className="px-2 py-2.5">
-                                  <span className="text-[10px] font-medium text-slate-300 block whitespace-nowrap">
+                                  {/* 3. SUB KATEGORI */}
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
                                     {item.subcategory || 'nginx, web'}
-                                  </span>
-                                </td>
+                                  </td>
 
-                                {/* 4. AGENT */}
-                                <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-words leading-tight" title={item.agent || item.target}>
-                                  {item.agent || item.target || '-'}
-                                </td>
+                                  {/* 4. AGENT */}
+                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.agent || item.target}>
+                                    {item.agent || item.target || '-'}
+                                  </td>
 
-                                {/* 5. ACTOR */}
-                                <td className="px-2 py-2.5 font-mono text-[10px] text-slate-300 break-all leading-tight">
-                                  {item.actor || 'Internal / N/A'}
-                                </td>
+                                  {/* 5. ACTOR */}
+                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
+                                    {item.actor || 'Internal / N/A'}
+                                  </td>
 
-                                {/* 6. ACTIVITY (Format Normalisasi) */}
-                                <td className="px-2.5 py-2.5 font-mono text-[10px] text-amber-300/95 break-words leading-tight">
-                                  {item.activity || 'GET /.env* [111]'}
-                                </td>
+                                  {/* 6. ACTIVITY (Format Normalisasi) */}
+                                  <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
+                                    {item.activity || 'GET /.env* [111]'}
+                                  </td>
 
-                                {/* 7. Action */}
-                                <td className="px-1 py-2.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleActionClick(item)}
-                                    className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
-                                    title="Edit / Tinjau Parameter Supresi"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
-                                  </button>
-                                </td>
-
-                                {/* 8. Status */}
-                                <td className="px-2 py-2.5 text-center font-mono">
-                                  {item.status === 'DEPLOY' ? (
-                                    <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                      DEPLOY
-                                    </span>
-                                  ) : item.status === 'APPROVE' ? (
-                                    <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                      APPROVE
-                                    </span>
-                                  ) : item.status === 'EXPIRED' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setExtendModalItem(item);
-                                        const defaultDate = new Date();
-                                        defaultDate.setDate(defaultDate.getDate() + 90);
-                                        setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
-                                      }}
-                                      title="Kluster Expired. Klik untuk memperpanjang tanggal expired."
-                                      className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
-                                    >
-                                      EXPIRED
-                                    </button>
-                                  ) : (
-                                    <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                      WAITING
-                                    </span>
-                                  )}
-                                </td>
-
-                                {/* 9. Deploy Toggle Switch */}
-                                <td className="px-2 py-2.5 text-center">
-                                  {item.status === 'EXPIRED' || item.isExpired ? (
-                                    <div className="flex flex-col items-center justify-center gap-0.5">
+                                  {/* 7. Status */}
+                                  <td className="px-3 py-2.5 text-center font-mono whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                    {item.status === 'DEPLOY' ? (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        DEPLOY
+                                      </span>
+                                    ) : item.status === 'APPROVE' ? (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        APPROVE
+                                      </span>
+                                    ) : item.status === 'EXPIRED' ? (
                                       <button
                                         type="button"
-                                        disabled
-                                        className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
-                                        title="Expired: Tombol OFF dan terkunci."
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExtendModalItem(item);
+                                          const defaultDate = new Date();
+                                          defaultDate.setDate(defaultDate.getDate() + 90);
+                                          setNewExpirationDate(defaultDate.toISOString().split('T')[0]);
+                                        }}
+                                        title="Kluster Expired. Klik untuk memperpanjang tanggal expired."
+                                        className="inline-block px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                                       >
-                                        <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs translate-x-0" />
+                                        EXPIRED
                                       </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center">
-                                      <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={item.status === 'DEPLOY'}
-                                        onClick={() => handleToggleDeploy(item)}
-                                        className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                          item.status === 'DEPLOY' 
-                                            ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
-                                            : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                            item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                    ) : (
+                                      <span className="inline-block px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
+                                        WAITING
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* 8. Deploy Toggle Switch */}
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                    {item.status === 'EXPIRED' || item.isExpired ? (
+                                      <div className="flex flex-col items-center justify-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          disabled
+                                          className="group relative inline-flex h-4.5 w-8 shrink-0 cursor-not-allowed items-center rounded-full bg-slate-800 border border-rose-500/40 p-0.5 opacity-50 transition-colors"
+                                          title="Expired: Tombol OFF dan terkunci."
+                                        >
+                                          <span className="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-500 shadow-xs translate-x-0" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-center">
+                                        <button
+                                          type="button"
+                                          role="switch"
+                                          aria-checked={item.status === 'DEPLOY'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleDeploy(item);
+                                          }}
+                                          className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            item.status === 'DEPLOY' 
+                                              ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                              : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                           }`}
-                                        />
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
+                                        >
+                                          <span
+                                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                              item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                            }`}
+                                          />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+
+                                {/* SUB-TABLE ROW (EXPANDED ACCORDION) */}
+                                {isExpanded && (
+                                  <tr className={isDark ? 'bg-[#0b101e]' : 'bg-slate-50/90'}>
+                                    <td colSpan={8} className="p-3.5 border-b border-slate-200 dark:border-slate-800">
+                                      <div className={`rounded-xl border p-3.5 ${
+                                        isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
+                                      }`}>
+                                        <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
+                                              Rincian Alert Dalam Kluster ({currentLogs.length || 1} alert)
+                                            </span>
+                                            <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                              [{clusterKey}]
+                                            </span>
+                                          </div>
+                                          {isFetchingLogs && (
+                                            <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-mono">
+                                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                              <span>Memuat alert...</span>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                              <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ALERT ID</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">RULE ID</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-sans">
+                                              {(currentLogs.length > 0 ? currentLogs : [
+                                                {
+                                                  event_id: item.alertId || item.clusterId || 'ALERT-001',
+                                                  agent_name: item.agent || item.target || '-',
+                                                  source_ip: item.actor || '-',
+                                                  rule_id: item.ruleId || '31301',
+                                                  full_log: item.payload || item.activity || `${item.category || 'WEB_OPERATIONAL'} security event`
+                                                }
+                                              ]).map((log, lIdx) => (
+                                                <tr key={`${log.event_id || lIdx}-${lIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
+                                                  <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
+                                                    {log.event_id || log.alert_id || '-'}
+                                                  </td>
+                                                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                    {log.agent_name || log.agent || '-'}
+                                                  </td>
+                                                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                                                    {log.source_ip || log.actor || '-'}
+                                                  </td>
+                                                  <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
+                                                    {log.rule_id || '-'}
+                                                  </td>
+                                                  <td className="px-3 py-2 font-mono text-[11px] text-slate-900 dark:text-white min-w-[320px]">
+                                                    <div 
+                                                      className={`p-2 rounded border font-mono text-[10.5px] leading-relaxed max-h-24 overflow-y-auto select-all break-all ${
+                                                        isDark ? 'bg-slate-900/80 border-slate-700/80 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
+                                                      }`}
+                                                      title="Klik / select untuk salin full log"
+                                                    >
+                                                      {log.full_log || log.payload || '-'}
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           }
 
