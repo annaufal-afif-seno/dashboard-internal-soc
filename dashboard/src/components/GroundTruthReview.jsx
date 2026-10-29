@@ -421,10 +421,18 @@ export default function GroundTruthReview({ theme = 'dark', currentUser = null }
                 </tr>
               ) : paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-14 text-center">
-                    <span className={`text-xs font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      Tidak ada tiket berstatus WAITING untuk validasi saat ini.
-                    </span>
+                  <td colSpan="8" className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-lg mx-auto space-y-2">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-slate-800/80 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      </div>
+                      <span className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                        Tidak ada tiket antrian validasi (Status: WAITING)
+                      </span>
+                      <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Seluruh tiket yang memerlukan audit Ground Truth telah selesai divalidasi. Tiket ambigu baru (status <span className="font-mono text-amber-500 font-semibold">ACT NEED</span>) di Incident Triage Queue akan otomatis masuk ke antrian ini setelah diajukan oleh Analis Tier-1/Tier-2.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (

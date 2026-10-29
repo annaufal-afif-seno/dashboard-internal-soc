@@ -639,7 +639,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
 
   const fetchTuningRequests = async () => {
     try {
-      const res = await fetch('/api/suppression/tuning-requests');
+      const res = await fetch('/api/suppression/tuning-requests?limit=2000');
       if (res.ok) {
         const json = await res.json();
         setTuningRequests(json.requests || []);

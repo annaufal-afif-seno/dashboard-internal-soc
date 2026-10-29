@@ -1717,113 +1717,133 @@ def get_raw_alerts(
 
         if search and search.strip():
             raw_s = search.strip()
-            s = f"%{raw_s}%"
+            clean_s = raw_s.strip()
+            s = f"%{clean_s}%"
             s_conds = []
             s_params = []
 
-            # 1. Event ID (full or partial match)
-            s_conds.append("r.event_id ILIKE %s")
-            s_params.append(s)
+            # Check if this is an explicit Lineage ID search (bypasses heavy full-table payload scan)
+            is_ticket_search = clean_s.upper().startswith("TRG-") or clean_s.upper().startswith("INC-")
+            is_camp_search = clean_s.upper().startswith("CAMP-")
+            is_agg_search = clean_s.lower().startswith("agg_")
+            is_cum_search = clean_s.lower().startswith("cum_")
 
-            # 2. Timestamp (WIB string "Oct 29, 09:15:47 WIB", ISO "2026-10-29", UK "29/10/2026", Month name "October")
-            s_conds.append("TO_CHAR(r.timestamp AT TIME ZONE 'Asia/Jakarta', 'Mon DD, HH24:MI:SS WIB YYYY-MM-DD DD/MM/YYYY HH12:MI:SS AM PM FMMonth') ILIKE %s")
-            s_params.append(s)
-
-            # 3. Tenant (e.g. DEFAULT, TenantD, etc.)
-            s_conds.append("r.tenant_id ILIKE %s")
-            s_params.append(s)
-
-            # 4. Rule ID (e.g. 5502, Rule 5502) and Rule Level (Lv 3, Level 5)
-            s_conds.append("CAST(n.rule_id AS TEXT) ILIKE %s")
-            s_params.append(s)
-
-            m_rule_digits = re.search(r'\b(\d+)\b', raw_s)
-            if m_rule_digits:
-                try:
-                    s_conds.append("n.rule_id = %s")
-                    s_params.append(int(m_rule_digits.group(1)))
-                except ValueError:
-                    pass
-
-            m_lv = re.search(r'(?:lv|level)\s*(\d+)', raw_s, re.IGNORECASE)
-            if m_lv:
-                try:
-                    s_conds.append("n.rule_level = %s")
-                    s_params.append(int(m_lv.group(1)))
-                except ValueError:
-                    pass
-
-            # 5. Rule Description
-            s_conds.append("n.rule_description ILIKE %s")
-            s_params.append(s)
-
-            # 6. Actor (source IP, username, 'user:root', NO_ACTOR)
-            s_conds.append("r.source_ip ILIKE %s")
-            s_params.append(s)
-            s_conds.append("r.username ILIKE %s")
-            s_params.append(s)
-            s_conds.append("('user:' || COALESCE(r.username, '')) ILIKE %s")
-            s_params.append(s)
-            if "NO_ACTOR" in raw_s.upper() or "NO ACTOR" in raw_s.upper():
-                s_conds.append("((r.source_ip IS NULL OR r.source_ip = '') AND (r.username IS NULL OR r.username = '' OR r.username = 'none'))")
-
-            # 7. Target (agent name, agent ID, agent IP, destination IP)
-            s_conds.append("r.agent_name ILIKE %s")
-            s_params.append(s)
-            s_conds.append("r.agent_id ILIKE %s")
-            s_params.append(s)
-            s_conds.append("r.agent_ip ILIKE %s")
-            s_params.append(s)
-            s_conds.append("r.destination_ip ILIKE %s")
-            s_params.append(s)
-
-            # 8. Full Log Payload (raw syslog/JSON string)
-            s_conds.append("r.raw_payload ILIKE %s")
-            s_params.append(s)
-
-            # 9. Lineage: Aggregation ID, Cumulative ID, Ticket ID
-            if raw_s.lower().startswith("agg_"):
-                s_conds.append("""r.event_id IN (
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id ILIKE %s
-                )""")
-                s_params.append(s)
-            elif raw_s.lower().startswith("cum_"):
-                s_conds.append("""r.event_id IN (
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
-                    JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
-                    JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
-                    WHERE cu.cumulative_id ILIKE %s
-                )""")
-                s_params.append(s)
-            elif raw_s.upper().startswith("CAMP-"):
+            if is_ticket_search:
+                if len(clean_s) <= 5:
+                    # Prefix-only typing like 'TRG-' or 'INC-': query recent tickets to prevent scanning 185k rows
+                    s_conds.append("""r.event_id IN (
+                        SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                        JOIN (
+                            SELECT aggregation_id FROM soc_ops.ticket_aggregates
+                            WHERE ticket_id LIKE %s
+                            ORDER BY added_at DESC
+                            LIMIT 50
+                        ) ta ON m.aggregation_id = ta.aggregation_id
+                    )""")
+                    s_params.append(f"{clean_s}%")
+                else:
+                    # Specific ticket ID or pattern: use anchored prefix matching (index friendly)
+                    s_conds.append("""r.event_id IN (
+                        SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                        JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id
+                        WHERE ta.ticket_id LIKE %s
+                        UNION
+                        SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                        JOIN correlation.incident_stages s ON m.aggregation_id = s.reference_id
+                        WHERE s.incident_id LIKE %s
+                    )""")
+                    s_params.extend([f"{clean_s}%", f"{clean_s}%"])
+            elif is_camp_search:
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
                     JOIN correlation.cluster_members cm ON m.aggregation_id = cm.aggregation_id
-                    WHERE cm.cluster_id ILIKE %s
+                    WHERE cm.cluster_id LIKE %s
                 )""")
-                s_params.append(s)
-            elif raw_s.upper().startswith("TRG-") or raw_s.upper().startswith("INC-"):
+                s_params.append(f"{clean_s}%")
+            elif is_agg_search:
                 s_conds.append("""r.event_id IN (
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
-                    JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id
-                    WHERE ta.ticket_id ILIKE %s
-                    UNION
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
-                    JOIN correlation.incident_stages s ON m.aggregation_id = s.reference_id
-                    WHERE s.incident_id ILIKE %s
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id LIKE %s
                 )""")
-                s_params.extend([s, s])
+                s_params.append(f"{clean_s}%")
+            elif is_cum_search:
+                s_conds.append("""r.event_id IN (
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
+                    JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
+                    JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
+                    WHERE cu.cumulative_id LIKE %s
+                )""")
+                s_params.append(f"{clean_s}%")
             else:
-                # General term or partial lineage ID without prefix
+                # 1. Event ID (full or partial match)
+                s_conds.append("r.event_id ILIKE %s")
+                s_params.append(s)
+
+                # 2. Timestamp (WIB string "Oct 29, 09:15:47 WIB", ISO "2026-10-29", UK "29/10/2026", Month name "October")
+                s_conds.append("TO_CHAR(r.timestamp AT TIME ZONE 'Asia/Jakarta', 'Mon DD, HH24:MI:SS WIB YYYY-MM-DD DD/MM/YYYY HH12:MI:SS AM PM FMMonth') ILIKE %s")
+                s_params.append(s)
+
+                # 3. Tenant (e.g. DEFAULT, TenantD, etc.)
+                s_conds.append("r.tenant_id ILIKE %s")
+                s_params.append(s)
+
+                # 4. Rule ID (e.g. 5502, Rule 5502) and Rule Level (Lv 3, Level 5)
+                s_conds.append("CAST(n.rule_id AS TEXT) ILIKE %s")
+                s_params.append(s)
+
+                m_rule_digits = re.search(r'\b(\d+)\b', raw_s)
+                if m_rule_digits:
+                    try:
+                        s_conds.append("n.rule_id = %s")
+                        s_params.append(int(m_rule_digits.group(1)))
+                    except ValueError:
+                        pass
+
+                m_lv = re.search(r'(?:lv|level)\s*(\d+)', raw_s, re.IGNORECASE)
+                if m_lv:
+                    try:
+                        s_conds.append("n.rule_level = %s")
+                        s_params.append(int(m_lv.group(1)))
+                    except ValueError:
+                        pass
+
+                # 5. Rule Description
+                s_conds.append("n.rule_description ILIKE %s")
+                s_params.append(s)
+
+                # 6. Actor (source IP, username, 'user:root', NO_ACTOR)
+                s_conds.append("r.source_ip ILIKE %s")
+                s_params.append(s)
+                s_conds.append("r.username ILIKE %s")
+                s_params.append(s)
+                s_conds.append("('user:' || COALESCE(r.username, '')) ILIKE %s")
+                s_params.append(s)
+                if "NO_ACTOR" in raw_s.upper() or "NO ACTOR" in raw_s.upper():
+                    s_conds.append("((r.source_ip IS NULL OR r.source_ip = '') AND (r.username IS NULL OR r.username = '' OR r.username = 'none'))")
+
+                # 7. Target (agent name, agent ID, agent IP, destination IP)
+                s_conds.append("r.agent_name ILIKE %s")
+                s_params.append(s)
+                s_conds.append("r.agent_id ILIKE %s")
+                s_params.append(s)
+                s_conds.append("r.agent_ip ILIKE %s")
+                s_params.append(s)
+                s_conds.append("r.destination_ip ILIKE %s")
+                s_params.append(s)
+
+                # 8. Full Log Payload (raw syslog/JSON string)
+                s_conds.append("r.raw_payload ILIKE %s")
+                s_params.append(s)
+
+                # 9. General term or partial lineage ID without prefix
                 s_conds.append("""r.event_id IN (
                     SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m WHERE m.aggregation_id ILIKE %s
                     UNION
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
                     JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
                     JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
                     WHERE cu.cumulative_id ILIKE %s
                     UNION
-                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m 
+                    SELECT m.raw_event_id FROM suppression.aggregate_evidence_mapping m
                     JOIN soc_ops.ticket_aggregates ta ON m.aggregation_id = ta.aggregation_id
                     WHERE ta.ticket_id ILIKE %s
                     UNION
@@ -1837,7 +1857,7 @@ def get_raw_alerts(
                 )""")
                 s_params.extend([s, s, s, s, s])
 
-            where_clauses.append(f"({' OR '.join(s_conds)})")
+            where_clauses.append(f"(' OR '.join(s_conds))")
             params.extend(s_params)
 
         # Cluster-specific filters from Clustering Dashboard
@@ -2903,6 +2923,7 @@ def get_ticket_forensics(triage_id: str, conn = Depends(get_db_connection)):
                 t.created_at, t.updated_at,
                 i.incident_id, i.title, i.narrative, i.initial_access_vector,
                 i.attacker_source_ip, i.compromised_account, i.target_host,
+                i.first_seen_at, i.last_seen_at,
                 COALESCE(rs.total_score, 45) AS skor_risiko, v.target_sla, v.batas_deadline_sla, v.status_kepatuhan_sla
             FROM soc_ops.soc_triage_queue t
             JOIN correlation.correlated_incidents i ON t.incident_id = i.incident_id
@@ -3132,10 +3153,10 @@ def get_ticket_forensics(triage_id: str, conn = Depends(get_db_connection)):
             ]
         }
 
-        first_seen = ticket['first_seen_at'].strftime("%Y-%m-%d %H:%M:%S WIB") if isinstance(ticket['first_seen_at'], datetime) else (f"{ticket['first_seen_at']} WIB" if ticket['first_seen_at'] else "-")
-        last_seen = ticket['last_seen_at'].strftime("%Y-%m-%d %H:%M:%S WIB") if isinstance(ticket['last_seen_at'], datetime) else (f"{ticket['last_seen_at']} WIB" if ticket['last_seen_at'] else "-")
-
-        return {
+        fs_val = ticket.get('first_seen_at') or ticket.get('created_at')
+        ls_val = ticket.get('last_seen_at') or ticket.get('updated_at') or fs_val
+        first_seen = fs_val.strftime('%Y-%m-%d %H:%M:%S WIB') if isinstance(fs_val, (datetime, date)) else (f'{fs_val} WIB' if fs_val else '-')
+        last_seen = ls_val.strftime('%Y-%m-%d %H:%M:%S WIB') if isinstance(ls_val, (datetime, date)) else (f'{ls_val} WIB' if ls_val else '-')
             "ticket": {
                 "triage_id": ticket['triage_id'],
                 "incident_id": ticket['incident_id'],
@@ -4953,7 +4974,7 @@ def promote_rule_wazuh(
         cur.close()
 
 @app.get("/api/suppression/tuning-requests")
-def get_tuning_requests(limit: int = 100, offset: int = 0, conn = Depends(get_db_connection)):
+def get_tuning_requests(limit: int = 2000, offset: int = 0, conn = Depends(get_db_connection)):
     """Fetch False Positive tuning requests submitted by SOC analysts awaiting suppression rule creation."""
     cur = conn.cursor(cursor_factory=extras.RealDictCursor)
     try:
@@ -6028,8 +6049,8 @@ def apply_tenant_suppression(
         else:
             group_id = f"GRP-2026-{tenant_id.upper()}"
             cur.execute("""
-                INSERT INTO suppression.suppression_groups (group_id, group_name, group_type, tenant_id, status)
-                VALUES (%s, %s, 'TENANT', %s, 'ACTIVE')
+                INSERT INTO suppression.suppression_groups (group_id, group_name, group_type, tenant_id, owner, status)
+                VALUES (%s, %s, 'TENANT', %s, 'SOC_LEAD', 'ACTIVE')
                 ON CONFLICT (group_id) DO NOTHING;
             """, (group_id, f"{tenant_id} Baseline Policy", tenant_id))
 
@@ -7580,7 +7601,7 @@ def get_campaign_cluster_raw_events(
     category: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
     sort_field: str = Query("timestamp"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
     conn = Depends(get_db_connection)
 ):
     """
@@ -7954,15 +7975,15 @@ def delete_custom_threat_campaign(campaign_id: str, conn = Depends(get_db_connec
 
 @app.get("/api/threat-campaign/entities")
 def get_threat_campaign_entities(
-    entity_type: str = Query("actor", regex="^(actor|victim)$"),
+    entity_type: str = Query("actor", pattern="^(actor|victim)$"),
     q: Optional[str] = Query(None, description="Search term for actor or victim"),
     tenant_id: Optional[str] = Query(None),
     time_range: Optional[str] = Query("semua"),
     custom_start: Optional[str] = Query(None),
     custom_end: Optional[str] = Query(None),
-    data_source: Optional[str] = Query("raw", regex="^(raw|aggregated)$"),
+    data_source: Optional[str] = Query("raw", pattern="^(raw|aggregated)$"),
     sort_field: str = Query("timestamp"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=500),
     conn = Depends(get_db_connection)
@@ -8356,7 +8377,7 @@ def get_threat_campaign_entities(
 @app.get("/api/threat-campaign/reconstruct-attack-paths", tags=["Threat Campaign"])
 @app.post("/api/threat-campaign/reconstruct-attack-paths", tags=["Threat Campaign"])
 def reconstruct_attack_paths(
-    entity_type: str = Query("victim", regex="^(actor|victim)$"),
+    entity_type: str = Query("victim", pattern="^(actor|victim)$"),
     q: Optional[str] = Query(None, description="Search term for actor or victim"),
     tenant_id: Optional[str] = Query(None),
     time_range: Optional[str] = Query("semua"),
