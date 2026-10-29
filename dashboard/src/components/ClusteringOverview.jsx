@@ -8,7 +8,7 @@ import {
 
   ChevronsLeft, ChevronsRight, Copy, Check, X, Terminal, 
 
-  Layers, ExternalLink, Flag
+  Layers, Flag
 
 } from 'lucide-react';
 
@@ -252,6 +252,42 @@ export default function ClusteringOverview({
   const [selectedAlert, setSelectedAlert] = useState(null);
 
   const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopyLog = (text, id) => {
+    if (!text) return;
+    const str = String(text);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(str).catch(() => {
+        try {
+          const textarea = document.createElement('textarea');
+          textarea.value = str;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        } catch (e) {
+          console.error('Failed to copy', e);
+        }
+      });
+    } else {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = str;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch (e) {
+        console.error('Failed to copy', e);
+      }
+    }
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2500);
+  };
 
   const [alertsNetworkError, setAlertsNetworkError] = useState(false);
 
@@ -2380,172 +2416,64 @@ export default function ClusteringOverview({
 
 
 
-                  {/* ID Tiket (Triage) */}
-
+                  {/* TICKET ID */}
                   <div className={`p-2.5 rounded-lg border ${
-
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-
                   }`}>
-
                     <div className="flex items-center justify-between">
-
                       <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-
                         isDark ? 'text-slate-400' : 'text-slate-500'
-
                       }`}>
-
                         TICKET ID
-
                       </span>
-
-                      <div className="flex items-center gap-1">
-
-                        {selectedAlert.ticket_id && typeof onNavigate === 'function' && (
-
-                          <button
-
-                            type="button"
-
-                            onClick={() => onNavigate('triage', { search: selectedAlert.ticket_id })}
-
-                            className="p-0.5 rounded cursor-pointer transition-colors text-blue-500 hover:text-blue-400"
-
-                            title="Buka tiket ini di Ticket Queue"
-
-                          >
-
-                            <ExternalLink className="w-3.5 h-3.5" />
-
-                          </button>
-
-                        )}
-
-                        <button
-
-                          type="button"
-
-                          onClick={() => handleCopyLog(selectedAlert.ticket_id, 'copy_tkt')}
-
-                          className={`p-0.5 rounded cursor-pointer transition-colors ${
-
-                            isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
-
-                          }`}
-
-                          title="Salin Ticket ID"
-
-                        >
-
-                          {copiedId === 'copy_tkt' ? (
-
-                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-
-                          ) : (
-
-                            <Copy className="w-3.5 h-3.5" />
-
-                          )}
-
-                        </button>
-
-                      </div>
-
-                    </div>
-
-                    {selectedAlert.ticket_id && typeof onNavigate === 'function' ? (
-
                       <button
-
                         type="button"
-
-                        onClick={() => onNavigate('triage', { search: selectedAlert.ticket_id })}
-
-                        className="font-mono text-[11px] font-bold break-all block mt-1 text-blue-500 hover:text-blue-400 hover:underline cursor-pointer text-left"
-
-                      >
-
-                        {selectedAlert.ticket_id}
-
-                      </button>
-
-                    ) : (
-
-                      <span 
-
-                        className={`font-mono text-[11px] font-bold break-all block mt-1 select-all ${
-
-                          isDark ? 'text-white' : 'text-black'
-
+                        onClick={() => handleCopyLog(selectedAlert.ticket_id, 'copy_tkt')}
+                        className={`p-0.5 rounded cursor-pointer transition-colors ${
+                          isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
                         }`}
-
-                        title={selectedAlert.ticket_id}
-
+                        title="Salin Ticket ID"
                       >
-
-                        {selectedAlert.ticket_id || '-'}
-
-                      </span>
-
-                    )}
-
+                        {copiedId === 'copy_tkt' ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                    <span 
+                      className={`font-mono text-[11px] font-bold break-all block mt-1 select-all ${
+                        isDark ? 'text-white' : 'text-black'
+                      }`}
+                      title={selectedAlert.ticket_id}
+                    >
+                      {selectedAlert.ticket_id || '-'}
+                    </span>
                   </div>
-
                 </div>
-
               </div>
 
-
-
               {/* Box 3: Full Log Payload */}
-
               <div className="space-y-1.5">
-
                 <div className="flex items-center justify-between text-xs font-semibold">
-
                   <span className={`uppercase font-bold tracking-wider text-[11px] ${
-
                     isDark ? 'text-slate-300' : 'text-slate-700'
-
                   }`}>
-
                     FULL LOG PAYLOAD:
-
                   </span>
-
                   <button
-
                     type="button"
-
                     onClick={() => handleCopyLog(selectedAlert.full_log || '', 'copy_full_payload')}
-
-                    className="flex items-center gap-1 text-[11px] font-mono text-blue-500 hover:text-blue-400 cursor-pointer"
-
+                    className={`p-0.5 rounded cursor-pointer transition-colors ${
+                      isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-black'
+                    }`}
+                    title="Salin Full Log Payload"
                   >
-
                     {copiedId === 'copy_full_payload' ? (
-
-                      <>
-
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-
-                        <span className="text-emerald-500 font-bold">Tersalin!</span>
-
-                      </>
-
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
                     ) : (
-
-                      <>
-
-                        <Copy className="w-3.5 h-3.5" />
-
-                        <span>Salin Payload</span>
-
-                      </>
-
+                      <Copy className="w-3.5 h-3.5" />
                     )}
-
                   </button>
 
                 </div>
