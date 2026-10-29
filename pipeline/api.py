@@ -1906,7 +1906,10 @@ def get_raw_alerts(
                         COALESCE(ta.ticket_id, tq.triage_id, s.incident_id) as ticket_id
                     FROM suppression.aggregate_evidence_mapping m
                     LEFT JOIN suppression.aggregated_alerts ag ON m.aggregation_id = ag.aggregation_id
-                    LEFT JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
+                    LEFT JOIN suppression.cumulative_alerts cu ON (
+                        ag.deduplication_key = cu.deduplication_key 
+                        OR (ag.tenant_id = cu.tenant_id AND ag.rule_id = cu.rule_id AND ag.target = cu.target AND (ag.actor = cu.actor OR ag.actor IS NULL OR cu.actor IS NULL OR ag.actor = 'NO_ACTOR' OR cu.actor = 'NO_ACTOR'))
+                    )
                     LEFT JOIN soc_ops.ticket_aggregates ta ON ag.aggregation_id = ta.aggregation_id
                     LEFT JOIN correlation.incident_stages s ON ag.aggregation_id = s.reference_id
                     LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
@@ -1923,11 +1926,17 @@ def get_raw_alerts(
             except Exception as le:
                 logger.warning(f"Error querying aggregate lineage: {le}")
 
-            # Dynamic relational resolution for unmapped events (optimized windowed lookup)
+            # Dynamic relational resolution for unmapped events (optimized windowed lookup & deterministic in-flight fallback)
             unresolved = [r for r in rows if r["event_id"] not in lineage_map or not lineage_map[r["event_id"]].get("aggregation_id")]
             for r in unresolved:
                 eid = r["event_id"]
                 ts = r["timestamp"]
+                agent_id = r.get("agent_id") or "000"
+                rule_id = r.get("rule_id", 0)
+                actor = r.get("actor") or "NO_ACTOR"
+                target = r.get("target") or "unknown"
+                tenant_id = r.get("tenant_id") or "DEFAULT"
+                rdesc = r.get("rule_description") or f"Rule {rule_id}"
                 try:
                     cur.execute("""
                         SELECT 
@@ -1935,24 +1944,33 @@ def get_raw_alerts(
                             cu.cumulative_id,
                             COALESCE(ta.ticket_id, tq.triage_id, s.incident_id) as ticket_id
                         FROM suppression.aggregated_alerts ag
-                        LEFT JOIN suppression.cumulative_alerts cu ON ag.deduplication_key = cu.deduplication_key
+                        LEFT JOIN suppression.cumulative_alerts cu ON (
+                            ag.deduplication_key = cu.deduplication_key 
+                            OR (ag.tenant_id = cu.tenant_id AND ag.rule_id = cu.rule_id AND ag.target = cu.target AND (ag.actor = cu.actor OR ag.actor IS NULL OR cu.actor IS NULL OR ag.actor = 'NO_ACTOR' OR cu.actor = 'NO_ACTOR'))
+                        )
                         LEFT JOIN soc_ops.ticket_aggregates ta ON ag.aggregation_id = ta.aggregation_id
                         LEFT JOIN correlation.incident_stages s ON ag.aggregation_id = s.reference_id
                         LEFT JOIN soc_ops.soc_triage_queue tq ON (ta.ticket_id = tq.triage_id OR ta.ticket_id = tq.incident_id OR s.incident_id = tq.incident_id)
                         WHERE (ag.tenant_id = %s OR %s IS NULL)
                           AND (ag.rule_id = %s OR %s IS NULL)
-                          AND (ag.actor = %s OR %s IS NULL)
                           AND (ag.target = %s OR %s IS NULL)
+                          AND (
+                              ag.actor = %s 
+                              OR %s = 'NO_ACTOR' 
+                              OR %s IS NULL
+                              OR ag.actor IS NULL
+                          )
                           AND ag.window_start >= (%s::timestamptz - interval '7 days')
                           AND ag.window_start <= (%s::timestamptz + interval '7 days')
                         ORDER BY ABS(EXTRACT(EPOCH FROM (ag.window_start - %s))) ASC
                         LIMIT 1;
-                    """, (r.get("tenant_id"), r.get("tenant_id"), r.get("rule_id"), r.get("rule_id"), r.get("actor"), r.get("actor"), r.get("target"), r.get("target"), ts, ts, ts))
+                    """, (tenant_id, tenant_id, rule_id, rule_id, target, target, actor, actor, actor, ts, ts, ts))
                     m_row = cur.fetchone()
                     if m_row and m_row.get("aggregation_id"):
                         ticket_val = m_row.get("ticket_id")
+                        agg_id_val = m_row["aggregation_id"]
+                        cum_id_val = m_row.get("cumulative_id")
                         if not ticket_val:
-                            agg_id_val = m_row["aggregation_id"]
                             h = hashlib.md5(f"P4_{agg_id_val}".encode()).hexdigest()[:16].upper()
                             ticket_val = f"TRG-P4-{h}"
                             inc_id_val = f"INC-P4-{h}"
@@ -1963,7 +1981,7 @@ def get_raw_alerts(
                                         incident_status, first_seen_at, last_seen_at
                                     ) VALUES (%s, 'CORR-ENTITY', %s, %s, %s, 'DETECTED', %s, %s)
                                     ON CONFLICT (incident_id) DO NOTHING;
-                                """, (inc_id_val, r.get("tenant_id", "DEFAULT"), f"[P4] Operational Cluster for Rule {r.get('rule_id')}", "Auto-linked operational triage ticket.", ts, ts))
+                                """, (inc_id_val, tenant_id, f"[P4] Operational Cluster for Rule {rule_id}", "Auto-linked operational triage ticket.", ts, ts))
                                 cur.execute("""
                                     INSERT INTO soc_ops.soc_triage_queue (
                                         triage_id, incident_id, priority, triage_status,
@@ -1971,7 +1989,7 @@ def get_raw_alerts(
                                         sla_deadline, threat_intel_status, ground_truth_status, tenant_id
                                     ) VALUES (%s, %s, 'P4', 'OPEN', %s, %s, %s, %s + interval '7 days', 'AVAILABLE', 'ACT NEED', %s)
                                     ON CONFLICT (triage_id) DO NOTHING;
-                                """, (ticket_val, inc_id_val, ts, ts, ts, ts, r.get("tenant_id", "DEFAULT")))
+                                """, (ticket_val, inc_id_val, ts, ts, ts, ts, tenant_id))
                                 cur.execute("""
                                     INSERT INTO soc_ops.ticket_aggregates (
                                         ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at
@@ -1982,8 +2000,8 @@ def get_raw_alerts(
                                 pass
 
                         lineage_map[eid] = {
-                            "aggregation_id": m_row["aggregation_id"],
-                            "cumulative_id": m_row.get("cumulative_id"),
+                            "aggregation_id": agg_id_val,
+                            "cumulative_id": cum_id_val,
                             "ticket_id": ticket_val
                         }
                         try:
@@ -1991,10 +2009,87 @@ def get_raw_alerts(
                                 INSERT INTO suppression.aggregate_evidence_mapping (aggregation_id, raw_event_id, event_timestamp)
                                 VALUES (%s, %s, %s)
                                 ON CONFLICT DO NOTHING;
-                            """, (m_row["aggregation_id"], eid, ts))
+                            """, (agg_id_val, eid, ts))
                             conn.commit()
                         except Exception:
                             conn.rollback()
+                    else:
+                        # Fallback: in-flight deterministic cluster for active streaming window
+                        ts_epoch = ts.timestamp() if isinstance(ts, datetime) else 0
+                        bucket_epoch = int(ts_epoch // 900) * 900
+                        dedup_key = f"{tenant_id}|{rule_id}|{actor}|{target}|{bucket_epoch}"
+                        agg_id_val = f"agg_{hashlib.md5(dedup_key.encode()).hexdigest()}"
+                        cum_key = f"{tenant_id}|{rule_id}|{actor}|{target}"
+                        cum_id_val = f"cum_{hashlib.md5(cum_key.encode()).hexdigest()[:16]}"
+                        tkt_hash = hashlib.md5(f"P4_{agg_id_val}".encode()).hexdigest()[:16].upper()
+                        ticket_val = f"TRG-P4-{tkt_hash}"
+                        inc_id_val = f"INC-P4-{tkt_hash}"
+
+                        try:
+                            cur.execute("""
+                                INSERT INTO suppression.aggregated_alerts (
+                                    aggregation_id, deduplication_key, rule_id, tenant_id, agent_id, actor, target,
+                                    window_start, window_end, status, rule_description, event_count, is_suppressed
+                                ) VALUES (
+                                    %s, %s, %s, %s, %s, %s, %s,
+                                    to_timestamp(%s), to_timestamp(%s) + interval '15 minutes', 'CLOSED', %s, 1, false
+                                ) ON CONFLICT (aggregation_id) DO UPDATE SET
+                                    event_count = suppression.aggregated_alerts.event_count + 1;
+                            """, (agg_id_val, dedup_key, rule_id, tenant_id, agent_id, actor, target, bucket_epoch, bucket_epoch, rdesc))
+
+                            cur.execute("""
+                                INSERT INTO suppression.cumulative_alerts (
+                                    cumulative_id, deduplication_key, category, rule_id, rule_description,
+                                    actor, target, agent_id, tenant_id, total_event_count, total_burst_windows,
+                                    first_seen_at, last_seen_at, status
+                                ) VALUES (
+                                    %s, %s, 'SYSTEM_HEALTH', %s, %s,
+                                    %s, %s, %s, %s, 1, 1,
+                                    %s, %s, 'ACTIVE'
+                                ) ON CONFLICT (deduplication_key) DO UPDATE SET
+                                    total_event_count = suppression.cumulative_alerts.total_event_count + 1,
+                                    last_seen_at = EXCLUDED.last_seen_at;
+                            """, (cum_id_val, cum_key, rule_id, rdesc, actor, target, agent_id, tenant_id, ts, ts))
+
+                            cur.execute("""
+                                INSERT INTO correlation.correlated_incidents (
+                                    incident_id, correlation_rule_id, tenant_id, title, narrative,
+                                    incident_status, first_seen_at, last_seen_at
+                                ) VALUES (%s, 'CORR-ENTITY', %s, %s, %s, 'DETECTED', %s, %s)
+                                ON CONFLICT (incident_id) DO NOTHING;
+                            """, (inc_id_val, tenant_id, f"[P4] Rule {rule_id}: {rdesc[:60]} on {target}", "Auto-linked operational triage ticket.", ts, ts))
+
+                            cur.execute("""
+                                INSERT INTO soc_ops.soc_triage_queue (
+                                    triage_id, incident_id, priority, triage_status,
+                                    priority_established_at, first_detected_at, priority_changed_at,
+                                    sla_deadline, threat_intel_status, ground_truth_status, tenant_id
+                                ) VALUES (%s, %s, 'P4', 'OPEN', %s, %s, %s, %s + interval '7 days', 'AVAILABLE', 'ACT NEED', %s)
+                                ON CONFLICT (triage_id) DO NOTHING;
+                            """, (ticket_val, inc_id_val, ts, ts, ts, ts, tenant_id))
+
+                            cur.execute("""
+                                INSERT INTO soc_ops.ticket_aggregates (
+                                    ticket_id, aggregation_id, is_induk, is_escalation_trigger, added_at
+                                ) VALUES (%s, %s, true, false, %s)
+                                ON CONFLICT (ticket_id, aggregation_id) DO NOTHING;
+                            """, (ticket_val, agg_id_val, ts))
+
+                            cur.execute("""
+                                INSERT INTO suppression.aggregate_evidence_mapping (aggregation_id, raw_event_id, event_timestamp)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT DO NOTHING;
+                            """, (agg_id_val, eid, ts))
+                            conn.commit()
+                        except Exception as pe:
+                            logger.warning(f"Error persisting in-flight cluster for {eid}: {pe}")
+                            conn.rollback()
+
+                        lineage_map[eid] = {
+                            "aggregation_id": agg_id_val,
+                            "cumulative_id": cum_id_val,
+                            "ticket_id": ticket_val
+                        }
                 except Exception as e_dyn:
                     logger.debug(f"Dynamic lineage resolution error for {eid}: {e_dyn}")
 
