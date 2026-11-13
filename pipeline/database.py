@@ -259,7 +259,7 @@ class DatabaseManager:
                     rule_level, rule_description, classification_groups, mitre_attack_ids,
                     mitre_tactics, mitre_techniques, compliance_frameworks,
                     asset_criticality_tier, is_asset_internet_exposed, is_privileged_user,
-                    is_service_account, threat_intel_match, threat_intel_confidence
+                    is_service_account, threat_intel_match, threat_intel_confidence, apex_data
                 ) VALUES %s
                 ON CONFLICT (normalized_event_id, processed_at) DO NOTHING;
                 """
@@ -282,7 +282,8 @@ class DatabaseManager:
                 e.get("is_privileged_user", False),
                 e.get("is_service_account", False),
                 e.get("threat_intel_match", False),
-                e.get("threat_intel_confidence", 0)
+                e.get("threat_intel_confidence", 0),
+                extras.Json(e["apex_data"]) if e.get("apex_data") else None
             )
             for e in events
         ]

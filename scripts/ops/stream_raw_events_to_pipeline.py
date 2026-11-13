@@ -348,7 +348,8 @@ def process_raw_stream_batch(
             "is_privileged_user": cem.is_privileged_user,
             "is_service_account": cem.is_service_account,
             "threat_intel_match": False,
-            "threat_intel_confidence": 0
+            "threat_intel_confidence": 0,
+            "apex_data": cem.to_apex_compact_dict() if hasattr(cem, "to_apex_compact_dict") else None
         })
 
         # 3. Deduplikasi Sliding-Window (Reduksi Kebisingan)
