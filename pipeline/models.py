@@ -112,15 +112,15 @@ class NormalizedEventDB(BaseModel):
     # ── Unified 6-Category Taxonomy (v3.0) ────────────────────────────────────
     # primary_category: One of 6 canonical values (ATTACK, VULNERABILITY,
     #   CONFIGURATION, IDENTITY_ACCESS, SYSTEM_HEALTH, INFORMATIONAL)
-    primary_category: str = "INFORMATIONAL"
-    subcategory: str = "General"
+    primary_category: str = "System / Availability"
+    subcategory: str = "Service Health / Error"
     disposition: str = "NEEDS_REVIEW"  # THREAT, MITIGATED, NOISE, NEEDS_REVIEW
     confidence_score: int = 50
     composite_cluster_key: Optional[str] = None
     # Legacy fields kept for backward compatibility
-    domain: str = "SYSTEM"
-    target_category: str = "Host_Telemetry"
-    action_ttp: str = "General"
+    domain: str = "System / Availability"
+    target_category: str = "System / Availability"
+    action_ttp: str = "Service Health / Error"
     lifecycle_role: str = "STATELESS"
 
 
@@ -160,11 +160,11 @@ class CommonEventModel(BaseModel):
 
     # Semantic Normalization & Archetype Fields
     # Unified 6-Category Taxonomy (v3.0) — primary_category is the canonical field
-    primary_category: str = "INFORMATIONAL"  # ATTACK, VULNERABILITY, CONFIGURATION, IDENTITY_ACCESS, SYSTEM_HEALTH, INFORMATIONAL
-    subcategory: str = "General"
+    primary_category: str = "System / Availability"  # ATTACK, VULNERABILITY, CONFIGURATION, IDENTITY_ACCESS, SYSTEM_HEALTH, INFORMATIONAL
+    subcategory: str = "Service Health / Error"
     disposition: str = "NEEDS_REVIEW"       # THREAT, MITIGATED, NOISE, NEEDS_REVIEW
     # Legacy alias (kept for backward compat)
-    event_category: str = "SYSTEM_HEALTH"
+    event_category: str = "System / Availability"
     dedup_actor: Optional[str] = None
     dedup_target: Optional[str] = None
     window_class: str = "STANDARD"  # FAST (300s/600s), STANDARD (900s), SLOW (1800s/3600s)
@@ -218,12 +218,178 @@ class CommonEventModel(BaseModel):
     who_subnet: Optional[str] = None
 
     # ── Legacy 3-Layer Category Taxonomy fields (kept for backward compatibility)
-    domain: str = "SYSTEM"  # ATTACK, VULNERABILITY, SYSTEM
-    target_category: str = "Host_Telemetry"
-    action_ttp: str = "General"
+    domain: str = "System / Availability"  # ATTACK, VULNERABILITY, SYSTEM
+    target_category: str = "System / Availability"
+    action_ttp: str = "Service Health / Error"
     lifecycle_role: str = "STATELESS"  # STATELESS, OPEN_STATE, CLOSE_STATE
     confidence_score: int = 50
     composite_cluster_key: Optional[str] = None
+
+    # ── Apex Normalization Version 3.4 (The Definitive Apex Standard) ─────────
+    schema_version: str = "1.0.0"
+    raw_sha256: Optional[str] = None
+    event_time: Optional[str] = None
+    alert_time: Optional[str] = None
+    ingest_time: Optional[str] = None
+    pipeline_latency_ms: Optional[int] = None
+    detection_delay_sec: Optional[float] = None
+    alias_source: Dict[str, str] = Field(default_factory=dict)
+    query_string: Optional[str] = None
+    parsed_query: Optional[Dict[str, Any]] = None
+    http_method: Optional[str] = None
+    response_bytes: Optional[int] = None
+    bytes_out: Optional[int] = None
+    bytes_in: Optional[int] = None
+    network_transport: Optional[str] = None
+    network_direction: Optional[str] = None
+    referrer_info: Optional[Dict[str, Any]] = None
+    user_agent_details: Optional[Dict[str, Any]] = None
+    fim_info: Optional[Dict[str, Any]] = None
+    vulnerability_info: Optional[Dict[str, Any]] = None
+    process_info: Optional[Dict[str, Any]] = None
+    apex_normalized: Optional[Dict[str, Any]] = None
+
+    def to_apex_v34_dict(self) -> Dict[str, Any]:
+        """Return the complete canonical Apex Normalization Version 3.4 dictionary with Apex Dual-Track enrichment."""
+        if self.apex_normalized:
+            d = dict(self.apex_normalized)
+        else:
+            d = {
+                "schema_version": self.schema_version,
+                "event_id": self.event_id,
+                "raw_sha256": self.raw_sha256,
+                "timestamps": {
+                    "event_time": self.event_time or self.timestamp,
+                    "alert_time": self.alert_time or self.timestamp,
+                    "ingest_time": self.ingest_time or self.timestamp,
+                    "pipeline_latency_ms": self.pipeline_latency_ms or 0,
+                    "detection_delay_sec": self.detection_delay_sec or 0.0,
+                },
+                "tenant_id": self.tenant_id,
+                "manager": {"name": "multitenant-soc-131"},
+                "observer": {
+                    "agent_id": self.agent_id,
+                    "agent_name": self.agent_name,
+                    "agent_ip": self.destination_ip,
+                    "shipper_type": "wazuh-agent",
+                },
+                "rule": {
+                    "id": self.rule_id,
+                    "level": self.rule_level,
+                    "description": self.rule_description,
+                    "groups": self.classification_groups,
+                    "compliance": self.compliance_frameworks,
+                    "mitre": {
+                        "tactics": self.mitre_tactics,
+                        "techniques": self.mitre_attack_ids,
+                    },
+                },
+                "network": {
+                    "transport": self.network_transport or self.protocol or "ip",
+                    "protocol": self.protocol or "unknown",
+                    "direction": self.network_direction or "inbound",
+                    "src_ip": self.source_ip,
+                    "dst_ip": self.destination_ip,
+                    "src_port": self.source_port,
+                    "dst_port": self.destination_port,
+                    "bytes_out": self.bytes_out,
+                },
+                "evidence": {
+                    "log_source": self.location or "unknown",
+                    "decoder": self.decoder_name or "unknown",
+                    "raw_log": self.raw_payload or "",
+                },
+                "alias_source": self.alias_source,
+            }
+            if self.process_info:
+                d["process"] = self.process_info
+            elif self.process_name or self.command_line or self.process_path:
+                d["process"] = {
+                    "name": self.process_name,
+                    "path": self.process_path,
+                    "command_line": self.command_line,
+                    "parent_name": self.parent_process
+                }
+
+        # Apex Dual-Track: Automatic Classification & Fingerprint Generation
+        if "classification" not in d or "fingerprint" not in d:
+            try:
+                from pipeline.category_catalog import classify_alert
+                from pipeline.fingerprint_engine import generate_fingerprint
+                policy = classify_alert(d)
+                fp = generate_fingerprint(d, policy)
+                d["classification"] = {
+                    "category_code": policy.code,
+                    "category_domain": policy.domain,
+                    "category_title": policy.title,
+                    "specificity_weight": policy.specificity_weight,
+                    "policy_version": 8
+                }
+                d["fingerprint"] = {
+                    "hash": fp.hash,
+                    "quality": fp.quality,
+                    "body": fp.body,
+                    "tracked_samples": fp.tracked_samples,
+                    "tracked_distinct_counts": fp.tracked_distinct_counts
+                }
+            except Exception:
+                pass
+
+        from pipeline.apex_normalizer import ApexNormalizerV40
+        return ApexNormalizerV40.prune_empty(d)
+
+    def to_apex_compact_dict(self) -> Dict[str, Any]:
+        """Return the compact canonical Apex Normalization Version 4.0 dictionary with 0% nulls and Dual-Track enrichment."""
+        return self.to_apex_v34_dict()
+
+    def _unused_legacy_builder(self) -> Dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "event_id": self.event_id,
+            "raw_sha256": self.raw_sha256,
+            "timestamps": {
+                "event_time": self.event_time or self.timestamp,
+                "alert_time": self.alert_time or self.timestamp,
+                "ingest_time": self.ingest_time or self.timestamp,
+                "pipeline_latency_ms": self.pipeline_latency_ms or 0,
+                "detection_delay_sec": self.detection_delay_sec or 0.0,
+            },
+            "tenant_id": self.tenant_id,
+            "manager": {"name": "multitenant-soc-131"},
+            "observer": {
+                "agent_id": self.agent_id,
+                "agent_name": self.agent_name,
+                "agent_ip": self.destination_ip,
+                "shipper_type": "wazuh-agent",
+            },
+            "rule": {
+                "id": self.rule_id,
+                "level": self.rule_level,
+                "description": self.rule_description,
+                "groups": self.classification_groups,
+                "compliance": self.compliance_frameworks,
+                "mitre": {
+                    "tactics": self.mitre_tactics,
+                    "techniques": self.mitre_attack_ids,
+                },
+            },
+            "network": {
+                "transport": self.network_transport or self.protocol or "ip",
+                "protocol": self.protocol or "unknown",
+                "direction": self.network_direction or "inbound",
+                "src_ip": self.source_ip,
+                "dst_ip": self.destination_ip,
+                "src_port": self.source_port,
+                "dst_port": self.destination_port,
+                "bytes_out": self.bytes_out,
+            },
+            "evidence": {
+                "log_source": self.location or "unknown",
+                "decoder": self.decoder_name or "unknown",
+                "raw_log": self.raw_payload or "",
+            },
+            "alias_source": self.alias_source,
+        }
 
 
 
@@ -533,7 +699,7 @@ class AggregatedAlertDB(BaseModel):
     window_start: datetime
     window_end: datetime
     status: str = "OPEN"  # PRD Section 3: Hanya OPEN dan CLOSED
-    category: str = "SYSTEM_HEALTH"  # 22 Sweet Spot Categories
+    category: str = "System / Availability"  # Canonical database enum category (aligned with 6 Primary Categories in config.category_constants)
     rule_description: Optional[str] = None
     actor: Optional[str] = None
     target: Optional[str] = None
@@ -559,14 +725,14 @@ class AggregatedAlertDB(BaseModel):
     dominant_http_status: Optional[int] = None
     is_scanner_ua: bool = False
     # ── 3-Layer Category Taxonomy & Stateful Lifecycle Attributes
-    domain: str = "SYSTEM"
-    target_category: str = "Host_Telemetry"
-    action_ttp: str = "General"
+    domain: str = "System / Availability"
+    target_category: str = "System / Availability"
+    action_ttp: str = "Service Health / Error"
     lifecycle_role: str = "STATELESS"
     disposition: str = "SAFE"
     confidence_score: int = 50
-    primary_category: str = "SYSTEM"
-    subcategory: str = "General"
+    primary_category: str = "System / Availability"
+    subcategory: str = "Service Health / Error"
     # ── Cluster v1 Architecture Additions
     composite_cluster_key: Optional[str] = None
     who_cluster: Optional[str] = None
@@ -593,7 +759,7 @@ class CumulativeAlertDB(BaseModel):
     """Database model for table: cumulative_alerts (lifetime entity tracking without window cutoff)"""
     cumulative_id: str
     deduplication_key: str
-    category: str = "SYSTEM_HEALTH"
+    category: str = "System / Availability"
     rule_id: int
     rule_description: Optional[str] = None
     actor: Optional[str] = None

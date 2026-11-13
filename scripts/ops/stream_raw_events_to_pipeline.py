@@ -115,6 +115,38 @@ from pipeline.p4_sla_worker import process_expired_p4_tickets
 CHECKPOINT_SOURCE = "fluentbit_raw_events"
 
 
+
+def bulk_upsert_apex_activity_groups(db: DatabaseManager, batch: List[Dict[str, Any]]) -> None:
+    """Apex Dual-Track: Upsert activity groups into telemetry.apex_activity_groups in parallel."""
+    if not batch:
+        return
+    sql = """
+        INSERT INTO telemetry.apex_activity_groups (
+            group_id, fingerprint_hash, tenant_id, category_code, category_domain,
+            quality, event_count, first_seen_at, last_seen_at, window_duration_seconds,
+            agent_name, source_ip, target, fingerprint_body, tracked_samples, tracked_counts,
+            status, updated_at
+        ) VALUES (
+            %(group_id)s, %(fingerprint_hash)s, %(tenant_id)s, %(category_code)s, %(category_domain)s,
+            %(quality)s, 1, %(event_timestamp)s, %(event_timestamp)s, 600,
+            %(agent_name)s, %(source_ip)s, %(target)s, %(fingerprint_body)s::jsonb, %(tracked_samples)s::jsonb, %(tracked_counts)s::jsonb,
+            'ACTIVE', NOW()
+        )
+        ON CONFLICT (group_id) DO UPDATE SET
+            event_count = telemetry.apex_activity_groups.event_count + 1,
+            last_seen_at = EXCLUDED.last_seen_at,
+            updated_at = NOW();
+    """
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                from psycopg2.extras import execute_batch
+                execute_batch(cur, sql, batch, page_size=1000)
+            conn.commit()
+    except Exception as e:
+        # Non-blocking: dual-track never interrupts legacy pipeline
+        pass
+
 def get_streaming_checkpoint(db: DatabaseManager) -> tuple[Optional[datetime], Optional[str], int]:
     """Mengambil checkpoint terakhir dari telemetry.ingest_checkpoints."""
     query = """
@@ -186,7 +218,7 @@ def process_raw_stream_batch(
     dedup: SlidingWindowAggregator,
     correlation: CorrelationEngine,
     scorer: RiskScorer,
-    batch_size: int = 5000,
+    batch_size: int = 10000,
     from_start: bool = False
 ) -> int:
     """Mengambil batch event baru dari telemetry.raw_events dan memprosesnya ke pipeline."""
@@ -230,6 +262,7 @@ def process_raw_stream_batch(
     agg_batch = []
     evidence_batch = []
     new_incidents = []
+    apex_batch = []
 
     last_processed_ts = None
     last_processed_eid = None
@@ -262,13 +295,40 @@ def process_raw_stream_batch(
                 },
                 "rule": {"id": "0", "level": 0, "description": "Raw Stream Ingested Event"},
                 "location": location,
-                "decoder": {"name": decoder_name}
+                "decoder": {"name": decoder_name},
+                "full_log": raw_payload_str
             }
 
         # 1. Normalisasi ke CommonEventModel
         cem = reader.normalize_record(raw_dict)
         if cem is None:
             continue
+
+        # [Apex Dual-Track: Alur 2 - Kategori & Fingerprint Apex]
+        try:
+            apex_d = cem.to_apex_v34_dict()
+            apex_fp = apex_d.get("fingerprint")
+            apex_cat = apex_d.get("classification")
+            if apex_fp and apex_cat:
+                apex_batch.append({
+                    "normalized_event_id": f"NORM-{cem.event_id}",
+                    "apex_data": apex_d,
+                    "group_id": f"APX-{apex_fp['hash'][:16].upper()}",
+                    "fingerprint_hash": apex_fp["hash"],
+                    "tenant_id": apex_d.get("tenant_id") or "DEFAULT",
+                    "category_code": apex_cat["category_code"],
+                    "category_domain": apex_cat["category_domain"],
+                    "quality": apex_fp["quality"],
+                    "event_timestamp": cem.timestamp,
+                    "agent_name": cem.agent_name,
+                    "source_ip": cem.source_ip,
+                    "target": cem.destination_host or cem.agent_name,
+                    "fingerprint_body": json.dumps(apex_fp.get("body") or {}),
+                    "tracked_samples": json.dumps(apex_fp.get("tracked_samples") or {}),
+                    "tracked_counts": json.dumps(apex_fp.get("tracked_distinct_counts") or {})
+                })
+        except Exception:
+            pass
 
         # 2. Siapkan baris normalized_events
         norm_batch.append({
@@ -343,6 +403,15 @@ def process_raw_stream_batch(
         except Exception as e:
             print(f"[-] Error insert aggregated_alerts: {e}")
 
+    # [Apex Dual-Track Save: Level 2 Leaf Activity Groups]
+    if apex_batch:
+        try:
+            from pipeline.leaf_grouper import process_apex_leaf_grouping_batch
+            leaf_stats = process_apex_leaf_grouping_batch(db, apex_batch)
+            bulk_upsert_apex_activity_groups(db, apex_batch)
+        except Exception as e:
+            print(f"[-] Error processing Apex Leaf Grouping: {e}")
+
     if new_incidents:
         try:
             db.bulk_insert_incidents_and_triage(new_incidents)
@@ -357,7 +426,7 @@ def process_raw_stream_batch(
     return len(raw_rows)
 
 
-def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int = 5000, from_start: bool = False):
+def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int = 10000, from_start: bool = False):
     print("=" * 85)
     print("[*] ASOC STREAMING WORKER: TELEMETRY.RAW_EVENTS -> PIPELINE -> TRIAGE QUEUE")
     print(f"[*] Mode: {'CONTINUOUS DAEMON' if continuous else 'SINGLE PASS'} | Batch Size: {batch_size:,}")
@@ -368,7 +437,7 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
         print("[-] Gagal terhubung ke database PostgreSQL. Pastikan database aktif.")
         return
 
-    reader = AlertStreamReader()
+    reader = AlertStreamReader(filepath="")
     dedup = SlidingWindowAggregator()
     correlation = CorrelationEngine(db_manager=db)
     scorer = RiskScorer()
@@ -464,7 +533,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Streaming raw_events from Fluent Bit to ASOC Pipeline")
     parser.add_argument("--continuous", action="store_true", help="Jalankan secara terus menerus memantau telemetry.raw_events")
     parser.add_argument("--interval", type=int, default=2, help="Interval polling dalam detik jika continuous")
-    parser.add_argument("--batch-size", type=int, default=5000, help="Jumlah raw event per batch query")
+    parser.add_argument("--batch-size", type=int, default=10000, help="Jumlah raw event per batch query")
     parser.add_argument("--from-start", action="store_true", help="Abaikan checkpoint dan mulai dari event paling awal")
     parser.add_argument("--once", action="store_true", help="Jalankan satu kali pass lalu keluar")
     args = parser.parse_args()

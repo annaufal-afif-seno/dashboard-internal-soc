@@ -10,7 +10,9 @@ from collections import Counter
 from datetime import datetime
 
 from pipeline.models import WazuhRawAlert, CommonEventModel
+from pipeline.apex_normalizer import ApexNormalizerV40, ApexNormalizerV34, ApexTransformsV34
 from config.settings import CHUNK_SIZE, DATA_DIR, IGNORED_COLLECTOR_HOSTS
+from config.category_constants import PrimaryCategory, SUBCATEGORIES, SUBCAT_TO_PRIMARY
 
 # Lazy import of plugin chain to avoid circular dependency during module init
 def _get_plugin_chain():
@@ -26,9 +28,47 @@ def _get_plugin_chain():
 
 _PLUGIN_CHAIN_FN = None
 
-# IGNORED_COLLECTOR_HOSTS is imported from config.settings (configurable via env var)
+# Lazy import of Hybrid AI Categorizer
+def _get_ai_predict_fn():
+    """Return the Hybrid AI Categorizer predictor (lazy import, cached)."""
+    global _AI_PREDICT_FN
+    if _AI_PREDICT_FN is None:
+        try:
+            from pipeline.ai_categorizer import predict_alert_category
+            _AI_PREDICT_FN = predict_alert_category
+        except Exception:
+            _AI_PREDICT_FN = None
+    return _AI_PREDICT_FN
 
-# 100/100 Enterprise Universal Dynamic Field Aliases (ECS & CIM Standard)
+_AI_PREDICT_FN = None
+
+# Mapping from AI Subcategory (OCSF / MITRE Standard) to canonical internal 22-categories
+_SUBCAT_TO_INTERNAL: Dict[str, str] = {
+    # Aligned 100% with the 6 Primary Categories and 19 Subcategories
+    "Web Attack": PrimaryCategory.ATTACK,
+    "Exploitation / RCE": PrimaryCategory.ATTACK,
+    "Recon / Scan": PrimaryCategory.ATTACK,
+    "Command & Control (C2)": PrimaryCategory.ATTACK,
+    "Command & Control": PrimaryCategory.ATTACK,
+    "Lateral Movement": PrimaryCategory.ATTACK,
+    "CVE Detected": PrimaryCategory.VULNERABILITY,
+    "Missing Patch / Outdated Software": PrimaryCategory.VULNERABILITY,
+    "Missing Patch / Outdated": PrimaryCategory.VULNERABILITY,
+    "SCA / CIS Benchmark": PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "File Integrity (FIM)": PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "Policy Violation": PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "Auth Success": PrimaryCategory.IDENTITY_ACCESS,
+    "Auth Failure": PrimaryCategory.IDENTITY_ACCESS,
+    "Auth Anomaly": PrimaryCategory.IDENTITY_ACCESS,
+    "Privilege Escalation": PrimaryCategory.IDENTITY_ACCESS,
+    "Ransomware": PrimaryCategory.MALWARE,
+    "Rootkit / Backdoor": PrimaryCategory.MALWARE,
+    "Virus / Trojan (YARA)": PrimaryCategory.MALWARE,
+    "Web Operational": PrimaryCategory.SYSTEM_AVAILABILITY,
+    "Service Health / Error": PrimaryCategory.SYSTEM_AVAILABILITY,
+    "Cloud / Container Event": PrimaryCategory.SYSTEM_AVAILABILITY,
+}
+
 ECS_FIELD_ALIASES = {
     "source_ip": [
         "srcip", "src_ip", "client_ip", "clientip", "remote_addr", "remote_ip",
@@ -259,15 +299,14 @@ def classify_event_taxonomy(
     mitre_tactics: Optional[List[str]] = None,
 ) -> Tuple[str, str, str, str, str, int]:
     """
-    Official 3-Layer Category Taxonomy & Stateful Lifecycle Attributes Resolver:
+    Unified 6-Category & 19-Subcategory Taxonomy Engine (Best Practice SOTA Standard):
     Returns (domain, target_category, action_ttp, lifecycle_role, disposition, confidence_score)
-
-    Layer 1: domain (ATTACK, VULNERABILITY, SYSTEM)
-    Layer 2: target_category (Web_Network_Attack, Identity_Access, Endpoint_Threat, Software_CVE, Security_Posture, Host_Telemetry, User_Management, Service_Network)
-    Layer 3: action_ttp (Specific TTP / Event Action)
-    Lifecycle: lifecycle_role (STATELESS, OPEN_STATE, CLOSE_STATE)
-    Disposition: ACTIONABLE, SAFE, REVIEW, PENDING_PAIR
-    Confidence: 0 - 100
+    - domain & target_category: Strictly one of the 6 Primary Categories (Attack, Vulnerability,
+      Configuration / Compliance, Identity / Access, Malware, System / Availability).
+    - action_ttp: Strictly one of the 19 Subcategories.
+    - lifecycle_role: STATELESS, OPEN_STATE, CLOSE_STATE
+    - disposition: ACTIONABLE, SAFE, REVIEW, PENDING_PAIR
+    - confidence_score: 0 - 100
     """
     groups_lower = set(g.lower() for g in (groups or []))
     desc_lower = (rule_description or "").lower()
@@ -282,165 +321,182 @@ def classify_event_taxonomy(
         or not src_ip_str
     )
 
-    # ════════════════════════════════════════════════════════════════════════
-    # DOMAIN 1: VULNERABILITY (Software CVEs & Security Posture / Compliance)
-    # ════════════════════════════════════════════════════════════════════════
+    # ── Tier 1: Hybrid AI Categorizer (Sub-millisecond semantic reasoning) ──
+    ai_fn = _get_ai_predict_fn()
+    if ai_fn:
+        try:
+            ai_pred = ai_fn(
+                desc=desc_lower,
+                groups=list(groups_lower),
+                tactics=list(tactics_lower),
+                log_text=full_log_lower,
+                rule_id=rule_id_str
+            )
+            if ai_pred and ai_pred.get("confidence", 0) >= 0.70:
+                pcat = str(ai_pred.get("primary_category", PrimaryCategory.SYSTEM_AVAILABILITY))
+                subcat = str(ai_pred.get("subcategory", "Service Health / Error"))
+                conf_score = int(ai_pred.get("confidence", 0.70) * 100)
+
+                lifecycle_role = "STATELESS"
+                if pcat in (PrimaryCategory.ATTACK, PrimaryCategory.MALWARE):
+                    disposition = "ACTIONABLE" if rule_level >= 8 or conf_score >= 85 else "REVIEW"
+                elif pcat == PrimaryCategory.IDENTITY_ACCESS:
+                    if subcat == "Auth Success":
+                        disposition = "SAFE"
+                    else:
+                        disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+                elif pcat == PrimaryCategory.VULNERABILITY:
+                    if "cleared" in desc_lower or "mitigated" in desc_lower:
+                        lifecycle_role = "CLOSE_STATE"
+                        disposition = "SAFE"
+                    else:
+                        lifecycle_role = "OPEN_STATE"
+                        disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+                elif pcat == PrimaryCategory.CONFIGURATION_COMPLIANCE:
+                    disposition = "REVIEW"
+                else:
+                    disposition = "SAFE"
+
+                return pcat, pcat, subcat, lifecycle_role, disposition, conf_score
+        except Exception:
+            pass
+
+    # ── Tier 2: Deterministic Security Heuristic Fallback ──
+    # 1. VULNERABILITY & CONFIGURATION
     if (
         "vulnerability-detector" in groups_lower
         or "vulnerability" in groups_lower
         or "cve" in groups_lower
         or "affects" in desc_lower
         or "cve-" in desc_lower
-        or "sca" in groups_lower
+    ):
+        domain = PrimaryCategory.VULNERABILITY
+        target_category = PrimaryCategory.VULNERABILITY
+        if any(k in desc_lower for k in ["resolved", "mitigated", "updated", "patched", "cleared"]):
+            action_ttp = "Missing Patch / Outdated Software"
+            lifecycle_role = "CLOSE_STATE"
+            disposition = "SAFE"
+            confidence = 100
+        else:
+            action_ttp = "CVE Detected"
+            lifecycle_role = "OPEN_STATE"
+            disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+            confidence = 90 if rule_level >= 10 else 60
+        return domain, target_category, action_ttp, lifecycle_role, disposition, confidence
+
+    if (
+        "sca" in groups_lower
         or "cis" in groups_lower
         or "compliance" in groups_lower
-        or "rootcheck" in groups_lower
+        or "syscheck" in groups_lower
+        or "fim" in groups_lower
+        or "policy" in groups_lower
     ):
-        domain = "VULNERABILITY"
-
-        # A. Software CVE (Stateful Lifecycle: Detected vs Mitigated)
-        if any(k in desc_lower or k in groups_lower for k in ["cve", "vulnerability", "affects", "patch"]):
-            target_category = "Software_CVE"
-            if any(k in desc_lower for k in ["resolved", "mitigated", "updated", "patched"]):
-                action_ttp = "CVE_Mitigated"
-                lifecycle_role = "CLOSE_STATE"
-                disposition = "SAFE"
-                confidence = 100
-            else:
-                action_ttp = "CVE_Exposure"
-                lifecycle_role = "OPEN_STATE"
-                disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
-                confidence = 90 if rule_level >= 10 else 60
-        # B. Security Posture / Hardening
+        domain = PrimaryCategory.CONFIGURATION_COMPLIANCE
+        target_category = PrimaryCategory.CONFIGURATION_COMPLIANCE
+        lifecycle_role = "STATELESS"
+        disposition = "REVIEW"
+        if any(k in desc_lower or k in groups_lower for k in ["fim", "syscheck", "file", "integrity"]):
+            action_ttp = "File Integrity (FIM)"
+            confidence = 80
+        elif any(k in desc_lower or k in groups_lower for k in ["policy", "violation"]):
+            action_ttp = "Policy Violation"
+            confidence = 75
         else:
-            target_category = "Security_Posture"
-            action_ttp = "Hardening_Misconfiguration"
-            lifecycle_role = "STATELESS"
-            disposition = "REVIEW"
-            confidence = 50
+            action_ttp = "SCA / CIS Benchmark"
+            confidence = 70
+        return domain, target_category, action_ttp, lifecycle_role, disposition, confidence
 
-    # ════════════════════════════════════════════════════════════════════════
-    # DOMAIN 2: ATTACK (Active Threat, Web Exploit, Identity Abuse, Malware)
-    # ════════════════════════════════════════════════════════════════════════
-    elif (
-        any(g in groups_lower for g in ["attack", "web_attack", "web_exploit", "sqli", "xss", "lfi", "rfi", "bruteforce", "dos", "ddos", "malware", "trojan", "virus", "antivirus"])
+    # 2. MALWARE
+    if any(g in groups_lower for g in ["malware", "trojan", "virus", "antivirus", "yara", "rootkit", "ransomware"]) or "defender" in desc_lower:
+        domain = PrimaryCategory.MALWARE
+        target_category = PrimaryCategory.MALWARE
+        lifecycle_role = "STATELESS"
+        disposition = "ACTIONABLE"
+        if "ransomware" in desc_lower or "ransom" in str(groups_lower):
+            action_ttp = "Ransomware"
+        elif "rootkit" in desc_lower or "backdoor" in desc_lower or "webshell" in desc_lower:
+            action_ttp = "Rootkit / Backdoor"
+        else:
+            action_ttp = "Virus / Trojan (YARA)"
+        return domain, target_category, action_ttp, lifecycle_role, disposition, 95
+
+    # 3. IDENTITY & ACCESS
+    if (
+        any(g in groups_lower for g in ["bruteforce", "sshd", "pam", "authentication_failed", "authentication_failures", "authentication_success", "invalid_login", "login_failed", "login_success", "sudo"])
+        or "ssh" in desc_lower
+        or "login" in desc_lower
+        or "password" in desc_lower
+        or rule_id_str in ("5501", "5502", "5503", "5504", "5712", "5715", "5716", "5720", "100001")
+    ):
+        domain = PrimaryCategory.IDENTITY_ACCESS
+        target_category = PrimaryCategory.IDENTITY_ACCESS
+        lifecycle_role = "STATELESS"
+        if any(k in desc_lower or k in groups_lower for k in ["success", "opened", "accepted", "5715", "5501", "5503"]):
+            action_ttp = "Auth Success"
+            disposition = "SAFE"
+            confidence = 90
+        elif "brute force" in desc_lower or rule_id_str in ("5712", "5720", "100001") or "multiple fail" in desc_lower:
+            action_ttp = "Auth Anomaly"
+            disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+            confidence = 85
+        elif "sudo" in desc_lower or "privilege" in desc_lower or rule_id_str in ("5402", "5504", "5902"):
+            action_ttp = "Privilege Escalation"
+            disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+            confidence = 85
+        else:
+            action_ttp = "Auth Failure"
+            disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
+            confidence = 80
+        return domain, target_category, action_ttp, lifecycle_role, disposition, confidence
+
+    # 4. ATTACK
+    if (
+        any(g in groups_lower for g in ["attack", "web_attack", "web_exploit", "sqli", "xss", "lfi", "rfi", "dos", "ddos"])
         or any(t in tactics_lower for t in ["initial access", "execution", "privilege escalation", "credential access", "defense evasion", "lateral movement", "exfiltration", "impact"])
-        or rule_id_str in ("100001", "31151", "5712", "5720")
+        or rule_id_str in ("31151", "31101", "31106")
         or (rule_level >= 8 and not is_internal_src)
     ):
-        domain = "ATTACK"
+        domain = PrimaryCategory.ATTACK
+        target_category = PrimaryCategory.ATTACK
         lifecycle_role = "STATELESS"
-
-        # A. Identity & Access Attack (Brute Force / Credential Spraying)
-        if any(g in groups_lower for g in ["bruteforce", "sshd", "pam", "authentication_failed", "authentication_failure"]) or "brute force" in desc_lower or rule_id_str in ("5712", "5720"):
-            target_category = "Identity_Access"
-            action_ttp = "SSH_Brute_Force" if "ssh" in desc_lower or "5712" in rule_id_str else "Credential_Attack"
-            disposition = "ACTIONABLE" if rule_level >= 10 else "REVIEW"
-            confidence = 85 if rule_level >= 10 else 65
-
-        # B. Endpoint Threat (Malware, Trojan, Suspicious Process)
-        elif any(g in groups_lower for g in ["malware", "trojan", "virus", "antivirus", "sysmon"]) or "defender" in desc_lower:
-            target_category = "Endpoint_Threat"
-            action_ttp = "Malware_Execution"
-            disposition = "ACTIONABLE"
-            confidence = 95
-
-        # C. Web & Network Attack (SQLi, XSS, Path Traversal, Recon)
+        if any(w in full_log_lower for w in ["union", "select", "drop", "or 1=1", "sleep(", "benchmark("]) or "sql" in desc_lower or "xss" in desc_lower:
+            action_ttp = "Web Attack"
+            confidence = 90
+        elif any(w in full_log_lower for w in ["eval-stdin", "phpunit", "log4j", "cmd", "shell", "exec"]) or "rce" in desc_lower or "exploit" in desc_lower:
+            action_ttp = "Exploitation / RCE"
+            confidence = 90
+        elif "scan" in desc_lower or "recon" in desc_lower or is_scanner_ua:
+            action_ttp = "Recon / Scan"
+            confidence = 85
+        elif "c2" in desc_lower or "beacon" in desc_lower:
+            action_ttp = "Command & Control (C2)"
+            confidence = 85
+        elif "lateral" in desc_lower or "psexec" in desc_lower:
+            action_ttp = "Lateral Movement"
+            confidence = 85
         else:
-            target_category = "Web_Network_Attack"
-            if any(w in full_log_lower for w in ["union", "select", "drop", "or 1=1", "sleep(", "benchmark("]):
-                action_ttp = "SQL_Injection"
-            elif any(w in full_log_lower for w in ["../", "..\\", "/etc/passwd", "win.ini", "boot.ini"]):
-                action_ttp = "Path_Traversal"
-            elif any(w in full_log_lower for w in [".env", ".git", "wp-config", "id_rsa", "config.json"]):
-                action_ttp = "Credential_Exposure"
-            elif any(w in full_log_lower for w in ["eval-stdin", "phpunit", "log4j", "cmd", "shell", "exec"]):
-                action_ttp = "Exploitation"
-            else:
-                action_ttp = "Reconnaissance"
+            action_ttp = "Web Attack"
+            confidence = 75
 
-            if http_status in (200, 201) or rule_level >= 10:
-                disposition = "ACTIONABLE"
-                confidence = 90
-            elif http_status in (404, 400, 403, 401) or is_scanner_ua:
-                disposition = "REVIEW"
-                confidence = 45
-            else:
-                disposition = "REVIEW"
-                confidence = 55
+        disposition = "ACTIONABLE" if (http_status in (200, 201) or rule_level >= 10) else "REVIEW"
+        return domain, target_category, action_ttp, lifecycle_role, disposition, confidence
 
-    # ════════════════════════════════════════════════════════════════════════
-    # DOMAIN 3: SYSTEM (Host Telemetry, User Lifecycle, Service & Network)
-    # ════════════════════════════════════════════════════════════════════════
+    # 5. SYSTEM / AVAILABILITY
+    domain = PrimaryCategory.SYSTEM_AVAILABILITY
+    target_category = PrimaryCategory.SYSTEM_AVAILABILITY
+    lifecycle_role = "STATELESS"
+    disposition = "SAFE"
+
+    if any(g in groups_lower for g in ["docker", "kubernetes", "k8s", "container"]):
+        action_ttp = "Cloud / Container Event"
+        confidence = 80
+    elif http_status in (404, 400, 403, 500) or any(g in groups_lower for g in ["nginx", "apache", "httpd", "accesslog"]) or "404" in desc_lower:
+        action_ttp = "Web Operational"
+        confidence = 70
     else:
-        domain = "SYSTEM"
-
-        # A. User Management (PAM / SSH Session Lifecycle)
-        if (
-            rule_id_str in ("5501", "5502", "5503", "5504", "5715")
-            or "pam" in groups_lower
-            or "authentication_success" in groups_lower
-            or "session" in desc_lower
-        ):
-            target_category = "User_Management"
-            if rule_id_str == "5501" or "session opened" in full_log_lower:
-                action_ttp = "PAM_Session_Open"
-                lifecycle_role = "OPEN_STATE"
-                disposition = "PENDING_PAIR"
-                confidence = 20
-            elif rule_id_str == "5502" or "session closed" in full_log_lower:
-                action_ttp = "PAM_Session_Close"
-                lifecycle_role = "CLOSE_STATE"
-                disposition = "SAFE"
-                confidence = 10
-            elif rule_id_str in ("5503", "5715") or "authentication_success" in groups_lower:
-                action_ttp = "Session_Logon"
-                lifecycle_role = "STATELESS"
-                disposition = "SAFE"
-                confidence = 15
-            else:
-                action_ttp = "User_Activity"
-                lifecycle_role = "STATELESS"
-                disposition = "SAFE"
-                confidence = 20
-
-        # B. Service & Network (Nginx Upstream, Port Refused, Connectivity)
-        elif (
-            rule_id_str == "31301"
-            or "while connecting to upstream" in full_log_lower
-            or "111: connection refused" in full_log_lower
-            or "errno 111" in full_log_lower
-        ):
-            target_category = "Service_Network"
-            action_ttp = "Connectivity_Failure"
-            lifecycle_role = "STATELESS"
-            disposition = "SAFE"
-            confidence = 25
-
-        # C. Host Telemetry (Agent Lifecycle, DPKG Package State, Daemon Logs)
-        else:
-            target_category = "Host_Telemetry"
-            # Agent Lifecycle Start / Stop
-            if "agent buffer: full" in full_log_lower or "agent stopped" in full_log_lower or "agent disconnected" in full_log_lower:
-                action_ttp = "Agent_Stop"
-                lifecycle_role = "OPEN_STATE"
-                disposition = "PENDING_PAIR"
-                confidence = 50
-            elif "agent started" in full_log_lower or "agent connected" in full_log_lower or "agent buffer: normal" in full_log_lower:
-                action_ttp = "Agent_Start"
-                lifecycle_role = "CLOSE_STATE"
-                disposition = "SAFE"
-                confidence = 10
-            elif rule_id_str in ("2904", "2901", "2902", "2903") or "dpkg" in groups_lower or "status half-configured" in full_log_lower:
-                action_ttp = "Package_State"
-                lifecycle_role = "STATELESS"
-                disposition = "SAFE"
-                confidence = 20
-            else:
-                action_ttp = "System_Event"
-                lifecycle_role = "STATELESS"
-                disposition = "SAFE"
-                confidence = 20
+        action_ttp = "Service Health / Error"
+        confidence = 60
 
     return domain, target_category, action_ttp, lifecycle_role, disposition, confidence
 
@@ -451,7 +507,8 @@ class AlertStreamReader:
     Streams records in buffered chunks using Python generators to prevent OOM.
     """
 
-    def __init__(self, filepath: str, chunk_size: int = CHUNK_SIZE):
+    def __init__(self, filepath: Optional[str] = None, chunk_size: int = CHUNK_SIZE):
+        self.filepath = filepath or ""
         self.filepath = filepath
         self.chunk_size = chunk_size
         self.total_lines_read = 0
@@ -505,8 +562,25 @@ class AlertStreamReader:
                 except Exception:
                     self.total_corrupt_lines += 1
 
-    def normalize_alert_object(self, alert: WazuhRawAlert) -> CommonEventModel:
-        """Standardize a single WazuhRawAlert into CommonEventModel with multi-layer field extraction and context enrichment."""
+    def normalize_record(self, record: Dict[str, Any]) -> Optional[CommonEventModel]:
+        """Normalize a single raw dictionary record into CommonEventModel."""
+        try:
+            alert = WazuhRawAlert.model_validate(record)
+            return self.normalize_alert_object(alert, raw_dict=record)
+        except Exception:
+            return None
+
+    def normalize_alert_object(self, alert: WazuhRawAlert, raw_dict: Optional[Dict[str, Any]] = None) -> CommonEventModel:
+        """Standardize a single WazuhRawAlert into CommonEventModel using Apex Standard V3.4 with multi-layer field extraction."""
+        if raw_dict is None:
+            raw_dict = alert.model_dump(by_alias=True)
+            if alert.agent and hasattr(alert.agent, "labels") and alert.agent.labels:
+                if "agent" not in raw_dict or not isinstance(raw_dict["agent"], dict):
+                    raw_dict["agent"] = {}
+                raw_dict["agent"]["labels"] = alert.agent.labels
+
+        # Execute Apex Normalization V4.0 (Gold-Standard Compact Normalization)
+        apex_norm = ApexNormalizerV40.normalize_compact(raw_dict)
         data = alert.data or {}
         win_data = data.get("win", {}).get("eventdata", {}) if isinstance(data.get("win"), dict) else {}
         audit_data = data.get("audit", {}) if isinstance(data.get("audit"), dict) else {}
@@ -539,41 +613,74 @@ class AlertStreamReader:
         )
 
         # Multi-layer process information
+        apex_proc = apex_norm.get("process") or {}
         proc_name = (
-            data.get("process_name")
+            apex_proc.get("name")
+            or data.get("process_name")
             or data.get("image")
             or win_data.get("image")
             or audit_data.get("exe")
             or extract_aliased_field(data, ECS_FIELD_ALIASES["process_name"])
         )
-        proc_path = data.get("process_path") or win_data.get("image") or extract_aliased_field(data, ECS_FIELD_ALIASES["process_path"])
+        proc_path = (
+            apex_proc.get("path")
+            or data.get("process_path")
+            or win_data.get("image")
+            or extract_aliased_field(data, ECS_FIELD_ALIASES["process_path"])
+        )
         cmd_line = (
-            data.get("command_line")
+            apex_proc.get("command_line")
+            or data.get("command_line")
             or data.get("cmd")
             or win_data.get("commandLine")
             or audit_data.get("command")
             or extract_aliased_field(data, ECS_FIELD_ALIASES["command_line"])
         )
-        parent_proc = data.get("parent_process") or data.get("parent") or win_data.get("parentImage")
+        parent_proc = (
+            apex_proc.get("parent_name")
+            or apex_proc.get("parent_path")
+            or data.get("parent_process")
+            or data.get("parent")
+            or win_data.get("parentImage")
+        )
 
-        # Ports & Network Protocol extraction
+        # Ports & Network Protocol extraction (Apex V3.4 RFC compliant)
+        apex_net = apex_norm.get("network") or {}
         raw_src_port = data.get("srcport") or data.get("src_port") or win_data.get("sourcePort") or extract_aliased_field(data, ECS_FIELD_ALIASES["source_port"])
         raw_dst_port = data.get("dstport") or data.get("dst_port") or win_data.get("destinationPort") or extract_aliased_field(data, ECS_FIELD_ALIASES["destination_port"])
-        protocol = data.get("proto") or data.get("protocol") or extract_aliased_field(data, ECS_FIELD_ALIASES["protocol"])
-
-        src_port_int = None
-        if raw_src_port is not None:
+        
+        src_port_int = apex_net.get("src_port")
+        if src_port_int is None and raw_src_port is not None:
             try:
                 src_port_int = int(raw_src_port)
             except (ValueError, TypeError):
                 pass
 
-        dst_port_int = None
-        if raw_dst_port is not None:
+        dst_port_int = apex_net.get("dst_port")
+        if dst_port_int is None and raw_dst_port is not None:
             try:
                 dst_port_int = int(raw_dst_port)
             except (ValueError, TypeError):
                 pass
+
+        # Resolusi L4 Transport vs L7 Protocol (Apex V3.4 Fix: Never put HTTP verbs into protocol)
+        transport_proto = apex_net.get("transport") or data.get("proto") or "ip"
+        l7_proto = apex_net.get("protocol")
+        protocol = l7_proto or str(data.get("proto") or data.get("protocol") or "ip").lower()
+        if str(protocol).upper() in ApexNormalizerV34.HTTP_METHODS:
+            protocol = "http"
+            transport_proto = "tcp"
+
+        # Apex V3.4 INET sanitization for IP addresses
+        if apex_net.get("src_ip"):
+            src_ip = apex_net["src_ip"]
+        elif src_ip:
+            src_ip = ApexTransformsV34.transform_ip(src_ip)
+
+        if apex_net.get("dst_ip"):
+            dst_ip = apex_net["dst_ip"]
+        elif dst_ip:
+            dst_ip = ApexTransformsV34.transform_ip(dst_ip)
 
         # Extract MITRE IDs & Tactics if present, with fallback to rule_classification_mapping
         mitre_ids = []
@@ -715,14 +822,20 @@ class AlertStreamReader:
                 src_ip = m_cl.group(1)
                 who_subnet = normalize_ip_to_slash24(src_ip)
 
-        # Specialized Dpkg / Package parser (Rule 2904 & related)
-        pkg_name = data.get("package")
+        # Specialized Dpkg / Package parser & Apex V3.4 CVE integration
+        apex_vuln = apex_norm.get("vulnerability") or {}
+        pkg_name = data.get("package") or apex_vuln.get("package_name")
         dpkg_stat = data.get("dpkg_status")
         if not pkg_name and full_log_str and ("status " in full_log_str or "dpkg" in full_log_str):
             parts = full_log_str.strip().split()
             if len(parts) >= 4 and parts[1] == "status":
                 dpkg_stat = f"status {parts[2]}"
                 pkg_name = parts[3].split(":")[0]
+
+        # Apex V3.4 FIM Syscheck Integration
+        apex_file = apex_norm.get("file") or {}
+        if apex_file.get("path") and not proc_path:
+            proc_path = apex_file["path"]
 
         clean_path_val = normalize_url_path(extracted_url_path)
 
@@ -799,16 +912,46 @@ class AlertStreamReader:
             domain_val, target_cat_val, action_ttp_val, life_role_val, disp, conf_score = res_tax
         else:
             domain_val, action_ttp_val, disp, conf_score = res_tax
-            target_cat_val = "Host_Telemetry"
+            target_cat_val = PrimaryCategory.SYSTEM_AVAILABILITY
             life_role_val = "STATELESS" 
 
         # Check if this rule is explicitly mapped or if it requires autonomous classification review
         is_explicitly_mapped = rule_id_str in _get_rule_classification_map()
-        needs_review = (not is_explicitly_mapped) or (cat == "SYSTEM_HEALTH" and alert.rule.level >= 6)
+        # Autonomous AI Triage (AGENTS.md Standard): >= 85% confidence is autonomous; < 85% triggers Ground Truth human audit.
+        if is_explicitly_mapped:
+            needs_review = (cat == "SYSTEM_HEALTH" and alert.rule.level >= 6)
+        else:
+            needs_review = (conf_score < 85) or (cat == "SYSTEM_HEALTH" and alert.rule.level >= 6)
+
+        apex_http = apex_norm.get("http") or {}
+        apex_timestamps = apex_norm.get("timestamps") or {}
+        apex_net = apex_norm.get("network") or {}
 
         cem = CommonEventModel(
             event_id=alert.id or alert.event_id or f"evt_{self.total_valid_records}",
             timestamp=alert.timestamp,
+            # Apex V3.4 Canonical Normalization Fields
+            schema_version="1.0.0",
+            raw_sha256=apex_norm.get("raw_sha256"),
+            event_time=apex_timestamps.get("event_time"),
+            alert_time=apex_timestamps.get("alert_time"),
+            ingest_time=apex_timestamps.get("ingest_time"),
+            pipeline_latency_ms=apex_timestamps.get("pipeline_latency_ms"),
+            detection_delay_sec=apex_timestamps.get("detection_delay_sec"),
+            alias_source={"schema_ref": apex_norm.get("schema_ref")} if "schema_ref" in apex_norm else apex_norm.get("alias_source", {}),
+            query_string=apex_http.get("query_string"),
+            parsed_query=apex_http.get("parsed_query"),
+            http_method=apex_http.get("method"),
+            response_bytes=apex_http.get("response_bytes"),
+            bytes_out=apex_net.get("bytes_out"),
+            network_transport=apex_net.get("transport"),
+            network_direction=apex_net.get("direction"),
+            referrer_info=apex_http.get("referrer"),
+            user_agent_details=apex_http.get("user_agent"),
+            fim_info=apex_norm.get("file"),
+            vulnerability_info=apex_norm.get("vulnerability"),
+            process_info=apex_norm.get("process"),
+            apex_normalized=apex_norm,
             source_ip=src_ip,
             source_host=canonical_host if alert.agent else None,
             source_port=src_port_int,
@@ -976,63 +1119,61 @@ def _get_rule_classification_map() -> Dict[str, Dict[str, Any]]:
 _CLUSTER_V1_WINDOW_SECONDS: int = 900
 _CLUSTER_V1_WINDOW_CLASS: str = "UNIFORM_15_MIN"
 
-_CATEGORY_WINDOW_MAP: Dict[str, Tuple[str, int]] = {
-    cat: (_CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS)
-    for cat in [
-        "RANSOMWARE", "MALWARE", "COMMAND_AND_CONTROL", "EXFILTRATION",
-        "LATERAL_MOVEMENT", "PRIVILEGE_ESCALATION", "CREDENTIAL_ACCESS",
-        "DEFENSE_EVASION", "EXECUTION", "PERSISTENCE", "DISCOVERY",
-        "INITIAL_ACCESS", "AUTH_FAILURE", "AUTH_SUCCESS", "WEB_ATTACK",
-        "WEB_OPERATIONAL", "FILE_INTEGRITY", "VULNERABILITY",
-        "CONFIGURATION_ASSESSMENT", "CLOUD_CONTAINER", "SYSTEM_HEALTH",
-        "OTHER", "COMPLIANCE", "AUTHENTICATION", "NETWORK_WEB",
-        "ENDPOINT_PROCESS", "AUTH", "HOST", "NETWORK", "TELEMETRY", "UNKNOWN"
-    ]
-}
+from collections import defaultdict
+from config.category_constants import PrimaryCategory, SUBCATEGORIES
 
-# ── Mapping from rule_classification_mapping.json cat → 22 Sweet Spot ─────────
+# In Cluster v1 Architecture, all categories share the uniform 15-minute window (900s)
+_CATEGORY_WINDOW_MAP: Dict[str, Tuple[str, int]] = defaultdict(
+    lambda: (_CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS)
+)
+
+# ── Mapping from rule_classification_mapping.json cat → Canonical Categories ─────────
 _CAT_TO_INTERNAL: Dict[str, str] = {
-    "AUTHENTICATION":           "AUTH_FAILURE",
-    "LATERAL_MOVEMENT":         "LATERAL_MOVEMENT",
-    "PRIVILEGE_ESCALATION":     "PRIVILEGE_ESCALATION",
-    "MALWARE":                  "MALWARE",
-    "NETWORK_ANOMALY":          "DISCOVERY",
-    "DEFENSE_EVASION":          "DEFENSE_EVASION",
-    "POLICY_VIOLATION":         "CONFIGURATION_ASSESSMENT",
-    "DATA_ACCESS":              "CREDENTIAL_ACCESS",
-    "PROCESS_EXECUTION":        "EXECUTION",
-    "CONFIGURATION_CHANGE":     "SYSTEM_HEALTH",
-    "PERSISTENCE":              "PERSISTENCE",
-    "VULNERABILITY":            "VULNERABILITY",
-    "CLOUD_CONTAINER":          "CLOUD_CONTAINER",
-    "SYSTEM_HEALTH":            "SYSTEM_HEALTH",
-    "COMPLIANCE":               "CONFIGURATION_ASSESSMENT",
-    "CONFIGURATION_ASSESSMENT": "CONFIGURATION_ASSESSMENT",
-    "NETWORK_WEB":              "WEB_OPERATIONAL",
-    "ENDPOINT_PROCESS":         "EXECUTION",
-    "FILE_INTEGRITY":           "FILE_INTEGRITY",
-    "AUTH":                     "AUTH_FAILURE",
-    "HOST":                     "EXECUTION",
-    "NETWORK":                  "WEB_OPERATIONAL",
-    "TELEMETRY":                "SYSTEM_HEALTH",
-    "OTHER":                    "OTHER",
-    # ── Pass-through: OCSF categories already matching internal 22-cat keys ──
-    "RANSOMWARE":               "RANSOMWARE",
-    "COMMAND_AND_CONTROL":      "COMMAND_AND_CONTROL",
-    "EXFILTRATION":             "EXFILTRATION",
-    "CREDENTIAL_ACCESS":        "CREDENTIAL_ACCESS",
-    "EXECUTION":                "EXECUTION",
-    "DISCOVERY":                "DISCOVERY",
-    "INITIAL_ACCESS":           "INITIAL_ACCESS",
-    "WEB_ATTACK":               "WEB_ATTACK",
-    "WEB_OPERATIONAL":          "WEB_OPERATIONAL",
-    "AUTH_FAILURE":             "AUTH_FAILURE",
-    "AUTH_SUCCESS":             "AUTH_SUCCESS",
-    "UNKNOWN":                  "OTHER",
+    # Strictly maps any legacy or incoming string to one of the 6 Primary Categories
+    "AUTHENTICATION":           PrimaryCategory.IDENTITY_ACCESS,
+    "LATERAL_MOVEMENT":         PrimaryCategory.ATTACK,
+    "PRIVILEGE_ESCALATION":     PrimaryCategory.IDENTITY_ACCESS,
+    "MALWARE":                  PrimaryCategory.MALWARE,
+    "NETWORK_ANOMALY":          PrimaryCategory.ATTACK,
+    "DEFENSE_EVASION":          PrimaryCategory.ATTACK,
+    "POLICY_VIOLATION":         PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "DATA_ACCESS":              PrimaryCategory.ATTACK,
+    "PROCESS_EXECUTION":        PrimaryCategory.ATTACK,
+    "CONFIGURATION_CHANGE":     PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "PERSISTENCE":              PrimaryCategory.ATTACK,
+    "VULNERABILITY":            PrimaryCategory.VULNERABILITY,
+    "CLOUD_CONTAINER":          PrimaryCategory.SYSTEM_AVAILABILITY,
+    "SYSTEM_HEALTH":            PrimaryCategory.SYSTEM_AVAILABILITY,
+    "COMPLIANCE":               PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "CONFIGURATION_ASSESSMENT": PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "NETWORK_WEB":              PrimaryCategory.ATTACK,
+    "ENDPOINT_PROCESS":         PrimaryCategory.ATTACK,
+    "FILE_INTEGRITY":           PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    "AUTH":                     PrimaryCategory.IDENTITY_ACCESS,
+    "HOST":                     PrimaryCategory.SYSTEM_AVAILABILITY,
+    "NETWORK":                  PrimaryCategory.SYSTEM_AVAILABILITY,
+    "TELEMETRY":                PrimaryCategory.SYSTEM_AVAILABILITY,
+    "OTHER":                    PrimaryCategory.SYSTEM_AVAILABILITY,
+    "RANSOMWARE":               PrimaryCategory.MALWARE,
+    "COMMAND_AND_CONTROL":      PrimaryCategory.ATTACK,
+    "EXFILTRATION":             PrimaryCategory.ATTACK,
+    "CREDENTIAL_ACCESS":        PrimaryCategory.IDENTITY_ACCESS,
+    "EXECUTION":                PrimaryCategory.ATTACK,
+    "DISCOVERY":                PrimaryCategory.ATTACK,
+    "INITIAL_ACCESS":           PrimaryCategory.ATTACK,
+    "WEB_ATTACK":               PrimaryCategory.ATTACK,
+    "WEB_OPERATIONAL":          PrimaryCategory.SYSTEM_AVAILABILITY,
+    "AUTH_FAILURE":             PrimaryCategory.IDENTITY_ACCESS,
+    "AUTH_SUCCESS":             PrimaryCategory.IDENTITY_ACCESS,
+    "UNKNOWN":                  PrimaryCategory.SYSTEM_AVAILABILITY,
+    PrimaryCategory.ATTACK:                   PrimaryCategory.ATTACK,
+    PrimaryCategory.VULNERABILITY:            PrimaryCategory.VULNERABILITY,
+    PrimaryCategory.CONFIGURATION_COMPLIANCE: PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    PrimaryCategory.IDENTITY_ACCESS:          PrimaryCategory.IDENTITY_ACCESS,
+    PrimaryCategory.MALWARE:                  PrimaryCategory.MALWARE,
+    PrimaryCategory.SYSTEM_AVAILABILITY:      PrimaryCategory.SYSTEM_AVAILABILITY,
 }
 
-
-# ── Auth subtype resolution ───────────────────────────────────────────────────
 _AUTH_SUCCESS_GROUPS = frozenset([
     "authentication_success", "login_success", "session_opened",
     "session_open", "accepted", "logon_success",
@@ -1108,8 +1249,9 @@ def classify_event_archetype(
     mitre_tactics: Optional[List[str]] = None,
 ) -> Tuple[str, str, str, str, int]:
     """
-    [21 Sweet Spot Categories] Field-based classification via rule.groups + rule.mitre.tactic.
+    Unified 6-Category Archetype Engine:
     Returns (category, actor, target, window_class, window_seconds).
+    Category is strictly one of the 6 Primary Categories.
     """
     groups_lower = set(g.lower() for g in (groups or []))
     rule_id_str = str(rule_id)
@@ -1134,165 +1276,84 @@ def classify_event_archetype(
     if rule_id_str in rule_map:
         entry = rule_map[rule_id_str]
         raw_cat = entry.get("cat", "POLICY_VIOLATION")
-        internal_cat = _CAT_TO_INTERNAL.get(raw_cat, "SYSTEM_HEALTH")
-        if raw_cat == "AUTHENTICATION":
-            internal_cat = _resolve_auth_subtype(groups_lower)
-        elif raw_cat == "NETWORK_WEB":
-            if groups_lower & {"web_attack", "sqli", "xss", "rfi", "lfi", "attack", "web_exploit"}:
-                internal_cat = "WEB_ATTACK"
-        elif raw_cat == "DATA_ACCESS":
-            if "exfiltration" in tactics_lower:
-                internal_cat = "EXFILTRATION"
-        elif raw_cat == "NETWORK_ANOMALY":
-            if "initial access" in tactics_lower:
-                internal_cat = "INITIAL_ACCESS"
-        win_class, win_dur = _CATEGORY_WINDOW_MAP.get(internal_cat, ("STANDARD", 900))
-        if internal_cat in ("AUTH_FAILURE", "AUTH_SUCCESS"):
+        internal_cat = _CAT_TO_INTERNAL.get(raw_cat, PrimaryCategory.SYSTEM_AVAILABILITY)
+        win_class, win_dur = _CATEGORY_WINDOW_MAP.get(internal_cat, (_CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS))
+        if internal_cat == PrimaryCategory.IDENTITY_ACCESS:
             actor, target = _auth_actor(), clean_dst_host or clean_agent_name
-        elif internal_cat in ("WEB_ATTACK", "WEB_OPERATIONAL", "INITIAL_ACCESS"):
+        elif internal_cat == PrimaryCategory.ATTACK:
             actor, target = _net_actor(), clean_dst_host or destination_ip or clean_agent_name
-        elif internal_cat == "VULNERABILITY":
+        elif internal_cat == PrimaryCategory.VULNERABILITY:
             pkg_m = re.search(r'affects?\s+([a-zA-Z0-9._-]+)', desc_lower) or re.search(r'affected\s+([a-zA-Z0-9._-]+)', desc_lower)
             actor = f"pkg:{pkg_m.group(1)}" if pkg_m else "vulnerability-detector"
             target = clean_agent_name
-        elif internal_cat == "CLOUD_CONTAINER":
-            actor = (f"proc:{process_name}" if process_name else None) or "proc:dockerd"
-            target = clean_agent_name
-        elif internal_cat == "FILE_INTEGRITY":
-            actor = (f"user:{username}" if username else None) or (f"proc:{process_name}" if process_name else None) or "proc:syscheck"
-            target = clean_agent_name
-        elif internal_cat in ("CONFIGURATION_ASSESSMENT", "COMPLIANCE"):
+        elif internal_cat == PrimaryCategory.CONFIGURATION_COMPLIANCE:
             actor, target = "sca-scanner", clean_agent_name
-        elif internal_cat == "DISCOVERY":
-            actor = source_ip or _host_actor()
-            target = clean_dst_host or destination_ip or clean_agent_name
-        elif internal_cat in ("LATERAL_MOVEMENT", "EXFILTRATION"):
-            actor = source_ip or _auth_actor()
-            target = clean_dst_host or destination_ip or clean_agent_name
-        elif internal_cat == "CREDENTIAL_ACCESS":
-            actor, target = _auth_actor(), clean_dst_host or clean_agent_name
-        elif internal_cat in ("EXECUTION", "PERSISTENCE", "DEFENSE_EVASION", "PRIVILEGE_ESCALATION"):
-            actor, target = _host_actor(), clean_agent_name
-        elif internal_cat in ("MALWARE", "RANSOMWARE"):
+        elif internal_cat == PrimaryCategory.MALWARE:
             actor = (f"proc:{process_name}" if process_name else None) or "rootcheck"
             target = clean_agent_name
-        elif internal_cat == "SYSTEM_HEALTH":
-            actor = (f"service:{process_name}" if process_name else None) or "service:systemd"
-            target = clean_agent_name
-        elif internal_cat == "OTHER":
-            actor, target = _host_actor(), clean_agent_name
         else:
             actor, target = _host_actor(), clean_agent_name
         return internal_cat, actor, target, win_class, win_dur
 
-    # == Tier 1: Field-based 22-category precedence chain ====================
-    # In Cluster v1, all categories use uniform 15-minute window (900s)
-    # 1. RANSOMWARE
-    if (groups_lower & {"ransomware", "vssadmin", "shadow_copy", "backup_tamper", "encryption"}
-            or ("impact" in tactics_lower and groups_lower & {"defense_evasion", "log_clear", "file_tampering"})):
-        actor = (f"proc:{process_name}" if process_name else None) or "proc:ransomware"
-        return "RANSOMWARE", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 2. MALWARE
-    if groups_lower & {"malware", "virus", "trojan", "rootcheck", "yara", "rootkit"}:
-        actor = (f"proc:{process_name}" if process_name else None) or "rootcheck"
-        return "MALWARE", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 3. COMMAND_AND_CONTROL
-    if (groups_lower & {"c2", "command_and_control", "dns_tunnel", "beacon"}
-            or "command and control" in tactics_lower or "command_and_control" in tactics_lower):
-        actor = source_ip or (f"proc:{process_name}" if process_name else "proc:c2_agent")
-        return "COMMAND_AND_CONTROL", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 4. EXFILTRATION
-    if (groups_lower & {"exfiltration", "data_theft", "dns_exfil"} or "exfiltration" in tactics_lower):
-        actor = source_ip or (f"proc:{process_name}" if process_name else "proc:exfil_agent")
-        return "EXFILTRATION", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 5. LATERAL_MOVEMENT
-    if (groups_lower & {"lateral_movement", "admin_share", "wmi_exec", "psexec", "rdp_pivot"}
-            or "lateral movement" in tactics_lower or "lateral_movement" in tactics_lower):
-        actor = source_ip or _auth_actor()
-        return "LATERAL_MOVEMENT", actor, clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 6. PRIVILEGE_ESCALATION
-    if (groups_lower & {"privilege_escalation", "sudo", "setuid", "uac_bypass", "token_manipulation"}
-            or "privilege escalation" in tactics_lower or "privilege_escalation" in tactics_lower):
-        actor = (f"user:{username}" if username else None) or _host_actor()
-        return "PRIVILEGE_ESCALATION", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 7. CREDENTIAL_ACCESS
-    if (groups_lower & {"credential_access", "credential_dump", "kerberoast", "brute_force", "password_spray"}
-            or "credential access" in tactics_lower or "credential_access" in tactics_lower):
-        return "CREDENTIAL_ACCESS", _auth_actor(), clean_dst_host or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 8. DEFENSE_EVASION
-    if (groups_lower & {"defense_evasion", "log_clear", "timestomp", "amsi_bypass", "antivirus_disabled"}
-            or "defense evasion" in tactics_lower or "defense_evasion" in tactics_lower):
-        return "DEFENSE_EVASION", _host_actor(), clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 9. EXECUTION
-    if (groups_lower & {"execution", "powershell", "script", "wscript", "command_line", "encoded_command"}
-            or "execution" in tactics_lower):
-        return "EXECUTION", _host_actor(), clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 10. PERSISTENCE
-    if (groups_lower & {"persistence", "cron", "scheduled_task", "registry_run", "startup", "webshell"}
-            or "persistence" in tactics_lower):
-        return "PERSISTENCE", _host_actor(), clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 11. DISCOVERY
-    if (groups_lower & {"discovery", "recon", "network_scan", "port_scan", "enumeration"}
-            or "discovery" in tactics_lower or "reconnaissance" in tactics_lower):
-        actor = source_ip or _host_actor()
-        return "DISCOVERY", actor, clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 12. INITIAL_ACCESS
-    if (groups_lower & {"initial_access", "exploit", "supply_chain", "drive_by"}
-            or "initial access" in tactics_lower or "initial_access" in tactics_lower):
-        actor = source_ip or _net_actor()
-        return "INITIAL_ACCESS", actor, clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+    # == Tier 1: Hybrid AI Categorizer (LightGBM + Local LLM + Intent Guardrail)
+    ai_fn = _get_ai_predict_fn()
+    if ai_fn and (desc_lower or groups_lower):
+        try:
+            ai_res = ai_fn(desc=desc_lower, groups=list(groups_lower), tactics=list(tactics_lower), rule_id=rule_id_str)
+            if ai_res and ai_res.get("confidence", 0) >= 0.70:
+                pcat_ai = str(ai_res.get("primary_category", ""))
+                if pcat_ai in PrimaryCategory.ALL:
+                    if pcat_ai == PrimaryCategory.IDENTITY_ACCESS:
+                        actor, target = _auth_actor(), clean_dst_host or clean_agent_name
+                    elif pcat_ai == PrimaryCategory.ATTACK:
+                        actor, target = _net_actor(), clean_dst_host or destination_ip or clean_agent_name
+                    elif pcat_ai == PrimaryCategory.VULNERABILITY:
+                        pkg_m = re.search(r'affects?\s+([a-zA-Z0-9._-]+)', desc_lower) or re.search(r'affected\s+([a-zA-Z0-9._-]+)', desc_lower)
+                        actor = f"pkg:{pkg_m.group(1)}" if pkg_m else "vulnerability-detector"
+                        target = clean_agent_name
+                    elif pcat_ai == PrimaryCategory.MALWARE:
+                        actor = (f"proc:{process_name}" if process_name else None) or "rootcheck"
+                        target = clean_agent_name
+                    elif pcat_ai == PrimaryCategory.CONFIGURATION_COMPLIANCE:
+                        actor, target = "sca-scanner", clean_agent_name
+                    else:
+                        actor, target = _host_actor(), clean_agent_name
+                    return pcat_ai, actor, target, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+        except Exception:
+            pass
 
-    # 13. AUTH_FAILURE
-    if groups_lower & {"authentication_failed", "authentication_failures", "invalid_login", "login_failed"}:
-        if not (groups_lower & _AUTH_SUCCESS_GROUPS):
-            return "AUTH_FAILURE", _auth_actor(), clean_dst_host or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 14. AUTH_SUCCESS
-    if groups_lower & {"authentication_success", "login_success", "session_opened", "session_open"}:
-        return "AUTH_SUCCESS", _auth_actor(), clean_dst_host or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # Catch remaining auth-related groups
-    if groups_lower & {"auth", "login", "sshd", "pam"}:
-        subtype = _resolve_auth_subtype(groups_lower)
-        win_class, win_dur = _CATEGORY_WINDOW_MAP.get(subtype, (_CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS))
-        return subtype, _auth_actor(), clean_dst_host or clean_agent_name, win_class, win_dur
-    # 15. WEB_ATTACK
-    if groups_lower & {"web_attack", "sqli", "xss", "rfi", "lfi", "web_exploit", "attack"}:
-        return "WEB_ATTACK", _net_actor(), clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 16. WEB_OPERATIONAL
-    if groups_lower & {"web", "apache", "nginx", "httpd", "access_denied", "web_error"}:
-        return "WEB_OPERATIONAL", _net_actor(), clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 17. FILE_INTEGRITY
-    if groups_lower & {"syscheck", "integrity", "checksum", "fim", "file_added", "file_modified"}:
-        actor = (f"user:{username}" if username else None) or (f"proc:{process_name}" if process_name else None) or "proc:syscheck"
-        return "FILE_INTEGRITY", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 18. VULNERABILITY
-    if "vulnerability-detector" in groups_lower or groups_lower & {"vulnerability", "cve"}:
+    # == Tier 2: Deterministic Precedence Chain ===============================
+    # 1. Malware
+    if (groups_lower & {"malware", "virus", "trojan", "rootcheck", "yara", "rootkit", "ransomware", "vssadmin", "shadow_copy"}
+            or ("impact" in tactics_lower and groups_lower & {"defense_evasion", "log_clear", "file_tampering"})):
+        actor = (f"proc:{process_name}" if process_name else None) or "rootcheck"
+        return PrimaryCategory.MALWARE, actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+
+    # 2. Attack
+    if (groups_lower & {"attack", "web_attack", "sqli", "xss", "rfi", "lfi", "web_exploit", "c2", "command_and_control", "dns_tunnel", "beacon", "exfiltration", "data_theft", "lateral_movement", "psexec", "recon", "network_scan", "port_scan", "enumeration", "initial_access", "execution", "persistence"}
+            or any(t in tactics_lower for t in ["initial access", "execution", "persistence", "lateral movement", "command and control", "exfiltration", "discovery"])):
+        actor = source_ip or _net_actor()
+        return PrimaryCategory.ATTACK, actor, clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+
+    # 3. Identity / Access
+    if (groups_lower & {"authentication_failed", "authentication_failures", "authentication_success", "invalid_login", "login_failed", "login_success", "auth", "login", "sshd", "pam", "sudo", "privilege_escalation", "credential_access", "credential_dump", "kerberoast", "brute_force", "password_spray"}
+            or "credential access" in tactics_lower or "privilege escalation" in tactics_lower):
+        return PrimaryCategory.IDENTITY_ACCESS, _auth_actor(), clean_dst_host or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+
+    # 4. Vulnerability
+    if "vulnerability-detector" in groups_lower or groups_lower & {"vulnerability", "cve"} or "cve-" in desc_lower:
         pkg_m = re.search(r'affects?\s+([a-zA-Z0-9._-]+)', desc_lower) or re.search(r'affected\s+([a-zA-Z0-9._-]+)', desc_lower)
         actor = f"pkg:{pkg_m.group(1)}" if pkg_m else "vulnerability-detector"
-        return "VULNERABILITY", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 19. CONFIGURATION_ASSESSMENT (SCA / CIS Benchmark)
-    # Regulatory compliance tags (pci_dss, gdpr, nist, hipaa) are stored in compliance_frameworks metadata.
-    if groups_lower & {"sca", "cis", "configuration_assessment", "policy"}:
-        return "CONFIGURATION_ASSESSMENT", "sca-scanner", clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    # 20. CLOUD_CONTAINER
-    if groups_lower & {"docker", "kubernetes", "container", "cloud", "aws", "azure", "gcp"}:
-        actor = (f"proc:{process_name}" if process_name else None) or "proc:dockerd"
-        return "CLOUD_CONTAINER", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+        return PrimaryCategory.VULNERABILITY, actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
 
-    # == Tier 2: Dynamic entity signals ======================================
-    if source_ip and (clean_dst_host or destination_ip):
-        return "WEB_OPERATIONAL", source_ip, clean_dst_host or destination_ip or clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    if process_name:
-        return "EXECUTION", f"proc:{process_name}", clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-    if rule_level >= 6:
-        return "EXECUTION", _host_actor(), clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+    # 5. Configuration / Compliance
+    if groups_lower & {"sca", "cis", "configuration_assessment", "policy", "syscheck", "integrity", "checksum", "fim", "pci_dss", "gdpr", "nist", "hipaa"}:
+        actor = (f"user:{username}" if username else None) or "sca-scanner"
+        return PrimaryCategory.CONFIGURATION_COMPLIANCE, actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
 
-    # If alert carries compliance-only tags without primary security group, route to OTHER
-    if groups_lower & {"pci_dss", "gdpr", "nist", "hipaa", "compliance"}:
-        return "OTHER", "compliance-tagged", clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
-
-    # == Tier 3: Universal safe fallback -> SYSTEM_HEALTH ====================
+    # 6. System / Availability (Universal Fallback)
     actor = (f"service:{process_name}" if process_name else None) or "service:systemd"
-    return "SYSTEM_HEALTH", actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
+    return PrimaryCategory.SYSTEM_AVAILABILITY, actor, clean_agent_name, _CLUSTER_V1_WINDOW_CLASS, _CLUSTER_V1_WINDOW_SECONDS
 
 
 

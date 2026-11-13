@@ -24,6 +24,30 @@ from config.settings import (
 logger = logging.getLogger("pipeline.database")
 
 
+def _normalize_category_to_db_enum(val: Any) -> str:
+    s = str(val or "SYSTEM_HEALTH").strip()
+    valid_enums = {
+        "RANSOMWARE", "MALWARE", "COMMAND_AND_CONTROL", "EXFILTRATION",
+        "LATERAL_MOVEMENT", "PRIVILEGE_ESCALATION", "CREDENTIAL_ACCESS",
+        "DEFENSE_EVASION", "EXECUTION", "PERSISTENCE", "DISCOVERY",
+        "INITIAL_ACCESS", "AUTH_FAILURE", "AUTH_SUCCESS", "WEB_ATTACK",
+        "WEB_OPERATIONAL", "FILE_INTEGRITY", "VULNERABILITY",
+        "CONFIGURATION_ASSESSMENT", "CLOUD_CONTAINER", "SYSTEM_HEALTH",
+        "OTHER", "HOST", "AUTH", "NETWORK", "TELEMETRY", "COMPLIANCE"
+    }
+    if s.upper() in valid_enums:
+        return s.upper()
+    mapping = {
+        "Attack": "WEB_ATTACK",
+        "Vulnerability": "VULNERABILITY",
+        "Configuration / Compliance": "CONFIGURATION_ASSESSMENT",
+        "Identity / Access": "AUTH_FAILURE",
+        "Malware": "MALWARE",
+        "System / Availability": "SYSTEM_HEALTH",
+    }
+    return mapping.get(s, "SYSTEM_HEALTH")
+
+
 class DatabaseManager:
     """
     Threaded Connection Pool Manager for high-throughput PostgreSQL operations.
@@ -199,7 +223,7 @@ class DatabaseManager:
                 e.get("decoder_name"),
                 e.get("raw_payload", "")
             )
-            for e in events
+            for e in unique_events
         ]
 
         with self.get_connection() as conn:
@@ -209,20 +233,36 @@ class DatabaseManager:
         return len(records)
 
     def bulk_insert_normalized_events(self, events: List[Dict[str, Any]]) -> int:
-        """Bulk insert normalized events into PostgreSQL."""
+        """Bulk insert normalized events into PostgreSQL with strict raw_event_id deduplication."""
         if not events:
             return 0
 
-        query = """
-        INSERT INTO normalized_events (
-            normalized_event_id, raw_event_id, event_timestamp, rule_id,
-            rule_level, rule_description, classification_groups, mitre_attack_ids,
-            mitre_tactics, mitre_techniques, compliance_frameworks,
-            asset_criticality_tier, is_asset_internet_exposed, is_privileged_user,
-            is_service_account, threat_intel_match, threat_intel_confidence
-        ) VALUES %s
-        ON CONFLICT (normalized_event_id, processed_at) DO NOTHING;
-        """
+        raw_eids = [e.get("raw_event_id") for e in events if e.get("raw_event_id")]
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SET LOCAL synchronous_commit = off;")
+
+                # Deduplicate against database to ensure exactly 1 normalized event per raw event
+                existing_eids = set()
+                if raw_eids:
+                    cur.execute("SELECT raw_event_id FROM normalized_events WHERE raw_event_id = ANY(%s);", (raw_eids,))
+                    existing_eids = {r[0] for r in cur.fetchall()}
+
+                unique_events = [e for e in events if e.get("raw_event_id") not in existing_eids]
+                if not unique_events:
+                    return 0
+
+                query = """
+                INSERT INTO normalized_events (
+                    normalized_event_id, raw_event_id, event_timestamp, rule_id,
+                    rule_level, rule_description, classification_groups, mitre_attack_ids,
+                    mitre_tactics, mitre_techniques, compliance_frameworks,
+                    asset_criticality_tier, is_asset_internet_exposed, is_privileged_user,
+                    is_service_account, threat_intel_match, threat_intel_confidence
+                ) VALUES %s
+                ON CONFLICT (normalized_event_id, processed_at) DO NOTHING;
+                """
 
         records = [
             (
@@ -303,7 +343,7 @@ class DatabaseManager:
         # Ensure default fallbacks if missing
         agg_payload = dict(agg)
         agg_payload.setdefault("status", "CLOSED")
-        agg_payload.setdefault("category", "SYSTEM_HEALTH")
+        agg_payload.setdefault("category", "System / Availability")
         agg_payload.setdefault("rule_description", None)
         agg_payload.setdefault("actor", agg.get("source_ip") or f"agent:{agg.get('agent_id')}")
         agg_payload.setdefault("target", agg.get("username") or agg.get("destination_ip") or f"agent:{agg.get('agent_id')}")
@@ -440,9 +480,9 @@ class DatabaseManager:
             (
                 a.get("aggregation_id"),
                 a.get("rule_id"),
-                a.get("deduplication_key"),
-                a.get("tenant_id", "DEFAULT"),
-                a.get("agent_id"),
+                str(a.get("deduplication_key") or "")[:128],
+                str(a.get("tenant_id", "DEFAULT"))[:64],
+                str(a.get("agent_id") or "000")[:32],
                 a.get("source_ip"),
                 a.get("destination_ip"),
                 a.get("username"),
@@ -450,36 +490,36 @@ class DatabaseManager:
                 a.get("window_start"),
                 a.get("window_end"),
                 a.get("status", "CLOSED"),
-                a.get("category", "SYSTEM_HEALTH"),
+                _normalize_category_to_db_enum(a.get("category")),
                 a.get("rule_description"),
-                a.get("actor") or a.get("source_ip") or f"agent:{a.get('agent_id')}",
-                a.get("target") or a.get("username") or a.get("destination_ip") or f"agent:{a.get('agent_id')}",
+                str(a.get("actor") or a.get("source_ip") or f"agent:{a.get('agent_id')}")[:128],
+                str(a.get("target") or a.get("username") or a.get("destination_ip") or f"agent:{a.get('agent_id')}")[:128],
                 a.get("window_duration_seconds", 900),
                 a.get("ioa_summary"),
                 bool(a.get("is_suppressed", False)),
                 a.get("suppression_rule_id"),
                 a.get("suppression_reason"),
-                int(a.get("max_inline_risk_score", 0) or 0),   # Peak risk score in this window
-                max(1, min(6, int(a.get("ocsf_severity_id") or 1))), # Highest OCSF severity in this window (1-6)
-                a.get("tlp_level", "TLP:AMBER"),                # MISP TLP level
-                a.get("mitre_technique_id"),                    # ATT&CK technique ID
-                a.get("os_platform", "unknown"),                # OS platform dimension
-                json.dumps(a.get("mitre_tactics") or []),       # ATT&CK tactics metadata
-                json.dumps(a.get("classification_groups") or []), # Classification groups metadata
-                a.get("log_source"),                            # Log source path
-                json.dumps(a.get("distinct_ioas") or []),       # Distinct IOAs collection
-                json.dumps(a.get("distinct_iocs") or []),       # Distinct IOCs collection
+                int(a.get("max_inline_risk_score", 0) or 0),
+                max(1, min(6, int(a.get("ocsf_severity_id") or 1))),
+                a.get("tlp_level", "TLP:AMBER"),
+                a.get("mitre_technique_id"),
+                a.get("os_platform", "unknown"),
+                json.dumps(a.get("mitre_tactics") or []),
+                json.dumps(a.get("classification_groups") or []),
+                a.get("log_source"),
+                json.dumps(a.get("distinct_ioas") or []),
+                json.dumps(a.get("distinct_iocs") or []),
                 a.get("dominant_http_status"),
                 bool(a.get("is_scanner_ua", False)),
                 a.get("domain", a.get("primary_category", "SYSTEM")),
-                a.get("target_category", "Host_Telemetry"),
+                a.get("target_category", "System / Availability"),
                 a.get("action_ttp", a.get("subcategory", "General")),
                 a.get("lifecycle_role", "STATELESS"),
                 a.get("disposition", "SAFE"),
                 int(a.get("confidence_score") or 50),
-                a.get("composite_cluster_key"),
-                a.get("who_cluster"),
-                a.get("what_cluster"),
+                str(a.get("composite_cluster_key"))[:128] if a.get("composite_cluster_key") else None,
+                str(a.get("who_cluster"))[:128] if a.get("who_cluster") else None,
+                str(a.get("what_cluster"))[:128] if a.get("what_cluster") else None,
                 a.get("source_type", "system"),
                 json.dumps(a.get("distinct_targets") or []),
                 json.dumps(a.get("smart_evidence") or []),
@@ -492,7 +532,7 @@ class DatabaseManager:
                 a.get("success_indicator", "none"),
                 bool(a.get("external_auth_success", False)),
                 bool(a.get("pkg_activity_nearby", False)),
-                a.get("parent_cluster_id"),
+                str(a.get("parent_cluster_id"))[:128] if a.get("parent_cluster_id") else None,
                 a.get("first_seen_event_time") or a.get("window_start"),
                 a.get("last_seen_event_time") or a.get("window_end"),
                 bool(a.get("is_backfill", False)),
@@ -640,15 +680,16 @@ class DatabaseManager:
             w_start = _to_datetime(c.get("first_seen_at") or c.get("window_start"))
             w_end   = _to_datetime(c.get("last_seen_at")  or c.get("window_end"))
 
-            if k not in merged_cums:
-                merged_cums[k] = {
-                    "cumulative_id": c.get("cumulative_id") or f"cum_{k[:16]}",
-                    "deduplication_key": k,
-                    "category": c.get("category", "SYSTEM_HEALTH"),
+            k_clean = str(k)[:128]
+            if k_clean not in merged_cums:
+                merged_cums[k_clean] = {
+                    "cumulative_id": c.get("cumulative_id") or f"cum_{k_clean[:16]}",
+                    "deduplication_key": k_clean,
+                    "category": c.get("category", "System / Availability"),
                     "rule_id": c["rule_id"],
                     "rule_description": c.get("rule_description"),
-                    "actor": c.get("actor") or c.get("source_ip") or f"agent:{c.get('agent_id')}",
-                    "target": c.get("target") or c.get("username") or c.get("destination_ip") or f"agent:{c.get('agent_id')}",
+                    "actor": str(c.get("actor") or c.get("source_ip") or f"agent:{c.get('agent_id')}")[:128],
+                    "target": str(c.get("target") or c.get("username") or c.get("destination_ip") or f"agent:{c.get('agent_id')}")[:128],
                     "agent_id": c.get("agent_id", "000"),
                     "tenant_id": c.get("tenant_id", "DEFAULT"),
                     "total_event_count": c.get("total_event_count", c.get("event_count", 1)),
@@ -701,7 +742,7 @@ class DatabaseManager:
             (
                 c["cumulative_id"],
                 c["deduplication_key"],
-                c["category"],
+                _normalize_category_to_db_enum(c["category"]),
                 c["rule_id"],
                 c["rule_description"],
                 c["actor"],
