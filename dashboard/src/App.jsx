@@ -10,13 +10,15 @@ import {
 
   Users, Globe, Server, Calendar, Lock, X, AlertTriangle, LogOut,
 
-  Menu, Brain, Building2, Network, UserX, Target
+  Menu, Brain, Building2, Network, UserX, Target, Cpu, GitBranch, ArrowRightLeft, Tag
 
 } from 'lucide-react';
 
 import PipelineOverview from './components/PipelineOverview';
+import SocKpiPerformanceView from './components/SocKpiPerformanceView';
 
 import SuppressionGovernance from './components/SuppressionGovernance';
+import CategorizingView from './components/CategorizingView';
 
 import IncidentTriageQueue, { globalTriageCache, normalizeStatus } from './components/IncidentTriageQueue';
 
@@ -29,16 +31,11 @@ import SystemMaintenance, { initialRbacMatrixData } from './components/SystemMai
 import GroundTruthReview from './components/GroundTruthReview';
 
 import LoginPage from './components/LoginPage';
+import DataSyncAudit from './components/DataSyncAudit';
 
 import RawAlertsQueue from './components/RawAlertsQueue';
 
 import ClusteringOverview from './components/ClusteringOverview';
-
-import VulnerabilityOverview from './components/VulnerabilityOverview';
-
-import SystemIntegrityOverview from './components/SystemIntegrityOverview';
-
-import AttackOverview from './components/AttackOverview';
 
 import logoImg from './assets/logo.png';
 
@@ -98,13 +95,13 @@ export default function App() {
 
       const candidateTabs = [
 
-        'analytics', 'raw_alerts', 'triage', 'verified_tp',
+        'analytics', 'kpi_performance', 'kpi_system', 'raw_alerts', 'triage', 'verified_tp',
 
         'groundtruth_queue', 'ground_truth_review', 'suppression_groups',
 
         'suppression_audit', 'graph_conclusion', 'threat_actor', 'threat_victim',
 
-        'system_rbac', 'system_database', 'system_api'
+        'system_rbac', 'system_database', 'system_data_sync', 'system_api'
 
       ];
 
@@ -225,31 +222,20 @@ export default function App() {
 
 
   const handleApplyCustomRange = () => {
-
     const sDate = tempStartDate || '2026-10-16';
-
-    const sTime = tempStartTime ? tempStartTime.trim() : '00:00';
-
+    let sTime = tempStartTime ? tempStartTime.trim() : '00:00:00';
+    if (sTime.length === 5) sTime += ':00';
     const eDate = tempEndDate || '2026-10-20';
-
-    const eTime = tempEndTime ? tempEndTime.trim() : '23:59';
-
-
+    let eTime = tempEndTime ? tempEndTime.trim() : '23:59:59';
+    if (eTime.length === 5) eTime += ':59';
 
     const fullStart = `${sDate} ${sTime}`;
-
     const fullEnd = `${eDate} ${eTime}`;
 
-
-
     setCustomStartDate(fullStart);
-
     setCustomEndDate(fullEnd);
-
     setTimeRange('custom');
-
     setIsTimeDropdownOpen(false);
-
   };
 
 
@@ -408,23 +394,14 @@ export default function App() {
       case 'custom': {
 
         const formatPart = (val, defaultTime) => {
-
           if (!val) return '';
-
           const parts = val.trim().split(/[T ]+/);
-
           const d = parts[0];
-
-          const t = parts[1] ? parts[1].slice(0, 5) : defaultTime;
-
+          const t = parts[1] ? parts[1].slice(0, 8) : defaultTime;
           return `${d} ${t}`;
-
         };
-
-        const s = formatPart(customStartDate, '00:00');
-
-        const e = formatPart(customEndDate, '23:59');
-
+        const s = formatPart(customStartDate, '00:00:00');
+        const e = formatPart(customEndDate, '23:59:59');
         return `${s} → ${e}`;
 
       }
@@ -660,19 +637,12 @@ export default function App() {
     w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer text-left
 
     ${activeTab === tabId 
-
       ? (theme === 'dark' 
-
-          ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/60' 
-
-          : 'bg-blue-50 text-blue-700 font-semibold shadow-sm border border-blue-200')
-
+          ? 'bg-slate-800/80 text-white font-semibold' 
+          : 'bg-blue-50 text-blue-600 font-semibold')
       : (theme === 'dark' 
-
           ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30' 
-
           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-
     }
 
   `;
@@ -694,18 +664,6 @@ export default function App() {
       case 'clustering':
 
         return { category: 'MAIN', subcategory: 'CLUSTERING' };
-
-      case 'category_attack':
-
-        return { category: 'CATEGORIES', subcategory: 'ATTACK' };
-
-      case 'category_vulnerability':
-
-        return { category: 'CATEGORIES', subcategory: 'VULNERABILITY' };
-
-      case 'category_system':
-
-        return { category: 'CATEGORIES', subcategory: 'SYSTEM' };
 
       case 'triage':
 
@@ -739,9 +697,17 @@ export default function App() {
 
         return { category: 'SUPPRESSION', subcategory: 'POLICY BUNDLE' };
 
+      case 'categorizing':
       case 'suppression_audit':
+        return { category: 'MAIN', subcategory: 'CATEGORIZING' };
 
-        return { category: 'MAIN', subcategory: 'COMPLIANCE AUDIT' };
+      case 'kpi_performance':
+      case 'kpi_system':
+        return { category: 'KPI PERFORMANCE', subcategory: 'SYSTEM PROCESS' };
+      case 'kpi_ai':
+        return { category: 'KPI PERFORMANCE', subcategory: 'AI TRIAGE' };
+      case 'kpi_human':
+        return { category: 'KPI PERFORMANCE', subcategory: 'HUMAN TRIAGE' };
 
       case 'system_rbac':
 
@@ -750,6 +716,10 @@ export default function App() {
       case 'system_database':
 
         return { category: 'SYSTEM MAINTENANCE', subcategory: 'DATABASE & STORAGE HEALTH' };
+
+      case 'system_data_sync':
+
+        return { category: 'SYSTEM MAINTENANCE', subcategory: 'DATA SYNC' };
 
       case 'system_api':
 
@@ -915,6 +885,8 @@ export default function App() {
 
 
 
+
+
                 {hasAccess('raw_alerts') && (
 
                   <button
@@ -975,135 +947,25 @@ export default function App() {
 
 
 
-                {hasAccess('suppression_audit') && (
+                {(hasAccess('categorizing') || hasAccess('suppression_audit')) && (
 
                   <button
 
-                    onClick={() => setActiveTab('suppression_audit')}
+                    onClick={() => setActiveTab('categorizing')}
 
-                    className={navItemClass('suppression_audit')}
+                    className={navItemClass('categorizing', 'suppression_audit')}
 
                   >
 
                     <div className="flex items-center gap-2.5 truncate">
 
-                      <History className="w-3.5 h-3.5 shrink-0" />
+                      <Tag className="w-3.5 h-3.5 shrink-0" />
 
-                      <span className="truncate">Compliance Audit</span>
+                      <span className="truncate">Categorizing</span>
 
                     </div>
 
                     {isReadOnly('suppression_audit') && (
-
-                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
-
-                    )}
-
-                  </button>
-
-                )}
-
-              </nav>
-
-            </div>
-
-          )}
-
-
-
-          {/* Group: CATEGORIES */}
-
-          {(hasAccess('category_attack') || hasAccess('category_vulnerability') || hasAccess('category_system')) && (
-
-            <div>
-
-              <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-
-                Categories
-
-              </div>
-
-              <nav className="space-y-0.5">
-
-                {hasAccess('category_attack') && (
-
-                  <button
-
-                    onClick={() => setActiveTab('category_attack')}
-
-                    className={navItemClass('category_attack')}
-
-                  >
-
-                    <div className="flex items-center gap-2.5 truncate">
-
-                      <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-
-                      <span className="truncate">Attack</span>
-
-                    </div>
-
-                    {isReadOnly('category_attack') && (
-
-                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
-
-                    )}
-
-                  </button>
-
-                )}
-
-
-
-                {hasAccess('category_vulnerability') && (
-
-                  <button
-
-                    onClick={() => setActiveTab('category_vulnerability')}
-
-                    className={navItemClass('category_vulnerability')}
-
-                  >
-
-                    <div className="flex items-center gap-2.5 truncate">
-
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-
-                      <span className="truncate">Vulnerability</span>
-
-                    </div>
-
-                    {isReadOnly('category_vulnerability') && (
-
-                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
-
-                    )}
-
-                  </button>
-
-                )}
-
-
-
-                {hasAccess('category_system') && (
-
-                  <button
-
-                    onClick={() => setActiveTab('category_system')}
-
-                    className={navItemClass('category_system')}
-
-                  >
-
-                    <div className="flex items-center gap-2.5 truncate">
-
-                      <Server className="w-3.5 h-3.5 shrink-0" />
-
-                      <span className="truncate">System</span>
-
-                    </div>
-
-                    {isReadOnly('category_system') && (
 
                       <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
 
@@ -1353,6 +1215,46 @@ export default function App() {
 
 
 
+
+          {/* Group 4: KPI PERFORMANCE (3 Features) */}
+          <div>
+            <div className="px-2 mb-1.5 text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+              KPI Performance
+            </div>
+            <nav className="space-y-0.5">
+              <button
+                onClick={() => setActiveTab('kpi_system')}
+                className={navItemClass('kpi_system')}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Activity className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">System Process</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('kpi_ai')}
+                className={navItemClass('kpi_ai')}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Cpu className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">AI Triage</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('kpi_human')}
+                className={navItemClass('kpi_human')}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Shield className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Human Triage</span>
+                </div>
+              </button>
+            </nav>
+          </div>
+
+
           {/* Group 5: SYSTEM & SOC MAINTENANCE */}
 
           {(hasAccess('system_rbac') || hasAccess('system_database') || hasAccess('system_api')) && (
@@ -1416,6 +1318,34 @@ export default function App() {
                     </div>
 
                     {isReadOnly('system_database') && (
+
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
+
+                    )}
+
+                  </button>
+
+                )}
+
+                {hasAccess('system_data_sync') && (
+
+                  <button
+
+                    onClick={() => setActiveTab('system_data_sync')}
+
+                    className={navItemClass('system_data_sync')}
+
+                  >
+
+                    <div className="flex items-center gap-2.5 truncate">
+
+                      <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+
+                      <span className="truncate">Data Sync</span>
+
+                    </div>
+
+                    {isReadOnly('system_data_sync') && (
 
                       <span className="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 ml-auto shrink-0">RO</span>
 
@@ -1993,7 +1923,7 @@ export default function App() {
 
                             type="time"
 
-                            step="60"
+                            step="1"
 
                             value={tempStartTime}
 
@@ -2053,7 +1983,7 @@ export default function App() {
 
                             type="time"
 
-                            step="60"
+                            step="1"
 
                             value={tempEndTime}
 
@@ -2157,6 +2087,19 @@ export default function App() {
 
             <>
 
+              {activeTab === 'kpi_performance' && (
+                <SocKpiPerformanceView initialCategory="system" theme={theme} />
+              )}
+              {activeTab === 'kpi_system' && (
+                <SocKpiPerformanceView initialCategory="system" theme={theme} />
+              )}
+              {activeTab === 'kpi_ai' && (
+                <SocKpiPerformanceView initialCategory="ai" theme={theme} />
+              )}
+              {activeTab === 'kpi_human' && (
+                <SocKpiPerformanceView initialCategory="human" theme={theme} />
+              )}
+
               {activeTab === 'analytics' && (
 
                 <PipelineOverview 
@@ -2229,54 +2172,8 @@ export default function App() {
 
               )}
 
-              {activeTab === 'category_attack' && (
-
-                <AttackOverview
-
-                  theme={theme}
-
-                  selectedTenant={selectedTenant}
-
-                  timeRange={timeRange}
-
-                />
-
-              )}
-
-              {activeTab === 'category_vulnerability' && (
-
-                <VulnerabilityOverview
-
-                  theme={theme}
-
-                  selectedTenant={selectedTenant}
-
-                  timeRange={timeRange}
-
-                  customStartDate={customStartDate}
-
-                  customEndDate={customEndDate}
-
-                />
-
-              )}
-
-              {activeTab === 'category_system' && (
-
-                <SystemIntegrityOverview
-
-                  theme={theme}
-
-                  selectedTenant={selectedTenant}
-
-                  timeRange={timeRange}
-
-                />
-
-              )}
-
               {activeTab === 'triage' && (
-
+                <div className="font-trebuchet w-full">
                 <IncidentTriageQueue 
 
                   viewMode="active" 
@@ -2300,11 +2197,11 @@ export default function App() {
                   onClearInitialSearch={() => setTriageSearch('')}
 
                 />
-
+                </div>
               )}
 
               {activeTab === 'verified_tp' && (
-
+                <div className="font-trebuchet w-full">
                 <IncidentTriageQueue 
 
                   viewMode="verified_tp" 
@@ -2324,10 +2221,11 @@ export default function App() {
                   currentUser={currentUser}
 
                 />
-
+                </div>
               )}
 
               {(activeTab === 'graph_conclusion' || activeTab === 'threat_campaigns') && (
+                <div className="font-trebuchet w-full">
 
                 <ThreatCampaignsView
 
@@ -2342,10 +2240,11 @@ export default function App() {
                   onNavigate={handleNavigate}
 
                 />
-
+                </div>
               )}
 
               {activeTab === 'groundtruth_queue' && (
+                <div className="font-trebuchet w-full">
 
                 <IncidentTriageQueue 
 
@@ -2366,10 +2265,11 @@ export default function App() {
                   currentUser={currentUser}
 
                 />
-
+                </div>
               )}
 
               {activeTab === 'ground_truth_review' && (
+                <div className="font-trebuchet w-full">
 
                 <GroundTruthReview 
 
@@ -2382,7 +2282,7 @@ export default function App() {
                   isReadOnly={isReadOnly('ground_truth_review')}
 
                 />
-
+                </div>
               )}
 
               {activeTab === 'suppression_inbox' && (
@@ -2439,17 +2339,15 @@ export default function App() {
 
               )}
 
-              {activeTab === 'suppression_audit' && (
+              {(activeTab === 'categorizing' || activeTab === 'suppression_audit') && (
 
-                <SuppressionGovernance 
-
-                  initialTab="audit" 
+                <CategorizingView 
 
                   theme={theme} 
 
                   selectedTenant={selectedTenant} 
 
-                  isReadOnly={isReadOnly('suppression_audit')}
+                  timeRange={timeRange}
 
                   currentUser={currentUser}
 
@@ -2458,7 +2356,7 @@ export default function App() {
               )}
 
               {activeTab === 'system_rbac' && (
-
+                <div className="font-trebuchet w-full">
                 <SystemMaintenance 
 
                   initialTab="rbac" 
@@ -2470,10 +2368,11 @@ export default function App() {
                   currentUser={currentUser}
 
                 />
-
+                </div>
               )}
 
               {activeTab === 'system_database' && (
+                <div className="font-trebuchet w-full">
 
                 <SystemMaintenance 
 
@@ -2486,7 +2385,21 @@ export default function App() {
                   currentUser={currentUser}
 
                 />
+                </div>
+              )}
 
+              {activeTab === 'system_data_sync' && (
+                <div className="font-trebuchet w-full">
+                  <DataSyncAudit 
+                    theme={theme} 
+                    selectedTenant={selectedTenant}
+                    timeRange={timeRange}
+                    customStartDate={customStartDate}
+                    customEndDate={customEndDate}
+                    isReadOnly={isReadOnly('system_data_sync')} 
+                    currentUser={currentUser} 
+                  />
+                </div>
               )}
 
               {activeTab === 'system_api' && (

@@ -22,6 +22,7 @@ export const TAB_TO_FEATURE_MAP = {
   threat_victim: 'threat_victim',
   system_rbac: 'account_rbac',
   system_database: 'database_health',
+  system_data_sync: 'database_health',
   system_api: 'api_threat_intel'
 };
 

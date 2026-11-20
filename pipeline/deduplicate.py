@@ -303,17 +303,22 @@ def calculate_composite_cluster_key(event: Any, window_bucket_epoch: Optional[in
     if src_type in ("vuln", "sca", "fim"):
         who = "NO_ACTOR"
     else:
-        who_raw = getattr(event, "who_cluster", None) or getattr(event, "who_subnet", None) or getattr(event, "source_ip", None) or agent
-        who = normalize_actor_subnet(str(who_raw))
+        who_raw = getattr(event, "canonical_actor", None) or getattr(event, "who_cluster", None) or getattr(event, "who_subnet", None) or getattr(event, "source_ip", None) or agent
+        who = normalize_actor_subnet(str(who_raw)) if (who_raw and str(who_raw).strip() and str(who_raw).strip() != "none") else (agent or "LOCAL_SYSTEM")
+        if not who or who == "none":
+            who = agent or "LOCAL_SYSTEM"
     
-    # What Dimension
-    what_raw = getattr(event, "what_cluster", None) or getattr(event, "clean_path", None) or getattr(event, "event_type", None) or rule_id
-    what = str(what_raw).strip() or rule_id
+    # What Dimension (Composite Activity Signature for Dedup Clustering)
+    what_raw = getattr(event, "activity_signature", None) or getattr(event, "what_cluster", None) or getattr(event, "canonical_target", None) or getattr(event, "clean_path", None) or getattr(event, "event_type", None) or rule_id
+    what = str(what_raw).strip() if (what_raw and str(what_raw).strip()) else str(rule_id)
+    if not what:
+        what = str(rule_id)
 
     # Stateful session preservation: incorporate username for auth & user session lifecycle
     username = getattr(event, "username", None)
-    if username and (src_type == "auth" or getattr(event, "target_category", None) == "User_Management"):
-        what = f"{what}:user={username}"
+    if username and (src_type == "auth" or getattr(event, "target_category", None) in ("Identity / Access", "User_Management")):
+        if f"user={username}" not in what:
+            what = f"{what}:user={username}"
     
     win_part = str(window_bucket_epoch) if window_bucket_epoch is not None else "0"
     raw_key = f"{tenant}|{rule_id}|{agent}|{who}|{what}|{win_part}"
@@ -393,7 +398,7 @@ class AggregatedWindow:
         start_time: datetime,
         window_duration: timedelta,
         tenant_id: str = "DEFAULT",
-        category: str = "SYSTEM_HEALTH",
+        category: str = "System / Availability",
         actor: Optional[str] = None,
         target: Optional[str] = None,
         rule_description: Optional[str] = None,
@@ -447,7 +452,7 @@ class AggregatedWindow:
         self.who = who or actor or source_ip or f"agent:{agent_id}"
         self.what = what or str(rule_id)
         self.domain = domain or primary_category or "SYSTEM"
-        self.target_category = target_category or "Host_Telemetry"
+        self.target_category = target_category or "System / Availability"
         self.action_ttp = action_ttp or subcategory or "General"
         self.lifecycle_role = lifecycle_role or "STATELESS"
         self.primary_category = self.domain
@@ -863,7 +868,7 @@ class SlidingWindowAggregator:
         parent_cluster_id: Optional[str],
         is_backfill: bool
     ) -> AggregatedWindow:
-        category = getattr(event, "event_category", "SYSTEM_HEALTH") or "SYSTEM_HEALTH"
+        category = getattr(event, "event_category", "System / Availability") or "System / Availability"
         supp_class = self.rules_config.get(str(rule_id_int), {}).get("suppression_class", "S2_DEDUPLICATION")
         win = AggregatedWindow(
             aggregation_id=new_agg_id,
@@ -885,11 +890,11 @@ class SlidingWindowAggregator:
             os_platform=getattr(event, "os_platform", "unknown"),
             log_source=getattr(event, "location", None),
             extracted_iocs=getattr(event, "extracted_iocs", None),
-            composite_key=composite_raw,
-            who=who_val,
-            what=what_val,
+            composite_key=hashlib.sha256(composite_raw.encode("utf-8")).hexdigest() if len(composite_raw) > 128 else composite_raw,
+            who=who_val[:128],
+            what=what_val[:128],
             domain=getattr(event, "domain", getattr(event, "primary_category", "SYSTEM")),
-            target_category=getattr(event, "target_category", "Host_Telemetry"),
+            target_category=getattr(event, "target_category", "System / Availability"),
             action_ttp=getattr(event, "action_ttp", getattr(event, "subcategory", "General")),
             lifecycle_role=getattr(event, "lifecycle_role", "STATELESS"),
             primary_category=getattr(event, "domain", getattr(event, "primary_category", "SYSTEM")),
@@ -968,7 +973,7 @@ class SlidingWindowAggregator:
         self.total_aggregates_out += 1
         self.total_evidence_links += len(window.raw_evidence)
 
-        category = getattr(window, "category", "SYSTEM_HEALTH")
+        category = getattr(window, "category", "System / Availability")
         dominant_http_status = window.http_statuses.most_common(1)[0][0] if window.http_statuses else None
         dominant_rule_id = window.rule_id_counter.most_common(1)[0][0] if window.rule_id_counter else window.rule_id
 
@@ -1024,7 +1029,7 @@ class SlidingWindowAggregator:
             "suppression_class": getattr(window, "suppression_class", "S2_DEDUPLICATION"),
             "category": category,
             "domain": getattr(window, "domain", getattr(window, "primary_category", "SYSTEM")),
-            "target_category": getattr(window, "target_category", "Host_Telemetry"),
+            "target_category": getattr(window, "target_category", "System / Availability"),
             "action_ttp": getattr(window, "action_ttp", getattr(window, "subcategory", "General")),
             "lifecycle_role": getattr(window, "lifecycle_role", "STATELESS"),
             "primary_category": getattr(window, "domain", getattr(window, "primary_category", "SYSTEM")),
@@ -1160,7 +1165,7 @@ class SlidingWindowAggregator:
                 start_time=st,
                 window_duration=dur,
                 tenant_id=data.get("tenant_id", "DEFAULT"),
-                category=data.get("category", "SYSTEM_HEALTH"),
+                category=data.get("category", "System / Availability"),
                 actor=data.get("actor"),
                 target=data.get("target"),
                 rule_description=data.get("rule_description"),

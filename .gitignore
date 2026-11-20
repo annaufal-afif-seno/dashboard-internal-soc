@@ -46,3 +46,11 @@ Desktop.ini
 desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# Venv and backups
+backend/venv/
+venv/
+*.bak*
+*.bak
+*.tmp
+

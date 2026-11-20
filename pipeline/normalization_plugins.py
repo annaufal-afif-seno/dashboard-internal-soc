@@ -388,58 +388,17 @@ class GenericIOCExtractorPlugin(NormalizationPlugin):
 
 
 # ---------------------------------------------------------------------------
-# Plugin 5 (new): Primary Category Resolver
+# Plugin 5: Primary Category Resolver (Unified 6-Category Architecture)
 # ---------------------------------------------------------------------------
-
-# Module-level lookup: Wazuh rule group string → one of the 6 canonical categories.
-# Precedence when a group matches multiple categories: ATTACK > VULNERABILITY >
-# CONFIGURATION > IDENTITY_ACCESS > SYSTEM_HEALTH > INFORMATIONAL
-GROUP_TO_CAT: dict = {
-    # ── ATTACK ────────────────────────────────────────────────────────────────
-    **{g: "ATTACK" for g in [
-        "attack", "web_attack", "sqli", "xss", "rfi", "lfi", "web_exploit",
-        "recon", "web_scan", "brute_force", "malware", "ransomware", "rootkit",
-        "rootcheck", "lateral_movement", "privilege_escalation", "defense_evasion",
-        "execution", "persistence", "c2", "command_and_control", "exfiltration",
-        "initial_access", "discovery", "yara", "virus", "trojan", "beacon",
-        "dns_tunnel", "vssadmin", "shadow_copy", "backup_tamper", "encryption",
-        "port_scan", "network_scan", "enumeration", "supply_chain", "exploit",
-        "webshell", "cron", "scheduled_task", "powershell", "script",
-        "admin_share", "wmi_exec", "psexec", "rdp_pivot", "uac_bypass",
-        "setuid", "token_manipulation", "log_clear", "timestomp", "amsi_bypass",
-        "antivirus_disabled", "wscript", "registry_run", "startup", "drive_by",
-    ]},
-    # ── VULNERABILITY ─────────────────────────────────────────────────────────
-    **{g: "VULNERABILITY" for g in [
-        "vulnerability-detector", "vulnerability", "cve", "vuln",
-    ]},
-    # ── CONFIGURATION ─────────────────────────────────────────────────────────
-    **{g: "CONFIGURATION" for g in [
-        "syscheck", "sca", "config_changed", "dpkg", "integrity", "fim",
-        "file_added", "file_modified", "file_deleted", "configuration_assessment",
-        "cis", "compliance", "policy", "pci_dss", "gdpr", "nist",
-        "syscheck_entry_modified", "syscheck_entry_added", "syscheck_entry_deleted",
-        "syscheck_file",
-    ]},
-    # ── IDENTITY_ACCESS ───────────────────────────────────────────────────────
-    **{g: "IDENTITY_ACCESS" for g in [
-        "authentication_failed", "authentication_failures", "authentication_success",
-        "invalid_login", "login_failed", "login_success", "sudo", "pam", "sshd",
-        "credential_access", "credential_dump", "kerberoast", "password_spray",
-        "session_opened", "session_open",
-    ]},
-    # ── SYSTEM_HEALTH ─────────────────────────────────────────────────────────
-    **{g: "SYSTEM_HEALTH" for g in [
-        "apparmor", "systemd", "docker", "docker-error", "nginx", "apache",
-        "httpd", "agent_flooding", "ossec", "wazuh", "web", "accesslog", "appsec",
-        "web_error", "access_denied", "cloud", "kubernetes", "container",
-        "aws", "azure", "gcp", "local", "syslog",
-    ]},
-}
+from config.category_constants import PrimaryCategory, GROUP_TO_CATEGORY
 
 _CATEGORY_PRIORITY = [
-    "ATTACK", "VULNERABILITY", "CONFIGURATION",
-    "IDENTITY_ACCESS", "SYSTEM_HEALTH", "INFORMATIONAL",
+    PrimaryCategory.ATTACK,
+    PrimaryCategory.MALWARE,
+    PrimaryCategory.VULNERABILITY,
+    PrimaryCategory.IDENTITY_ACCESS,
+    PrimaryCategory.CONFIGURATION_COMPLIANCE,
+    PrimaryCategory.SYSTEM_AVAILABILITY,
 ]
 
 
@@ -447,24 +406,21 @@ def _resolve_primary_category(groups: list) -> str:
     """Return the highest-precedence canonical category for the given group list."""
     matched: set = set()
     for g in groups:
-        cat = GROUP_TO_CAT.get(g)
+        cat = GROUP_TO_CATEGORY.get(str(g).lower())
         if cat:
             matched.add(cat)
     for cat in _CATEGORY_PRIORITY:
         if cat in matched:
             return cat
-    return "INFORMATIONAL"
+    return PrimaryCategory.SYSTEM_AVAILABILITY
 
 
 class PrimaryCategoryResolverPlugin(NormalizationPlugin):
     """
-    Maps classification_groups → primary_category using the unified 6-category
-    taxonomy (v3.0).  Runs after OCSF and MITRE plugins so other enrichments
-    already have their data, but before InlineRiskScorer so the scorer can
-    optionally use primary_category in future weight overrides.
-
+    Maps classification_groups to primary_category using the unified 6-category
+    taxonomy (v5.0).
     Precedence (highest wins):
-      ATTACK > VULNERABILITY > CONFIGURATION > IDENTITY_ACCESS > SYSTEM_HEALTH > INFORMATIONAL
+      Attack, Malware, Vulnerability, Identity / Access, Configuration / Compliance, System / Availability
     """
 
     name = "PrimaryCategoryResolver"

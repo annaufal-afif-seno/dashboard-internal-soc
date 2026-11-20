@@ -6,6 +6,16 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Trebuchet MS Enforcement for Requested Features */
+.font-trebuchet,
+.font-trebuchet *,
+.font-trebuchet input,
+.font-trebuchet button,
+.font-trebuchet select,
+.font-trebuchet textarea {
+  font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif !important;
+}
+
 *, ::before, ::after {
   --tw-border-spacing-x: 0;
   --tw-border-spacing-y: 0;
@@ -1743,11 +1753,28 @@ html.light .status-badge,
   color: #ffffff !important;
 }
 
-/* Console / Code blocks remain dark terminal in light mode for high forensic readability, except raw-log-viewer */
-[data-theme="light"] pre:not(.raw-log-viewer),
-html.light pre:not(.raw-log-viewer) {
+/* Console / Code blocks remain dark terminal in light mode for high forensic readability, except raw-log-viewer and code-terminal-box */
+[data-theme="light"] pre:not(.raw-log-viewer):not(.code-terminal-box),
+html.light pre:not(.raw-log-viewer):not(.code-terminal-box) {
   background-color: #0f172a !important;
   color: #38bdf8 !important;
+}
+
+.code-terminal-box,
+pre.code-terminal-box,
+textarea.code-terminal-box,
+[data-theme="light"] pre.code-terminal-box,
+html.light pre.code-terminal-box,
+[data-theme="light"] textarea.code-terminal-box,
+html.light textarea.code-terminal-box,
+[data-theme="dark"] pre.code-terminal-box,
+html.dark pre.code-terminal-box,
+[data-theme="dark"] textarea.code-terminal-box,
+html.dark textarea.code-terminal-box {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light !important;
 }
 
 [data-theme="light"] pre.raw-log-viewer,

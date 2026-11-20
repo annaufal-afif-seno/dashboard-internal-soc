@@ -4,7 +4,7 @@ Single source of truth for all layers (DB, backend, frontend via API)
 Strictly 6 pure categories with clean, functional subcategories.
 """
 
-# Primary Categories (exact DB values)
+# Primary Categories (exact DB and API values)
 class PrimaryCategory:
     ATTACK = "Attack"
     VULNERABILITY = "Vulnerability"
@@ -22,29 +22,29 @@ class PrimaryCategory:
         SYSTEM_AVAILABILITY
     ]
 
-# Subcategories per primary category (Best Practice SOC & OCSF Aligned)
+# Official Subcategories per Primary Category (SOC & OCSF Aligned)
 SUBCATEGORIES = {
-    PrimaryCategory.IDENTITY_ACCESS: [
-        "Auth Success",
-        "Auth Failure",
-        "Auth Anomaly",
-        "Privilege Escalation"
-    ],
     PrimaryCategory.ATTACK: [
         "Web Attack",
         "Exploitation / RCE",
         "Recon / Scan",
-        "Command & Control",
+        "Command & Control (C2)",
         "Lateral Movement"
     ],
     PrimaryCategory.VULNERABILITY: [
         "CVE Detected",
-        "Missing Patch / Outdated"
+        "Missing Patch / Outdated Software"
     ],
     PrimaryCategory.CONFIGURATION_COMPLIANCE: [
         "SCA / CIS Benchmark",
         "File Integrity (FIM)",
         "Policy Violation"
+    ],
+    PrimaryCategory.IDENTITY_ACCESS: [
+        "Auth Success",
+        "Auth Failure",
+        "Auth Anomaly",
+        "Privilege Escalation"
     ],
     PrimaryCategory.MALWARE: [
         "Ransomware",
@@ -58,7 +58,24 @@ SUBCATEGORIES = {
     ]
 }
 
-# Group to Primary Category mapping
+# Reverse lookup: Subcategory -> Primary Category (Case-insensitive & alias tolerant)
+SUBCAT_TO_PRIMARY = {}
+for pcat, sublist in SUBCATEGORIES.items():
+    for sub in sublist:
+        SUBCAT_TO_PRIMARY[sub] = pcat
+        SUBCAT_TO_PRIMARY[sub.lower()] = pcat
+
+# Additional aliases for robustness
+SUBCAT_TO_PRIMARY["Command & Control"] = PrimaryCategory.ATTACK
+SUBCAT_TO_PRIMARY["command & control"] = PrimaryCategory.ATTACK
+SUBCAT_TO_PRIMARY["Missing Patch / Outdated"] = PrimaryCategory.VULNERABILITY
+SUBCAT_TO_PRIMARY["missing patch / outdated"] = PrimaryCategory.VULNERABILITY
+SUBCAT_TO_PRIMARY["FIM"] = PrimaryCategory.CONFIGURATION_COMPLIANCE
+SUBCAT_TO_PRIMARY["fim"] = PrimaryCategory.CONFIGURATION_COMPLIANCE
+SUBCAT_TO_PRIMARY["Port Scan"] = PrimaryCategory.ATTACK
+SUBCAT_TO_PRIMARY["port scan"] = PrimaryCategory.ATTACK
+
+# Wazuh Group to Primary Category mapping
 GROUP_TO_CATEGORY = {
     # Attack
     "attack": PrimaryCategory.ATTACK,

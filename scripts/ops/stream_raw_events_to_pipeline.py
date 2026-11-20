@@ -115,6 +115,38 @@ from pipeline.p4_sla_worker import process_expired_p4_tickets
 CHECKPOINT_SOURCE = "fluentbit_raw_events"
 
 
+
+def bulk_upsert_apex_activity_groups(db: DatabaseManager, batch: List[Dict[str, Any]]) -> None:
+    """Apex Dual-Track: Upsert activity groups into telemetry.apex_activity_groups in parallel."""
+    if not batch:
+        return
+    sql = """
+        INSERT INTO telemetry.apex_activity_groups (
+            group_id, fingerprint_hash, tenant_id, category_code, category_domain,
+            quality, event_count, first_seen_at, last_seen_at, window_duration_seconds,
+            agent_name, source_ip, target, fingerprint_body, tracked_samples, tracked_counts,
+            status, updated_at
+        ) VALUES (
+            %(group_id)s, %(fingerprint_hash)s, %(tenant_id)s, %(category_code)s, %(category_domain)s,
+            %(quality)s, 1, %(event_timestamp)s, %(event_timestamp)s, 600,
+            %(agent_name)s, %(source_ip)s, %(target)s, %(fingerprint_body)s::jsonb, %(tracked_samples)s::jsonb, %(tracked_counts)s::jsonb,
+            'ACTIVE', NOW()
+        )
+        ON CONFLICT (group_id) DO UPDATE SET
+            event_count = telemetry.apex_activity_groups.event_count + 1,
+            last_seen_at = EXCLUDED.last_seen_at,
+            updated_at = NOW();
+    """
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                from psycopg2.extras import execute_batch
+                execute_batch(cur, sql, batch, page_size=1000)
+            conn.commit()
+    except Exception as e:
+        # Non-blocking: dual-track never interrupts legacy pipeline
+        pass
+
 def get_streaming_checkpoint(db: DatabaseManager) -> tuple[Optional[datetime], Optional[str], int]:
     """Mengambil checkpoint terakhir dari telemetry.ingest_checkpoints."""
     query = """
@@ -186,7 +218,7 @@ def process_raw_stream_batch(
     dedup: SlidingWindowAggregator,
     correlation: CorrelationEngine,
     scorer: RiskScorer,
-    batch_size: int = 5000,
+    batch_size: int = 10000,
     from_start: bool = False
 ) -> int:
     """Mengambil batch event baru dari telemetry.raw_events dan memprosesnya ke pipeline."""
@@ -230,6 +262,7 @@ def process_raw_stream_batch(
     agg_batch = []
     evidence_batch = []
     new_incidents = []
+    apex_batch = []
 
     last_processed_ts = None
     last_processed_eid = None
@@ -262,13 +295,41 @@ def process_raw_stream_batch(
                 },
                 "rule": {"id": "0", "level": 0, "description": "Raw Stream Ingested Event"},
                 "location": location,
-                "decoder": {"name": decoder_name}
+                "decoder": {"name": decoder_name},
+                "full_log": raw_payload_str
             }
 
         # 1. Normalisasi ke CommonEventModel
         cem = reader.normalize_record(raw_dict)
         if cem is None:
             continue
+
+        # [Apex Dual-Track: Alur 2 - Kategori & Fingerprint Apex]
+        try:
+            apex_d = cem.to_apex_v34_dict()
+            apex_fp = apex_d.get("fingerprint")
+            apex_cat = apex_d.get("classification")
+            if apex_fp and apex_cat:
+                apex_batch.append({
+                    "normalized_event_id": f"NORM-{cem.event_id}",
+                    "apex_data": apex_d,
+                    "group_id": f"APX-{apex_fp['hash'][:16].upper()}",
+                    "fingerprint_hash": apex_fp["hash"],
+                    "tenant_id": apex_d.get("tenant_id") or "DEFAULT",
+                    "category_code": apex_cat["category_code"],
+                    "category_domain": apex_cat["category_domain"],
+                    "quality": apex_fp["quality"],
+                    "event_timestamp": cem.timestamp,
+                    "agent_name": cem.agent_name,
+                    "source_ip": cem.source_ip,
+                    "target": cem.destination_host or cem.agent_name,
+                    "fingerprint_body": json.dumps(apex_fp.get("body") or {}),
+                    "tracked_samples": json.dumps(apex_fp.get("tracked_samples") or {}),
+                    "tracked_counts": json.dumps(apex_fp.get("tracked_distinct_counts") or {}),
+                    "rule_level": cem.rule_level
+                })
+        except Exception:
+            pass
 
         # 2. Siapkan baris normalized_events
         norm_batch.append({
@@ -288,7 +349,8 @@ def process_raw_stream_batch(
             "is_privileged_user": cem.is_privileged_user,
             "is_service_account": cem.is_service_account,
             "threat_intel_match": False,
-            "threat_intel_confidence": 0
+            "threat_intel_confidence": 0,
+            "apex_data": cem.to_apex_compact_dict() if hasattr(cem, "to_apex_compact_dict") else None
         })
 
         # 3. Deduplikasi Sliding-Window (Reduksi Kebisingan)
@@ -304,6 +366,21 @@ def process_raw_stream_batch(
         for c_agg in ready_aggs:
             c_agg["is_suppressed"] = False
             c_agg["status"] = "CLOSED"
+            raw_cat = str(c_agg.get("category", "")).strip().upper()
+            if raw_cat in ("WEB_ATTACK", "ATTACK"):
+                c_agg["category"] = "Attack"
+            elif raw_cat in ("MALWARE",):
+                c_agg["category"] = "Malware"
+            elif raw_cat in ("VULNERABILITY",):
+                c_agg["category"] = "Vulnerability"
+            elif raw_cat in ("CONFIGURATION_COMPLIANCE", "CONFIGURATION / COMPLIANCE", "COMPLIANCE"):
+                c_agg["category"] = "Configuration / Compliance"
+            elif raw_cat in ("IDENTITY_ACCESS", "IDENTITY / ACCESS", "AUTHENTICATION"):
+                c_agg["category"] = "Identity / Access"
+            elif raw_cat in ("SYSTEM_HEALTH", "SYSTEM / AVAILABILITY", "TELEMETRY", "SERVICE_HEALTH"):
+                c_agg["category"] = "System / Availability"
+            elif c_agg.get("category") not in ("Attack", "Vulnerability", "Configuration / Compliance", "Identity / Access", "Malware", "System / Availability"):
+                c_agg["category"] = "System / Availability"
             agg_batch.append(c_agg)
 
             agg_id = c_agg.get("aggregation_id")
@@ -343,6 +420,15 @@ def process_raw_stream_batch(
         except Exception as e:
             print(f"[-] Error insert aggregated_alerts: {e}")
 
+    # [Apex Dual-Track Save: Level 2 Leaf Activity Groups]
+    if apex_batch:
+        try:
+            from pipeline.leaf_grouper import process_apex_leaf_grouping_batch
+            leaf_stats = process_apex_leaf_grouping_batch(db, apex_batch)
+            bulk_upsert_apex_activity_groups(db, apex_batch)
+        except Exception as e:
+            print(f"[-] Error processing Apex Leaf Grouping: {e}")
+
     if new_incidents:
         try:
             db.bulk_insert_incidents_and_triage(new_incidents)
@@ -357,7 +443,7 @@ def process_raw_stream_batch(
     return len(raw_rows)
 
 
-def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int = 5000, from_start: bool = False):
+def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int = 10000, from_start: bool = False):
     print("=" * 85)
     print("[*] ASOC STREAMING WORKER: TELEMETRY.RAW_EVENTS -> PIPELINE -> TRIAGE QUEUE")
     print(f"[*] Mode: {'CONTINUOUS DAEMON' if continuous else 'SINGLE PASS'} | Batch Size: {batch_size:,}")
@@ -368,7 +454,7 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
         print("[-] Gagal terhubung ke database PostgreSQL. Pastikan database aktif.")
         return
 
-    reader = AlertStreamReader()
+    reader = AlertStreamReader(filepath="")
     dedup = SlidingWindowAggregator()
     correlation = CorrelationEngine(db_manager=db)
     scorer = RiskScorer()
@@ -384,6 +470,9 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
     signal.signal(signal.SIGTERM, sig_handler)
 
     total_processed = 0
+    last_rollup_eval = 0
+    last_cluster_eval = 0
+    last_correlation_eval = 0
 
     while not stop_requested:
         try:
@@ -401,7 +490,71 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
             if processed > 0:
                 print(f"[+] Total telemetri diproses: {total_processed:,} events")
 
+            # Adaptive Throttling: During massive backlog drain (processed == batch_size),
+            # throttle heavy 72h full-table graph scans so ingestion runs at max turbo speed.
+            is_backlog = (processed == batch_size)
+            r_interval = 1800 if is_backlog else 60
+            c_interval = 1800 if is_backlog else 120
+            corr_interval = 1800 if is_backlog else 180
+
+            now_t = time.time()
+            if continuous and (now_t - last_rollup_eval >= r_interval):
+                try:
+                    from pipeline.rollup_engine import evaluate_and_apply_rollups
+                    r_stats = evaluate_and_apply_rollups(db, lookback_hours=72)
+                    if r_stats.get("parents_created", 0) > 0 or r_stats.get("leaves_linked", 0) > 0:
+                        print(f"[+] [Rollup Engine] Parents Created: {r_stats['parents_created']}, Updated: {r_stats['parents_updated']}, Leaves Linked: {r_stats['leaves_linked']}")
+                    last_rollup_eval = now_t
+                except Exception as re:
+                    print(f"[-] [Rollup Engine] Error during periodic rollup: {re}")
+
+            # Apex Level 3: Periodic Behavioral Spatial Clustering evaluation (throttled every 120s)
+            if continuous and (now_t - last_cluster_eval >= c_interval):
+                try:
+                    from pipeline.apex_correlation_engine import evaluate_and_apply_behavioral_clusters
+                    c_stats = evaluate_and_apply_behavioral_clusters(db, lookback_hours=72)
+                    if c_stats.get("clusters_created", 0) > 0 or c_stats.get("groups_tagged", 0) > 0:
+                        print(f"[+] [Behavioral Clustering] Clusters Created: {c_stats['clusters_created']}, Updated: {c_stats['clusters_updated']}, Groups Tagged: {c_stats['groups_tagged']}")
+                    last_cluster_eval = now_t
+                except Exception as ce:
+                    print(f"[-] [Behavioral Clustering] Error during periodic clustering: {ce}")
+
+            # Apex Level 4: Periodic Cross-Category Causal Correlation DAG evaluation (throttled every 180s)
+            if continuous and (now_t - last_correlation_eval >= corr_interval):
+                try:
+                    from pipeline.apex_correlation_engine import evaluate_and_apply_cross_category_correlation
+                    corr_stats = evaluate_and_apply_cross_category_correlation(db, lookback_hours=72)
+                    if corr_stats.get("incidents_persisted", 0) > 0:
+                        print(f"[+] [Cross-Category DAG] Chains: {corr_stats['chains_evaluated']}, Incidents: {corr_stats['incidents_persisted']}, Stages: {corr_stats['stages_persisted']}, Tickets: {corr_stats.get('tickets_published', 0)}")
+                    last_correlation_eval = now_t
+                except Exception as cce:
+                    print(f"[-] [Cross-Category DAG] Error during periodic correlation: {cce}")
+
             if not continuous:
+                # In single pass mode, execute rollup, behavioral clustering, and Level 4 correlation once before exit
+                try:
+                    from pipeline.rollup_engine import evaluate_and_apply_rollups
+                    r_stats = evaluate_and_apply_rollups(db, lookback_hours=72)
+                    if r_stats.get("parents_created", 0) > 0 or r_stats.get("leaves_linked", 0) > 0:
+                        print(f"[+] [Rollup Engine] Parents Created: {r_stats['parents_created']}, Updated: {r_stats['parents_updated']}, Leaves Linked: {r_stats['leaves_linked']}")
+                except Exception as re:
+                    print(f"[-] [Rollup Engine] Error during rollup: {re}")
+
+                try:
+                    from pipeline.apex_correlation_engine import evaluate_and_apply_behavioral_clusters
+                    c_stats = evaluate_and_apply_behavioral_clusters(db, lookback_hours=72)
+                    if c_stats.get("clusters_created", 0) > 0 or c_stats.get("groups_tagged", 0) > 0:
+                        print(f"[+] [Behavioral Clustering] Clusters Created: {c_stats['clusters_created']}, Updated: {c_stats['clusters_updated']}, Groups Tagged: {c_stats['groups_tagged']}")
+                except Exception as ce:
+                    print(f"[-] [Behavioral Clustering] Error during clustering: {ce}")
+
+                try:
+                    from pipeline.apex_correlation_engine import evaluate_and_apply_cross_category_correlation
+                    corr_stats = evaluate_and_apply_cross_category_correlation(db, lookback_hours=72)
+                    if corr_stats.get("incidents_persisted", 0) > 0:
+                        print(f"[+] [Cross-Category DAG] Chains: {corr_stats['chains_evaluated']}, Incidents: {corr_stats['incidents_persisted']}, Stages: {corr_stats['stages_persisted']}, Tickets: {corr_stats.get('tickets_published', 0)}")
+                except Exception as cce:
+                    print(f"[-] [Cross-Category DAG] Error during correlation: {cce}")
                 break
 
             if processed < batch_size:
@@ -422,6 +575,21 @@ def run_worker(continuous: bool = False, interval_sec: int = 2, batch_size: int 
         for c_agg in remaining:
             c_agg["is_suppressed"] = False
             c_agg["status"] = "CLOSED"
+            raw_cat = str(c_agg.get("category", "")).strip().upper()
+            if raw_cat in ("WEB_ATTACK", "ATTACK"):
+                c_agg["category"] = "Attack"
+            elif raw_cat in ("MALWARE",):
+                c_agg["category"] = "Malware"
+            elif raw_cat in ("VULNERABILITY",):
+                c_agg["category"] = "Vulnerability"
+            elif raw_cat in ("CONFIGURATION_COMPLIANCE", "CONFIGURATION / COMPLIANCE", "COMPLIANCE"):
+                c_agg["category"] = "Configuration / Compliance"
+            elif raw_cat in ("IDENTITY_ACCESS", "IDENTITY / ACCESS", "AUTHENTICATION"):
+                c_agg["category"] = "Identity / Access"
+            elif raw_cat in ("SYSTEM_HEALTH", "SYSTEM / AVAILABILITY", "TELEMETRY", "SERVICE_HEALTH"):
+                c_agg["category"] = "System / Availability"
+            elif c_agg.get("category") not in ("Attack", "Vulnerability", "Configuration / Compliance", "Identity / Access", "Malware", "System / Availability"):
+                c_agg["category"] = "System / Availability"
             agg_id = c_agg.get("aggregation_id")
             for (ev_id, ev_ts) in c_agg.get("raw_evidence", []):
                 rem_evidence.append((agg_id, ev_id, ev_ts))
@@ -464,7 +632,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Streaming raw_events from Fluent Bit to ASOC Pipeline")
     parser.add_argument("--continuous", action="store_true", help="Jalankan secara terus menerus memantau telemetry.raw_events")
     parser.add_argument("--interval", type=int, default=2, help="Interval polling dalam detik jika continuous")
-    parser.add_argument("--batch-size", type=int, default=5000, help="Jumlah raw event per batch query")
+    parser.add_argument("--batch-size", type=int, default=10000, help="Jumlah raw event per batch query")
     parser.add_argument("--from-start", action="store_true", help="Abaikan checkpoint dan mulai dari event paling awal")
     parser.add_argument("--once", action="store_true", help="Jalankan satu kali pass lalu keluar")
     args = parser.parse_args()

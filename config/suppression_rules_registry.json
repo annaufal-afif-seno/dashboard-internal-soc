@@ -112,72 +112,105 @@
     },
     {
       "id": "SUP-2026-005",
-      "category": "KNOWN_GOOD",
-      "reason": "Suppress repetitive benign missing static asset errors (favicon.ico, robots.txt, css/js map)",
-      "owner": "Deployment Automation Engine",
-      "approver": "SOC Architecture Lead",
-      "status": "ACTIVE",
-      "created": "2026-09-17",
-      "expires": "2027-03-16",
+      "category": "FALSE_POSITIVE",
+      "reason": "gfghfh",
+      "owner": "soc-analyst",
+      "approver": "soc-lead",
+      "status": "WAITING",
+      "created": "2026-11-03",
+      "expires": "2026-12-03",
       "target_rules": [
         "31301"
       ],
       "conditions": {
-        "url_patterns": [
-          "*.ico",
-          "*.map",
-          "/robots.txt",
-          "/apple-touch-icon*.png"
+        "tenant_id": "TenantD",
+        "agent": "isif-rproxy-155",
+        "target_host": "isif-rproxy-155",
+        "rule_id": "31301",
+        "match_sids": [
+          31301
         ],
-        "status": 404
+        "actor": "93.123.109.247",
+        "source_ip": "93.123.109.247",
+        "activity": "Nginx error message.",
+        "aggregation_id": "agg_699b5546c75886e6226cbce00326a701",
+        "category": "System / Availability",
+        "subcategory": "Web Operational",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "enforcement_mode": "WAZUH_XML"
       },
-      "historical_volume": 8163,
+      "historical_volume": 0,
       "assets": [
         "prod-cluster-all"
       ]
     },
     {
       "id": "SUP-2026-006",
-      "category": "MAINTENANCE",
-      "reason": "Transient dpkg half-configured package state during scheduled system maintenance window",
-      "owner": "Deployment Automation Engine",
-      "approver": "SOC Architecture Lead",
-      "status": "ACTIVE",
-      "created": "2026-09-17",
-      "expires": "2027-03-16",
+      "category": "FALSE_POSITIVE",
+      "reason": "etg",
+      "owner": "soc-analyst",
+      "approver": "soc-lead",
+      "status": "WAITING",
+      "created": "2026-11-03",
+      "expires": "2026-12-03",
       "target_rules": [
-        "2904"
+        "31410"
       ],
       "conditions": {
-        "maintenance_window": "MAINT_WEEKLY_LINUX",
-        "package_manager": "dpkg"
+        "tenant_id": "TenantC",
+        "agent": "hportal-prod-159",
+        "target_host": "hportal-prod-159",
+        "rule_id": "31410",
+        "match_sids": [
+          31410
+        ],
+        "actor": "NO_ACTOR",
+        "source_ip": "NO_ACTOR",
+        "activity": "PHP Warning message.",
+        "aggregation_id": "agg_85d4405fda62452a9979b8af609e3566",
+        "category": "System / Availability",
+        "subcategory": "Web Operational",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "enforcement_mode": "WAZUH_XML"
       },
-      "historical_volume": 1774,
+      "historical_volume": 0,
       "assets": [
         "prod-cluster-all"
       ]
     },
     {
       "id": "SUP-2026-007",
-      "category": "MAINTENANCE",
-      "reason": "File integrity monitoring checksum changes on system binaries updated during approved maintenance",
-      "owner": "Deployment Automation Engine",
-      "approver": "SOC Architecture Lead",
-      "status": "ACTIVE",
-      "created": "2026-09-17",
-      "expires": "2027-03-16",
+      "category": "FALSE_POSITIVE",
+      "reason": "anomaly http verb detected: connection closed due to server no responding",
+      "owner": "soc-analyst",
+      "approver": "soc-lead",
+      "status": "WAITING",
+      "created": "2026-11-03",
+      "expires": "2026-12-03",
       "target_rules": [
-        "550"
+        "31301"
       ],
       "conditions": {
-        "maintenance_window": "MAINT_WEEKLY_LINUX",
-        "paths": [
-          "/usr/bin/*",
-          "/usr/lib/*",
-          "/etc/*"
-        ]
+        "tenant_id": "TenantD",
+        "agent": "isif-rproxy-155",
+        "target_host": "isif-rproxy-155",
+        "rule_id": "31301",
+        "match_sids": [
+          31301
+        ],
+        "actor": "94.183.174.99",
+        "source_ip": "94.183.174.99",
+        "activity": "Nginx error message.",
+        "aggregation_id": "agg_87e929bab60fe8a40cb53601b9af83b6",
+        "category": "SYSTEM_HEALTH",
+        "subcategory": "general",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "enforcement_mode": "WAZUH_XML"
       },
-      "historical_volume": 1428,
+      "historical_volume": 0,
       "assets": [
         "prod-cluster-all"
       ]
@@ -185,46 +218,78 @@
     {
       "id": "SUP-2026-008",
       "category": "FALSE_POSITIVE",
-      "reason": "Deprecated syntax warnings and non-fatal runtime notices logged by legacy PHP services",
-      "owner": "Deployment Automation Engine",
-      "approver": "SOC Architecture Lead",
-      "status": "ACTIVE",
-      "created": "2026-09-17",
-      "expires": "2027-03-16",
+      "reason": "test",
+      "owner": "admin_secops",
+      "approver": "soc-lead",
+      "status": "WAITING",
+      "created": "2026-11-04",
+      "expires": "2026-11-05",
       "target_rules": [
-        "31410"
+        "31101"
       ],
       "conditions": {
-        "app_runtime": "php-fpm",
-        "severity": [
-          "E_DEPRECATED",
-          "E_NOTICE",
-          "E_WARNING"
-        ]
+        "tenant_id": "DEFAULT",
+        "agent": "dashboard-multitenant-asoc-103",
+        "target_host": "dashboard-multitenant-asoc-103",
+        "rule_id": "31101",
+        "match_sids": [
+          31101
+        ],
+        "actor": "192.168.30.114",
+        "source_ip": "192.168.30.114",
+        "activity": "POST /api/auth* [401]",
+        "aggregation_id": "agg_91421e32fe7aca1bda486b58c6484399",
+        "username": "admin_secops",
+        "author": "admin_secops",
+        "reason": "test",
+        "business_reason": "test",
+        "created_date": "2026-11-04",
+        "category": "System / Availability",
+        "subcategory": "Web Operational",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "enforcement_mode": "WAZUH_XML"
       },
-      "historical_volume": 1426,
+      "historical_volume": 0,
       "assets": [
         "prod-cluster-all"
       ]
     },
     {
       "id": "SUP-2026-009",
-      "category": "KNOWN_GOOD",
-      "reason": "Informational systemd unit exits for expected scheduled cron timers and oneshot jobs",
-      "owner": "Deployment Automation Engine",
-      "approver": "SOC Architecture Lead",
-      "status": "ACTIVE",
-      "created": "2026-09-17",
-      "expires": "2027-03-16",
+      "category": "FALSE_POSITIVE",
+      "reason": "Repeating alert, after analysis it was a benign alert comes from internal test VM",
+      "owner": "dev_andrew",
+      "approver": "soc-lead",
+      "status": "WAITING",
+      "created": "2026-11-04",
+      "expires": "2026-11-05",
       "target_rules": [
         "40704"
       ],
       "conditions": {
-        "systemd_unit_type": "oneshot",
-        "exit_code": 0,
-        "status": "SUCCESS"
+        "tenant_id": "TenantC",
+        "agent": "automation-parallel-243",
+        "target_host": "automation-parallel-243",
+        "rule_id": "40704",
+        "match_sids": [
+          40704
+        ],
+        "actor": "proc:kernel_or_auditd",
+        "source_ip": "proc:kernel_or_auditd",
+        "activity": "SERVICE [systemd] [FAILURE]",
+        "username": "dev_andrew",
+        "author": "dev_andrew",
+        "reason": "Repeating alert, after analysis it was a benign alert comes from internal test VM",
+        "business_reason": "Repeating alert, after analysis it was a benign alert comes from internal test VM",
+        "created_date": "2026-11-04",
+        "category": "System / Availability",
+        "subcategory": "Web Operational",
+        "max_count": 500,
+        "max_risk_score": 60,
+        "enforcement_mode": "WAZUH_XML"
       },
-      "historical_volume": 1385,
+      "historical_volume": 0,
       "assets": [
         "prod-cluster-all"
       ]

@@ -1,3 +1,4 @@
+import { mapTo6CategoryTaxonomy } from '../utils/categoryConstants';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layers, Plus, X, Search, Check, AlertCircle, RefreshCw, 
@@ -42,6 +43,9 @@ export default function PolicyBundlesView({
   const [expandedCampaignIds, setExpandedCampaignIds] = useState({});
   const [campaignMembersMap, setCampaignMembersMap] = useState({});
   const [campaignMembersLoading, setCampaignMembersLoading] = useState({});
+  const [campaignTicketsMap, setCampaignTicketsMap] = useState({});
+  // expandedCampaignTicketIds: which ticket row inside a campaign is expanded
+  const [expandedCampaignTicketIds, setExpandedCampaignTicketIds] = useState({});
 
   const [expandedClusterId, setExpandedClusterId] = useState(null);
   const [clusterLogsMap, setClusterLogsMap] = useState({});
@@ -110,19 +114,22 @@ export default function PolicyBundlesView({
       [campaignId]: isCurrentlyExpanded
     }));
 
-    if (isCurrentlyExpanded && !campaignMembersMap[campaignId]) {
+    if (isCurrentlyExpanded && !campaignTicketsMap[campaignId]) {
       setCampaignMembersLoading(prev => ({ ...prev, [campaignId]: true }));
       try {
         const res = await fetch(`/api/campaign-clusters/${campaignId}`);
         if (res.ok) {
           const data = await res.json();
           setCampaignMembersMap(prev => ({ ...prev, [campaignId]: data.members || [] }));
+          setCampaignTicketsMap(prev => ({ ...prev, [campaignId]: data.tickets || [] }));
         } else {
           setCampaignMembersMap(prev => ({ ...prev, [campaignId]: [] }));
+          setCampaignTicketsMap(prev => ({ ...prev, [campaignId]: [] }));
         }
       } catch (err) {
         console.warn('Fetch campaign members error:', err);
         setCampaignMembersMap(prev => ({ ...prev, [campaignId]: [] }));
+        setCampaignTicketsMap(prev => ({ ...prev, [campaignId]: [] }));
       } finally {
         setCampaignMembersLoading(prev => ({ ...prev, [campaignId]: false }));
       }
@@ -176,66 +183,67 @@ export default function PolicyBundlesView({
 
   // Mapper ke 6 Kategori Utama (Pure Categories) & Sub Kategori Standar
   const mapTo6CategoryTaxonomy = (rawCat, rawSubcat) => {
+    // Normalisasi input
     const cat = String(rawCat || '').toUpperCase();
     const sub = String(rawSubcat || '').toLowerCase();
 
-    // 1. Identity / Access
+    // 1. Attack
+    if (cat.includes('WEB') || cat.includes('EXPLOIT') || cat.includes('RCE') || cat.includes('SCAN') || cat.includes('C2') || cat.includes('LATERAL')) {
+      if (sub.includes('web')) return { category: 'Attack', subcategory: 'Web Attack' };
+      if (sub.includes('exploit') || sub.includes('rce')) return { category: 'Attack', subcategory: 'Exploitation / RCE' };
+      if (sub.includes('scan') || sub.includes('recon')) return { category: 'Attack', subcategory: 'Recon / Scan' };
+      if (sub.includes('c2') || sub.includes('command') || sub.includes('control')) return { category: 'Attack', subcategory: 'Command & Control (C2)' };
+      if (sub.includes('lateral') || sub.includes('move')) return { category: 'Attack', subcategory: 'Lateral Movement' };
+      return { category: 'Attack', subcategory: 'Other' };
+    }
+    // 2. Vulnerability
+    if (cat.includes('VULNERABILITY') || cat.includes('CVE') || cat.includes('PATCH') || cat.includes('OUTDATED')) {
+      if (sub.includes('cve')) return { category: 'Vulnerability', subcategory: 'CVE Detected' };
+      if (sub.includes('patch') || sub.includes('outdated')) return { category: 'Vulnerability', subcategory: 'Missing Patch / Outdated Software' };
+      return { category: 'Vulnerability', subcategory: 'Other' };
+    }
+    // 3. Configuration / Compliance
+    if (cat.includes('CONFIG') || cat.includes('COMPLIANCE') || cat.includes('SCA') || cat.includes('CIS') || cat.includes('FIM') || cat.includes('POLICY')) {
+      if (sub.includes('sca') || sub.includes('cis')) return { category: 'Configuration / Compliance', subcategory: 'SCA / CIS Benchmark' };
+      if (sub.includes('fim') || sub.includes('integrity')) return { category: 'Configuration / Compliance', subcategory: 'File Integrity (FIM)' };
+      if (sub.includes('policy') || sub.includes('violation')) return { category: 'Configuration / Compliance', subcategory: 'Policy Violation' };
+      return { category: 'Configuration / Compliance', subcategory: 'Other' };
+    }
+    // 4. Identity / Access
     if (cat.includes('AUTH') || cat.includes('IDENTITY') || sub.includes('auth') || sub.includes('login') || sub.includes('pam')) {
-      if (sub.includes('success') || cat.includes('SUCCESS')) return { category: 'Identity / Access', subcategory: 'Auth Success' };
-      if (sub.includes('fail') || cat.includes('FAILURE')) return { category: 'Identity / Access', subcategory: 'Auth Failure' };
-      if (sub.includes('privilege') || cat.includes('PRIVILEGE')) return { category: 'Identity / Access', subcategory: 'Privilege Escalation' };
+      if (sub.includes('success')) return { category: 'Identity / Access', subcategory: 'Auth Success' };
+      if (sub.includes('fail')) return { category: 'Identity / Access', subcategory: 'Auth Failure' };
+      if (sub.includes('privilege')) return { category: 'Identity / Access', subcategory: 'Privilege Escalation' };
       return { category: 'Identity / Access', subcategory: 'Auth Anomaly' };
     }
-
-    // 2. Malware
+    // 5. Malware
     if (cat.includes('MALWARE') || cat.includes('RANSOMWARE') || sub.includes('ransom') || sub.includes('rootkit') || sub.includes('trojan') || sub.includes('yara')) {
-      if (sub.includes('ransom') || cat.includes('RANSOMWARE')) return { category: 'Malware', subcategory: 'Ransomware' };
+      if (sub.includes('ransom')) return { category: 'Malware', subcategory: 'Ransomware' };
       if (sub.includes('rootkit') || sub.includes('backdoor')) return { category: 'Malware', subcategory: 'Rootkit / Backdoor' };
       return { category: 'Malware', subcategory: 'Virus / Trojan (YARA)' };
     }
-
-    // 3. Vulnerability
-    if (cat.includes('VULN') || sub.includes('cve') || sub.includes('patch')) {
-      if (sub.includes('patch') || sub.includes('outdated')) return { category: 'Vulnerability', subcategory: 'Missing Patch / Outdated' };
-      return { category: 'Vulnerability', subcategory: 'CVE Detected' };
+    // 6. System / Availability
+    if (cat.includes('SYSTEM') || cat.includes('HEALTH') || cat.includes('SERVICE') || cat.includes('CLOUD') || cat.includes('CONTAINER')) {
+      if (sub.includes('operational') || sub.includes('web')) return { category: 'System / Availability', subcategory: 'Web Operational' };
+      if (sub.includes('service') || sub.includes('error') || sub.includes('health')) return { category: 'System / Availability', subcategory: 'Service Health / Error' };
+      if (sub.includes('cloud') || sub.includes('container')) return { category: 'System / Availability', subcategory: 'Cloud / Container Event' };
+      return { category: 'System / Availability', subcategory: 'Other' };
     }
-
-    // 4. Configuration / Compliance
-    if (cat.includes('COMPLIANCE') || cat.includes('CONFIGURATION') || cat.includes('INTEGRITY') || cat.includes('FIM') || sub.includes('fim') || sub.includes('cis') || sub.includes('sca')) {
-      if (sub.includes('fim') || cat.includes('FILE_INTEGRITY')) return { category: 'Configuration / Compliance', subcategory: 'File Integrity (FIM)' };
-      if (sub.includes('cis') || sub.includes('sca') || cat.includes('CONFIGURATION')) return { category: 'Configuration / Compliance', subcategory: 'SCA / CIS Benchmark' };
-      return { category: 'Configuration / Compliance', subcategory: 'Policy Violation' };
-    }
-
-    // 5. System / Availability
-    if (cat.includes('SYSTEM') || cat.includes('OPERATIONAL') || cat.includes('HEALTH') || cat.includes('CLOUD') || cat.includes('CONTAINER') || sub.includes('nginx') || sub.includes('web') || sub.includes('operational')) {
-      if (cat.includes('WEB_OPERATIONAL') || sub.includes('nginx') || sub.includes('web') || sub.includes('operational')) {
-        return { category: 'System / Availability', subcategory: 'Web Operational' };
-      }
-      if (cat.includes('CLOUD') || cat.includes('CONTAINER') || sub.includes('docker') || sub.includes('container')) {
-        return { category: 'System / Availability', subcategory: 'Cloud / Container Event' };
-      }
-      return { category: 'System / Availability', subcategory: 'Service Health / Error' };
-    }
-
-    // 6. Attack
-    if (cat.includes('ATTACK') || cat.includes('DISCOVERY') || cat.includes('LATERAL') || cat.includes('COMMAND') || sub.includes('attack')) {
-      if (sub.includes('recon') || sub.includes('scan') || cat.includes('DISCOVERY')) return { category: 'Attack', subcategory: 'Recon / Scan' };
-      if (sub.includes('lateral') || cat.includes('LATERAL_MOVEMENT')) return { category: 'Attack', subcategory: 'Lateral Movement' };
-      if (sub.includes('c2') || cat.includes('COMMAND_AND_CONTROL')) return { category: 'Attack', subcategory: 'Command & Control' };
-      if (sub.includes('exploit') || sub.includes('rce')) return { category: 'Attack', subcategory: 'Exploitation / RCE' };
-      return { category: 'Attack', subcategory: 'Web Attack' };
-    }
-
-    return { category: rawCat || 'System / Availability', subcategory: rawSubcat || 'Web Operational' };
-  };
+    // default fallback
+    return { category: 'Attack', subcategory: 'Other' };
+  }
 
   // Dedicated Tenant View & False Positive Tuning Tickets State (Mockup 1 & 2)
   const [selectedTenantView, setSelectedTenantView] = useState(null);
   const [apiTenants, setApiTenants] = useState([]);
   const [internalTuningRequests, setInternalTuningRequests] = useState([]);
   const [sessionAppliedTenants, setSessionAppliedTenants] = useState({});
-  const [activeRightTab, setActiveRightTab] = useState('XML'); // 'XML' | 'CDB'
+    const [activeRightTab, setActiveRightTab] = useState('XML');
+
+  // AI Rule Optimizer States (Local LLM Recommendation)
+  const [aiOptimizing, setAiOptimizing] = useState(false);
+  const [isAiOptimizerModalOpen, setIsAiOptimizerModalOpen] = useState(false);
+  const [aiOptimizationResult, setAiOptimizationResult] = useState(null); // 'XML' | 'CDB'
   const [tenantFilterStatus, setTenantFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'WAITING' | 'EXPIRED'
   const [bundleFilterMode, setBundleFilterMode] = useState('cluster'); // 'cluster' | 'ticket' | 'campaign'
   const [applyingTenant, setApplyingTenant] = useState(false);
@@ -246,6 +254,8 @@ export default function PolicyBundlesView({
   const [backupDraftCode, setBackupDraftCode] = useState('');
 
   // Per-item individual DEPLOY on/off toggle and expiration tracking
+  
+
   const [itemDeployToggles, setItemDeployToggles] = useState(() => {
     try {
       const saved = localStorage.getItem('wazuh_policy_bundle_toggles');
@@ -773,7 +783,7 @@ export default function PolicyBundlesView({
     });
 
     rules.forEach(r => {
-      const t = r.tenantId || r.tenant_id;
+      const t = r.tenantId || r.tenant_id || r.scope_definition?.tenant_id || r.scopeDefinition?.tenant_id;
       if (t && t !== 'ALL' && t !== 'SOC_CORE') tenantSet.add(t);
     });
 
@@ -830,18 +840,18 @@ export default function PolicyBundlesView({
           if (expObj <= today) isExp = true;
         }
 
-        // Status awal adalah WAITING (usulan baru masuk), kecuali analis menyetujui / men-deploy
+        // Status awal adalah WAITING (usulan baru masuk), jika toggle approval aktif maka APPROVE
         let ruleStatus = 'WAITING';
         if (isExp) {
           ruleStatus = 'EXPIRED';
         } else if (itemDeployToggles[ruleKey] !== undefined) {
-          ruleStatus = itemDeployToggles[ruleKey] ? 'DEPLOY' : 'WAITING';
+          ruleStatus = itemDeployToggles[ruleKey] ? 'APPROVE' : 'WAITING';
         } else if (isAppliedInSession) {
-          ruleStatus = 'DEPLOY';
-        } else if (r.status === 'DEPLOY') {
-          ruleStatus = 'DEPLOY';
-        } else if (r.status === 'APPROVE') {
           ruleStatus = 'APPROVE';
+        } else if (r.status === 'APPROVE' || r.status === 'DEPLOY') {
+          ruleStatus = 'APPROVE';
+        } else {
+          ruleStatus = 'WAITING';
         }
 
         const clusterIntervalId = 
@@ -882,9 +892,25 @@ export default function PolicyBundlesView({
           r.scope_definition?.activity || 
           r.scopeDefinition?.activity || 
           r.activity || 
-          'GET /.env* [111]';
+          r.scope_definition?.rule_description ||
+          r.scopeDefinition?.rule_description ||
+          '-';
 
-        const clusterTimestamp = r.created_date || r.window_start || r.created_at || r.scope_definition?.window_start || r.timestamp;
+        const clusterLogs = clusterLogsMap[clusterIntervalId] || [];
+        const firstLogTimestamp = clusterLogs.length > 0 ? (clusterLogs[0].event_timestamp || clusterLogs[0].timestamp) : null;
+        const clusterTimestamp = r.created_date || r.created_at || r.window_start || r.scope_definition?.window_start || r.timestamp || firstLogTimestamp;
+
+        const clusterReason = 
+          r.scope_definition?.reason || 
+          r.scopeDefinition?.reason || 
+          r.scope_definition?.business_reason || 
+          r.business_reason || 
+          r.businessReason || 
+          ((r.reason && !r.reason.toLowerCase().includes('status di')) ? r.reason : null) || 
+          r.raw?.business_reason || 
+          r.reason || 
+          '-';
+        const clusterOwner = r.owner || r.author || r.scopeDefinition?.username || r.scope_definition?.username || r.raw?.author || 'admin_secops';
 
         clusterItems.push({
           id: r.id || `CLUSTER-${tenantName}-${idx + 1}`,
@@ -895,12 +921,16 @@ export default function PolicyBundlesView({
           agent: clusterAgent,
           actor: clusterActor,
           activity: clusterActivity,
+          reason: clusterReason,
+          owner: clusterOwner,
+          author: clusterOwner,
           incidentTitle: r.name || 'Cluster Noise Proposal',
           classi: 'FALSE POSITIVE',
           target: clusterAgent,
           status: ruleStatus,
           isExpired: isExp,
           expirationDate: currentExpDate,
+          expiration: currentExpDate || r.expiration || r.expires_date || '-',
           sids: r.sids || [r.scope_definition?.rule_id || 5501],
           raw: r,
           isRule: true,
@@ -935,18 +965,18 @@ export default function PolicyBundlesView({
           if (expObj <= today) isExp = true;
         }
 
-        // Status tiket yang baru masuk adalah WAITING (belum di-approve atau di-deploy di Policy Bundle)
+        // Status tiket yang baru masuk adalah WAITING (belum di-approve di Policy Bundle)
         let itemStatus = 'WAITING';
         if (isExp) {
           itemStatus = 'EXPIRED';
         } else if (itemDeployToggles[itemKey] !== undefined) {
-          itemStatus = itemDeployToggles[itemKey] ? 'DEPLOY' : 'WAITING';
+          itemStatus = itemDeployToggles[itemKey] ? 'APPROVE' : 'WAITING';
         } else if (isAppliedInSession) {
-          itemStatus = 'DEPLOY';
-        } else if (req.status === 'DEPLOY') {
-          itemStatus = 'DEPLOY';
-        } else if (req.is_approved_in_bundle || req.status === 'APPROVE') {
           itemStatus = 'APPROVE';
+        } else if (req.status === 'APPROVE' || req.status === 'DEPLOY' || req.is_approved_in_bundle) {
+          itemStatus = 'APPROVE';
+        } else {
+          itemStatus = 'WAITING';
         }
 
         let classi = 'FALSE POSITIVE';
@@ -986,68 +1016,7 @@ export default function PolicyBundlesView({
     // HANYA memuat kampanye yang MASUK dari proses Threat Campaign berstatus BENIGN / FALSE_CORRELATION!
     // -------------------------------------------------------------
     if (mode === 'campaign') {
-      const fallbackBenignCampaigns = [
-        {
-          cluster_id: 'CAMP-D9BD7A3C9494',
-          tenant_id: 'TenantA',
-          target_host: 'zabbix-prod-214',
-          campaign_title: 'Coordinated Campaign against zabbix-prod-214 (2 Actors)',
-          priority: 'P2',
-          cluster_status: 'FALSE_CORRELATION',
-          total_aggregates_count: 16,
-          total_raw_events_count: 141,
-          causality_dag: {
-            distinct_actors: ['10.20.100.252', 'proc:kernel_or_auditd'],
-            stages: [{ rule_id: 31533 }, { rule_id: 591 }]
-          }
-        },
-        {
-          cluster_id: 'CAMP-9E82C15D4BF2',
-          tenant_id: 'TenantA',
-          target_host: 'hp-fluentd-tenant-172',
-          campaign_title: 'Coordinated Campaign against hp-fluentd-tenant-172 (3 Actors)',
-          priority: 'P2',
-          cluster_status: 'FALSE_CORRELATION',
-          total_aggregates_count: 21,
-          total_raw_events_count: 77,
-          causality_dag: {
-            distinct_actors: ['service:systemd', 'proc:kernel_or_auditd', 'sca-scanner'],
-            stages: [{ rule_id: 40704 }, { rule_id: 550 }, { rule_id: 2904 }, { rule_id: 2902 }]
-          }
-        },
-        {
-          cluster_id: 'CAMP-BB80DC2D2D3A',
-          tenant_id: 'TenantB',
-          target_host: 'public-dashboard-prod-241',
-          campaign_title: 'Coordinated Campaign against public-dashboard-prod-241 (2 Actors)',
-          priority: 'P2',
-          cluster_status: 'FALSE_CORRELATION',
-          total_aggregates_count: 4,
-          total_raw_events_count: 111,
-          causality_dag: {
-            distinct_actors: ['service:systemd', 'proc:kernel_or_auditd'],
-            stages: [{ rule_id: 2904 }, { rule_id: 550 }, { rule_id: 2902 }]
-          }
-        },
-        {
-          cluster_id: 'CAMP-35D029649A02',
-          tenant_id: 'TenantD',
-          target_host: 'portal-bssn-163',
-          campaign_title: 'Coordinated Campaign against portal-bssn-163 (2 Actors)',
-          priority: 'P2',
-          cluster_status: 'FALSE_CORRELATION',
-          total_aggregates_count: 5,
-          total_raw_events_count: 32,
-          causality_dag: {
-            distinct_actors: ['service:systemd', 'proc:kernel_or_auditd'],
-            stages: [{ rule_id: 2904 }, { rule_id: 550 }, { rule_id: 2902 }]
-          }
-        }
-      ];
-
-      const sourceCampaigns = (campaignClusters && campaignClusters.length > 0)
-        ? campaignClusters
-        : fallbackBenignCampaigns;
+      const sourceCampaigns = (campaignClusters && campaignClusters.length > 0) ? campaignClusters : [];
 
       const benignCampaigns = sourceCampaigns.filter(c => {
         const st = (c.cluster_status || '').toUpperCase();
@@ -1073,13 +1042,13 @@ export default function PolicyBundlesView({
         if (isExp) {
           itemStatus = 'EXPIRED';
         } else if (itemDeployToggles[itemKey] !== undefined) {
-          itemStatus = itemDeployToggles[itemKey] ? 'DEPLOY' : 'WAITING';
+          itemStatus = itemDeployToggles[itemKey] ? 'APPROVE' : 'WAITING';
         } else if (isAppliedInSession) {
-          itemStatus = 'DEPLOY';
-        } else if (camp.status === 'DEPLOY') {
-          itemStatus = 'DEPLOY';
-        } else if (camp.is_approved_in_bundle || camp.status === 'APPROVE') {
           itemStatus = 'APPROVE';
+        } else if (camp.status === 'APPROVE' || camp.status === 'DEPLOY' || camp.is_approved_in_bundle) {
+          itemStatus = 'APPROVE';
+        } else {
+          itemStatus = 'WAITING';
         }
 
         const actorsList = camp.causality_dag?.distinct_actors || [];
@@ -1091,12 +1060,15 @@ export default function PolicyBundlesView({
         const ruleIds = Array.from(new Set(stages.map(s => s.rule_id).filter(Boolean)));
         const sids = ruleIds.length > 0 ? ruleIds : [2902, 2904, 550, 5501];
 
+        const rawClassi = camp.cluster_status || camp.classification || 'FALSE_CORRELATION';
+        const campClassi = rawClassi.replace(/_/g, ' ');
+
         campaignItems.push({
           id: camp.cluster_id,
           ticketNo: camp.cluster_id,
           clusterId: camp.cluster_id,
           incidentTitle: camp.campaign_title || `Coordinated Campaign against ${camp.target_host || 'Host'}`,
-          classi: 'FALSE POSITIVE',
+          classi: campClassi,
           actor: actorStr,
           agent: camp.target_host || '-',
           target: camp.target_host || '-',
@@ -1105,6 +1077,7 @@ export default function PolicyBundlesView({
           expirationDate: currentExpDate,
           sids: sids,
           raw: camp,
+          summary: camp.narrative_summary || '',
           isRule: false,
           origin: 'campaign'
         });
@@ -1123,8 +1096,8 @@ export default function PolicyBundlesView({
   // - expiredCount: Berapa yang sudah kedaluwarsa (default 0 jika belum ada yang expired)
   const getTenantStats = (tenantName) => {
     const items = getTenantTableItems(tenantName, bundleFilterMode);
-    const deployCount = items.filter(it => it.status === 'DEPLOY').length;
-    const approveCount = items.filter(it => it.status === 'APPROVE').length;
+    const approveCount = items.filter(it => it.status === 'APPROVE' || it.status === 'DEPLOY').length;
+    const waitingCount = items.filter(it => it.status === 'WAITING' || !it.status).length;
     const expiredCount = items.filter(it => it.status === 'EXPIRED').length;
 
     let modeLabel = 'suppression ticket';
@@ -1134,11 +1107,11 @@ export default function PolicyBundlesView({
     return {
       modeLabel,
       totalCount: items.length, // JUMLAH YANG MASUK
-      deployCount,              // SUDAH DEPLOY (0 jika belum ada)
-      approveCount,             // SUDAH APPROVE (0 jika belum ada)
-      expiredCount,             // EXPIRED (0 jika belum ada)
-      activeCount: deployCount,
-      waitingCount: items.filter(it => it.status === 'WAITING').length
+      deployCount: approveCount,
+      approveCount,             // SUDAH APPROVE
+      waitingCount,             // STATUS WAITING
+      expiredCount,             // EXPIRED
+      activeCount: approveCount,
     };
   };
 
@@ -1156,20 +1129,75 @@ export default function PolicyBundlesView({
       ``
     ];
 
-    let startId = 100200 + (tenantName === 'TenantA' ? 10 : tenantName === 'TenantB' ? 30 : tenantName === 'TenantC' ? 50 : tenantName === 'TenantD' ? 70 : 90);
+    const TENANT_ID_OFFSETS = {
+      'DEFAULT': 100100,
+      'TENANTA': 100200,
+      'TENANTB': 100300,
+      'TENANTC': 100400,
+      'TENANTD': 100500,
+      'PRADITA': 101000,
+      'PRADITAUNIVERSITY': 101000,
+      'PETRA': 102000,
+      'SGU': 103000,
+      'INSTIKIBALI': 104000,
+      'IKMICIREBON': 105000,
+    };
+    const normTenant = (tenantName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    let startId = TENANT_ID_OFFSETS[normTenant];
+    if (!startId) {
+      let hash = 0;
+      for (let k = 0; k < normTenant.length; k++) {
+        hash = (hash << 5) - hash + normTenant.charCodeAt(k);
+        hash |= 0;
+      }
+      startId = 105000 + (Math.abs(hash) % 200) * 50;
+    }
 
     items.forEach((item, i) => {
       const sidsStr = Array.isArray(item.sids) && item.sids.length > 0 ? item.sids.join(', ') : '5501, 5502';
       lines.push(`  <!-- Item ${i + 1}: ${item.incidentTitle.substring(0, 45)} [${item.ticketNo}] -->`);
       lines.push(`  <rule id="${startId + i}" level="0">`);
       lines.push(`    <if_sid>${sidsStr}</if_sid>`);
+      // Activity / URL / Match rule condition
+      const act = item.activity || item.raw?.scope_definition?.activity || item.raw?.scopeDefinition?.activity;
+      if (act && act !== '-' && !act.toLowerCase().includes('general security')) {
+        const webMatch = act.match(/(?:GET|POST|HEAD|PUT|DELETE|PATCH)\s+([^\s\[\*]+)/i) || act.match(/^(\s*\/[^\s\[\*]+)/);
+        if (webMatch) {
+          let cleanUrl = webMatch[1].replace(/\{id\}/g, '').replace(/\*+$/g, '').trim();
+          if (cleanUrl) {
+            if (!cleanUrl.startsWith('/')) cleanUrl = '/' + cleanUrl;
+            lines.push(`    <url>${cleanUrl}</url>`);
+          }
+        } else if (act.includes('[systemd]')) {
+          lines.push(`    <match>systemd</match>`);
+        } else if (act.includes('AUTH LOGIN')) {
+          lines.push(`    <match>pam: login session opened</match>`);
+        } else if (act.includes('SSH LOGIN')) {
+          lines.push(`    <match>sshd</match>`);
+        } else if (act.includes('docker')) {
+          lines.push(`    <match>docker</match>`);
+        } else {
+          const cleanAct = act.replace(/\[.*?\]/g, '').replace(/\*/g, '').trim();
+          if (cleanAct) {
+            lines.push(`    <match>${cleanAct}</match>`);
+          }
+        }
+      }
+
       if (item.target && item.target !== '-' && item.target !== 'Internal / N/A') {
         lines.push(`    <hostname>${item.target}</hostname>`);
       }
-      if (item.actor && item.actor !== '-' && item.actor !== 'Internal / N/A') {
-        lines.push(`    <srcip>${item.actor}</srcip>`);
+      const isActorIp = item.actor && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/[0-9]{1,2})?$/.test(item.actor.trim());
+      if (isActorIp) {
+        lines.push(`    <srcip>${item.actor.trim()}</srcip>`);
       }
-      lines.push(`    <description>ASOC Tuned Suppression: ${item.incidentTitle.substring(0, 60)} [${item.ticketNo}]</description>`);
+      const uName = item.owner || item.author || item.raw?.author || 'admin_secops';
+      const submitDate = item.createdAt || item.created_date || item.raw?.created_date || new Date().toISOString().split('T')[0];
+      const submitDateStr = typeof submitDate === 'string' && submitDate.includes('T') ? submitDate.split('T')[0] : String(submitDate);
+      const reasonStr = item.reason || item.business_reason || item.raw?.business_reason || 'Approved noise suppression';
+      const expStr = item.expirationDate || item.expiration || item.expires_date || item.raw?.expires_date || '-';
+      const descFormatted = `${uName} | ${submitDateStr} | ${reasonStr} | Exp: ${expStr}`;
+      lines.push(`    <description>${descFormatted}</description>`);
       lines.push(`  </rule>`);
       lines.push(``);
     });
@@ -1185,31 +1213,31 @@ export default function PolicyBundlesView({
       `# =====================================================================`,
       `# Wazuh Constant Database (CDB) Whitelist for ${tenantName}`,
       `# Target File: /var/ossec/etc/lists/asoc-whitelist-${safeTenant}`,
+      `# Format: [Username] | [Kapan Diajukan] | [Alasan] | Exp: [Expired Date]`,
       `# =====================================================================`,
-      ``,
-      `# Source IPs:`
+      ``
     ];
 
-    const ips = new Set();
-    const hosts = new Set();
+    items.forEach((item, i) => {
+      const uName = item.owner || item.author || item.raw?.author || 'admin_secops';
+      const submitDate = item.createdAt || item.created_date || item.raw?.created_date || new Date().toISOString().split('T')[0];
+      const submitDateStr = typeof submitDate === 'string' && submitDate.includes('T') ? submitDate.split('T')[0] : String(submitDate);
+      const reasonStr = item.reason || item.business_reason || item.raw?.business_reason || 'Approved noise suppression';
+      const expStr = item.expirationDate || item.expiration || item.expires_date || item.raw?.expires_date || '-';
+      const descFormatted = `${uName} | ${submitDateStr} | ${reasonStr} | Exp: ${expStr}`;
 
-    items.forEach(it => {
-      if (it.actor && it.actor !== '-' && it.actor !== 'Internal / N/A') ips.add(it.actor);
-      if (it.target && it.target !== '-' && it.target !== 'Internal / N/A') hosts.add(it.target);
+      lines.push(`# Item ${i + 1}: ${descFormatted}`);
+      if (item.actor && item.actor !== '-' && item.actor !== 'Internal / N/A') {
+        lines.push(`${item.actor}:${descFormatted}`);
+      }
+      if (item.target && item.target !== '-' && item.target !== 'Internal / N/A') {
+        lines.push(`${item.target}:${descFormatted}`);
+      }
+      lines.push(``);
     });
 
-    if (ips.size > 0) {
-      ips.forEach(ip => lines.push(`${ip}:`));
-    } else {
-      lines.push(`# (None)`);
-    }
-
-    lines.push(``);
-    lines.push(`# Target Hostnames:`);
-    if (hosts.size > 0) {
-      hosts.forEach(h => lines.push(`${h}:`));
-    } else {
-      lines.push(`# (None)`);
+    if (items.length === 0) {
+      lines.push(`# (No active whitelist items)`);
     }
 
     return lines.join('\n');
@@ -1228,29 +1256,16 @@ export default function PolicyBundlesView({
   };
 
   // Apply to Wazuh handler (supports both generated and custom edited XML/CDB)
-  const handleApplyTenant = async (tenantName) => {
+  const handleApplyTenant = async (tenantName, defaultXml = '', defaultCdb = '') => {
     try {
       setApplyingTenant(true);
-      const payload = {};
+      const rawXml = isEditingCode && activeRightTab === 'XML' ? currentDraftCode : (customCodeSnippets[tenantName]?.xml || defaultXml);
+      const rawCdb = isEditingCode && activeRightTab === 'CDB' ? currentDraftCode : (customCodeSnippets[tenantName]?.cdb || defaultCdb);
 
-      if (isEditingCode) {
-        if (activeRightTab === 'XML') {
-          payload.custom_xml = currentDraftCode;
-          setCustomCodeSnippets(prev => ({
-            ...prev,
-            [tenantName]: { ...prev[tenantName], xml: currentDraftCode }
-          }));
-        } else {
-          payload.custom_cdb = currentDraftCode;
-          setCustomCodeSnippets(prev => ({
-            ...prev,
-            [tenantName]: { ...prev[tenantName], cdb: currentDraftCode }
-          }));
-        }
-      } else if (customCodeSnippets[tenantName]) {
-        if (customCodeSnippets[tenantName].xml) payload.custom_xml = customCodeSnippets[tenantName].xml;
-        if (customCodeSnippets[tenantName].cdb) payload.custom_cdb = customCodeSnippets[tenantName].cdb;
-      }
+      const payload = {
+        custom_xml: rawXml || undefined,
+        custom_cdb: rawCdb || undefined
+      };
 
       const res = await fetch(`/api/suppression/tenants/${tenantName}/apply`, {
         method: 'POST',
@@ -1344,6 +1359,50 @@ export default function PolicyBundlesView({
     }
   };
 
+    // Handler to trigger AI Rule Optimizer via Local LLM
+  const handleTriggerAiOptimizer = async (targetXml) => {
+    try {
+      setAiOptimizing(true);
+      const codeToOptimize = targetXml || (isEditingCode ? currentDraftCode : '');
+      const res = await fetch('/api/suppression/ai-optimize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'wazuh-soc-secure-key-2026'
+        },
+        body: JSON.stringify({
+          tenant_id: selectedTenantView || 'DEFAULT',
+          xml_content: codeToOptimize
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'Gagal menjalankan AI Optimizer');
+      }
+
+      const data = await res.json();
+      setAiOptimizationResult(data);
+      setIsAiOptimizerModalOpen(true);
+    } catch (err) {
+      showNotification(`Gagal mengoptimisasi aturan: ${err.message}`, 'error');
+    } finally {
+      setAiOptimizing(false);
+    }
+  };
+
+  const handleApplyAiSuggestions = () => {
+    if (!aiOptimizationResult || !aiOptimizationResult.optimized_xml) return;
+    setCurrentDraftCode(aiOptimizationResult.optimized_xml);
+    setIsEditingCode(true);
+    setActiveRightTab('XML');
+    setIsAiOptimizerModalOpen(false);
+    showNotification(
+      'Rekomendasi AI berhasil diterapkan ke editor draft! Silakan periksa kembali sebelum melakukan deploy manual ke Wazuh.',
+      'success'
+    );
+  };
+
   const handleToggleDeploy = async (item) => {
     if (item.status === 'EXPIRED' || item.isExpired) {
       setExtendModalItem(item);
@@ -1353,23 +1412,30 @@ export default function PolicyBundlesView({
       return;
     }
 
-    const currentIsDeploy = item.status === 'DEPLOY';
-    const nextIsDeploy = !currentIsDeploy;
+    const currentIsApproved = item.status === 'APPROVE' || item.status === 'DEPLOY';
+    const nextIsApproved = !currentIsApproved;
     const itemKey = item.ticketNo || item.id;
     const allKeys = [
       itemKey,
       item.ticketNo,
       item.id,
       item.raw?.triage_id,
-      item.raw?.incident_id
+      item.raw?.incident_id,
+      item.raw?.aggregation_id,
+      item.raw?.interval_id
     ].filter(Boolean);
 
-    // Optimistic local update
+    // Optimistic local update for Approval
     setItemDeployToggles(prev => {
       const updated = { ...prev };
-      allKeys.forEach(k => { updated[k] = nextIsDeploy; });
+      allKeys.forEach(k => { updated[k] = nextIsApproved; });
       return updated;
     });
+
+    // Clear any previous overridden reasons from localStorage
+    try {
+      localStorage.removeItem('wazuh_policy_bundle_reasons');
+    } catch {}
 
     // If item has a linked rule in DB or is a rule, update status in backend
     const ruleId = item.isRule ? item.id : (item.raw?.existing_suppression_id || item.raw?.suppression_id || (item.id && String(item.id).startsWith('SUP-') ? item.id : null));
@@ -1382,23 +1448,21 @@ export default function PolicyBundlesView({
             'X-API-Key': 'wazuh-soc-secure-key-2026'
           },
           body: JSON.stringify({
-            status: nextIsDeploy ? 'DEPLOY' : 'APPROVE',
-            reviewer: 'soc_analyst',
-            reason: nextIsDeploy 
-              ? `Status diaktifkan (DEPLOY) ke Wazuh via toggle oleh soc_analyst` 
-              : `Status dinonaktifkan (APPROVE) via toggle oleh soc_analyst`
+            status: nextIsApproved ? 'APPROVE' : 'WAITING',
+            reviewer: 'soc_analyst'
+            // Keep reason untouched to preserve original justification
           })
         });
         if (onRefreshRules) onRefreshRules();
       } catch (err) {
-        console.warn("Could not sync toggle to backend:", err);
+        console.warn("Could not sync approval toggle to backend:", err);
       }
     }
 
     showNotification(
-      nextIsDeploy 
-        ? `Tiket ${item.ticketNo} dialihkan ke DEPLOY (Aktif)` 
-        : `Tiket ${item.ticketNo} dialihkan ke APPROVE (Menunggu deploy)`,
+      nextIsApproved 
+        ? `${item.ticketNo || item.id} berhasil disetujui (APPROVE)` 
+        : `${item.ticketNo || item.id} dikembalikan ke status WAITING`,
       'success'
     );
   };
@@ -1605,12 +1669,12 @@ export default function PolicyBundlesView({
                     <div className={`flex items-center justify-between py-1 border-b ${
                       isDark ? 'border-slate-800/40' : 'border-slate-100'
                     }`}>
-                      <span className="font-semibold text-blue-500 dark:text-blue-400 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400"></span>
-                        DEPLOY
+                      <span className="font-semibold text-amber-500 dark:text-amber-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400"></span>
+                        WAITING
                       </span>
-                      <span className="text-sm sm:text-base font-bold text-blue-500 dark:text-blue-400">
-                        {stats.deployCount}
+                      <span className="text-sm sm:text-base font-bold text-amber-500 dark:text-amber-400">
+                        {stats.waitingCount}
                       </span>
                     </div>
 
@@ -1740,7 +1804,7 @@ export default function PolicyBundlesView({
                     }`}
                   >
                     <option value="ALL">All</option>
-                    <option value="DEPLOY">DEPLOY</option>
+                    <option value="WAITING">WAITING</option>
                     <option value="APPROVE">APPROVE</option>
                     <option value="EXPIRED">EXPIRED</option>
                   </select>
@@ -1782,8 +1846,9 @@ export default function PolicyBundlesView({
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">AGENT</th>
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTIVITY</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">REASON</th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
-                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">approval</th>
                         </tr>
                       ) : bundleFilterMode === 'ticket' ? (
                         <tr>
@@ -1792,17 +1857,15 @@ export default function PolicyBundlesView({
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">action</th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
-                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">approval</th>
                         </tr>
                       ) : (
                         <tr>
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100 min-w-[170px]">CAMPAIGN ID</th>
-                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">KLASIFIKASI</th>
-                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">ACTOR</th>
+                          <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100 min-w-[280px]">SUMMARY</th>
                           <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">TARGET</th>
-                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">action</th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">status</th>
-                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">deploy</th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-slate-100">approval</th>
                         </tr>
                       )}
                     </thead>
@@ -1811,7 +1874,7 @@ export default function PolicyBundlesView({
                     }`}>
                       {filteredItems.length === 0 ? (
                         <tr>
-                          <td colSpan={bundleFilterMode === 'cluster' ? 8 : bundleFilterMode === 'ticket' ? 6 : 7} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={bundleFilterMode === 'cluster' ? 9 : bundleFilterMode === 'ticket' ? 6 : 7} className="py-12 text-center text-slate-400 text-xs">
                             {bundleFilterMode === 'cluster' 
                               ? 'Tidak ada kluster atau kebijakan yang cocok dengan filter.'
                               : bundleFilterMode === 'campaign'
@@ -1850,11 +1913,15 @@ export default function PolicyBundlesView({
                                         <span className="text-slate-900 dark:text-white select-all">
                                           {item.clusterId || item.ticketNo}
                                         </span>
-                                        {(item.createdAt || item.timestamp || item.window_start) && (
-                                          <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
-                                            {formatDateTimeWib(item.createdAt || item.timestamp || item.window_start)}
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const logTs = currentLogs.length > 0 ? (currentLogs[0].event_timestamp || currentLogs[0].timestamp) : null;
+                                          const displayTs = item.createdAt || item.timestamp || item.window_start || item.raw?.created_date || item.raw?.created_at || logTs;
+                                          return displayTs ? (
+                                            <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                              {formatDateTimeWib(displayTs)}
+                                            </div>
+                                          ) : null;
+                                        })()}
                                       </div>
                                     </div>
                                   </td>
@@ -1884,13 +1951,16 @@ export default function PolicyBundlesView({
                                     {item.activity || 'GET /.env* [111]'}
                                   </td>
 
-                                  {/* 7. Status */}
+                                  {/* 6b. REASON */}
+                                  <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white max-w-[240px] truncate" title={item.reason || item.business_reason || '-'}>
+                                    <span className="truncate block">
+                                      {item.reason || item.business_reason || '-'}
+                                    </span>
+                                  </td>
+
+                                  {/* 7. Status{/* 7. Status */}
                                   <td className="px-3 py-2.5 text-center  whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                    {item.status === 'DEPLOY' ? (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                        DEPLOY
-                                      </span>
-                                    ) : item.status === 'APPROVE' ? (
+                                    {item.status === 'APPROVE' || item.status === 'DEPLOY' ? (
                                       <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                         APPROVE
                                       </span>
@@ -1934,21 +2004,23 @@ export default function PolicyBundlesView({
                                         <button
                                           type="button"
                                           role="switch"
-                                          aria-checked={item.status === 'DEPLOY'}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleToggleDeploy(item);
-                                          }}
-                                          className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                            item.status === 'DEPLOY' 
-                                              ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
-                                              : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
-                                          }`}
-                                        >
-                                          <span
-                                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                              item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                            aria-checked={item.status === 'APPROVE' || item.status === 'DEPLOY'}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleToggleDeploy(item);
+                                            }}
+                                            className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                                              (item.status === 'APPROVE' || item.status === 'DEPLOY')
+                                                ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
+                                                : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                             }`}
+                                            title={(item.status === 'APPROVE' || item.status === 'DEPLOY') ? "Status APPROVE (ON) - Klik untuk kembalikan ke WAITING" : "Status WAITING (OFF) - Klik untuk setujui ke APPROVE"}
+                                          >
+                                            <span className="sr-only">Toggle Approval</span>
+                                            <span
+                                              className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                                (item.status === 'APPROVE' || item.status === 'DEPLOY') ? 'translate-x-3.5' : 'translate-x-0'
+                                              }`}
                                           />
                                         </button>
                                       </div>
@@ -1959,7 +2031,7 @@ export default function PolicyBundlesView({
                                 {/* SUB-TABLE ROW (EXPANDED ACCORDION) */}
                                 {isExpanded && (
                                   <tr className={isDark ? 'bg-[#0b101e]' : 'bg-slate-50/90'}>
-                                    <td colSpan={8} className="p-3.5 border-b border-slate-200 dark:border-slate-800">
+                                    <td colSpan={9} className="p-3.5 border-b border-slate-200 dark:border-slate-800">
                                       <div className={`rounded-xl border p-3.5 ${
                                         isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
                                       }`}>
@@ -1999,8 +2071,13 @@ export default function PolicyBundlesView({
                                                 }
                                               ]).map((log, lIdx) => (
                                                 <tr key={`${log.event_id || lIdx}-${lIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                                                  <td className="px-3 py-2  text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
-                                                    {log.event_id || log.alert_id || '-'}
+                                                  <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
+                                                    <div>{log.event_id || log.alert_id || '-'}</div>
+                                                    {(log.timestamp || log.event_timestamp || log.time || log.created_at) && (
+                                                      <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
+                                                        {formatDateTimeWib(log.timestamp || log.event_timestamp || log.time || log.created_at)}
+                                                      </div>
+                                                    )}
                                                   </td>
                                                   <td className="px-3 py-2  text-xs whitespace-nowrap text-slate-900 dark:text-white">
                                                     {log.agent_name || log.agent || '-'}
@@ -2089,11 +2166,7 @@ export default function PolicyBundlesView({
 
                                   {/* 5. Status */}
                                   <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                    {item.status === 'DEPLOY' ? (
-                                      <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                        DEPLOY
-                                      </span>
-                                    ) : item.status === 'APPROVE' ? (
+                                    {item.status === 'APPROVE' || item.status === 'DEPLOY' ? (
                                       <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                         APPROVE
                                       </span>
@@ -2136,22 +2209,22 @@ export default function PolicyBundlesView({
                                         <button
                                           type="button"
                                           role="switch"
-                                          aria-checked={item.status === 'DEPLOY'}
+                                          aria-checked={item.status === 'APPROVE' || item.status === 'DEPLOY'}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleToggleDeploy(item);
                                           }}
                                           className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                            item.status === 'DEPLOY' 
+                                            (item.status === 'APPROVE' || item.status === 'DEPLOY')
                                               ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
                                               : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                           }`}
-                                          title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
+                                          title={(item.status === 'APPROVE' || item.status === 'DEPLOY') ? "Status APPROVE (ON) - Klik untuk kembalikan ke WAITING" : "Status WAITING (OFF) - Klik untuk setujui ke APPROVE"}
                                         >
-                                          <span className="sr-only">Toggle Deploy</span>
+                                          <span className="sr-only">Toggle Approval</span>
                                           <span
                                             className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                              item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                              (item.status === 'APPROVE' || item.status === 'DEPLOY') ? 'translate-x-3.5' : 'translate-x-0'
                                             }`}
                                           />
                                         </button>
@@ -2247,12 +2320,12 @@ export default function PolicyBundlesView({
 
                                                         {/* 2. KATEGORI (Teks hitam tanpa kotak) */}
                                                         <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
-                                                          {cluster.category || 'System / Availability'}
+                                                          {mapTo6CategoryTaxonomy(cluster.category, cluster.subcategory).category}
                                                         </td>
 
                                                         {/* 3. SUB KATEGORY */}
                                                         <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                                          {cluster.subcategory || (Array.isArray(cluster.classification_groups) ? cluster.classification_groups.join(', ') : cluster.classification_groups) || '-'}
+                                                          {mapTo6CategoryTaxonomy(cluster.category, cluster.subcategory).subcategory}
                                                         </td>
 
                                                         {/* 4. AGENT */}
@@ -2318,7 +2391,7 @@ export default function PolicyBundlesView({
                                                                           <div>{alertItem.alert_id || alertItem.event_id}</div>
                                                                           {alertItem.timestamp && (
                                                                             <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
-                                                                              {alertItem.timestamp}
+                                                                              {formatDateTimeWib(alertItem.timestamp || alertItem.event_timestamp || alertItem.time || alertItem.created_at)}
                                                                             </div>
                                                                           )}
                                                                         </td>
@@ -2394,49 +2467,28 @@ export default function PolicyBundlesView({
                                       <span className="text-slate-900 dark:text-white select-all">
                                         {item.ticketNo}
                                       </span>
-                                      {(item.createdAt || item.timestamp || item.window_start) && (
+                                      {(item.raw && (item.raw.created_at || item.raw.cluster_created_at || item.raw.event_timestamp)) && (
                                         <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
-                                          {formatDateTimeWib(item.createdAt || item.timestamp || item.window_start)}
+                                          {formatDateTimeWib(item.raw.created_at || item.raw.cluster_created_at || item.raw.event_timestamp)}
                                         </div>
                                       )}
                                     </div>
                                   </div>
                                 </td>
 
-                                {/* 2. KLASIFIKASI */}
-                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold uppercase text-slate-900 dark:text-white">
-                                  {item.classi}
+                                {/* 2. SUMMARY */}
+                                <td className="px-3 py-2.5 text-xs font-normal text-slate-900 dark:text-white max-w-[320px]">
+                                  <span className="line-clamp-3 block leading-relaxed">{(item.raw && item.raw.narrative_summary) ? item.raw.narrative_summary : ('-')}</span>
                                 </td>
 
-                                {/* 3. ACTOR */}
-                                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                  {item.actor}
-                                </td>
-
-                                {/* 4. TARGET */}
+                                {/* 3. TARGET */}
                                 <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={item.target}>
                                   {item.target}
                                 </td>
 
-                                {/* 5. Action */}
+                                {/* 4. Status */}
                                 <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleActionClick(item)}
-                                    className="p-1 text-slate-400 hover:text-blue-500 active:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 border-0 transition-all cursor-pointer inline-flex items-center justify-center group"
-                                    title="Edit / Tinjau Parameter Supresi"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 transition-transform group-hover:scale-110 group-active:scale-95" />
-                                  </button>
-                                </td>
-
-                                {/* 6. Status */}
-                                <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                  {item.status === 'DEPLOY' ? (
-                                    <span className="inline-block px-2.5 py-1 rounded-md bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
-                                      DEPLOY
-                                    </span>
-                                  ) : item.status === 'APPROVE' ? (
+                                  {item.status === 'APPROVE' || item.status === 'DEPLOY' ? (
                                     <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-xs whitespace-nowrap">
                                       APPROVE
                                     </span>
@@ -2479,22 +2531,22 @@ export default function PolicyBundlesView({
                                       <button
                                         type="button"
                                         role="switch"
-                                        aria-checked={item.status === 'DEPLOY'}
+                                        aria-checked={item.status === 'APPROVE' || item.status === 'DEPLOY'}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleToggleDeploy(item);
                                         }}
                                         className={`group relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-                                          item.status === 'DEPLOY' 
+                                          (item.status === 'APPROVE' || item.status === 'DEPLOY')
                                             ? 'bg-blue-600 border border-blue-500 shadow-xs shadow-blue-500/30' 
                                             : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                                         }`}
-                                        title={item.status === 'DEPLOY' ? "Status DEPLOY (ON) - Klik untuk matikan ke APPROVE" : "Status APPROVE (OFF) - Klik untuk aktifkan ke DEPLOY"}
+                                        title={(item.status === 'APPROVE' || item.status === 'DEPLOY') ? "Status APPROVE (ON) - Klik untuk kembalikan ke WAITING" : "Status WAITING (OFF) - Klik untuk setujui ke APPROVE"}
                                       >
-                                        <span className="sr-only">Toggle Deploy</span>
+                                        <span className="sr-only">Toggle Approval</span>
                                         <span
                                           className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                            item.status === 'DEPLOY' ? 'translate-x-3.5' : 'translate-x-0'
+                                            (item.status === 'APPROVE' || item.status === 'DEPLOY') ? 'translate-x-3.5' : 'translate-x-0'
                                           }`}
                                         />
                                       </button>
@@ -2503,179 +2555,168 @@ export default function PolicyBundlesView({
                                 </td>
                               </tr>
 
-                              {/* SUB-TABLE: RINCIAN KLUSTER DALAM KAMPANYE */}
+                              {/* SUB-TABLE: CAMPAIGN -> TICKET -> CLUSTER -> ALERT (4-level drilldown) */}
                               {isCampaignExpanded && (
                                 <tr key={`${item.id}-campaign-subtable`} className={isDark ? 'bg-[#0b101e]' : 'bg-slate-50/90'}>
-                                  <td colSpan={7} className="p-3.5 border-b border-slate-200 dark:border-slate-800">
+                                  <td colSpan={5} className="p-3.5 border-b border-slate-200 dark:border-slate-800">
                                     <div className={`rounded-xl border p-3.5 ${
                                       isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-white border-slate-300 shadow-sm'
                                     }`}>
-                                      {/* Sub-table Header Bar: Detail only */}
                                       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                            Detail
-                                          </span>
-                                        </div>
+                                        <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>Detail</span>
                                         {isCampaignLoading && (
                                           <div className="flex items-center gap-1.5 text-xs text-indigo-500">
                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            <span>Memuat alert...</span>
+                                            <span>Memuat tiket...</span>
                                           </div>
                                         )}
                                       </div>
-
                                       {isCampaignLoading ? (
                                         <div className="flex items-center justify-center py-6 text-xs text-slate-400 gap-2">
                                           <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-                                          <span>Memuat rincian kluster pada kampanye...</span>
+                                          <span>Memuat rincian tiket pada kampanye...</span>
                                         </div>
-                                      ) : campaignMembers.length === 0 ? (
-                                        <div className="text-center py-6 text-xs text-slate-400 italic">
-                                          Tidak ada kluster terikat pada kampanye ini.
-                                        </div>
+                                      ) : (campaignTicketsMap[item.id] || []).length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-slate-400 italic">Tidak ada tiket terikat pada kampanye ini.</div>
                                       ) : (
                                         <div className="overflow-x-auto">
                                           <table className="w-full text-left text-xs border-collapse">
                                             <thead>
                                               <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
-                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[170px]">CLUSTER ID</th>
-                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">KATEGORI</th>
-                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">SUB KATEGORY</th>
+                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[180px]">TICKET ID</th>
                                                 <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
                                                 <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
-                                                <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTIVITY</th>
                                               </tr>
                                             </thead>
-                                            <tbody className={`divide-y ${
-                                              isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'
-                                            }`}>
-                                              {campaignMembers.map((cluster, cIdx) => {
-                                                const clusterId = cluster.aggregation_id || cluster.cluster_id || `cluster-${cIdx}`;
-                                                const isClusterExpanded = !!expandedClusterIds[clusterId];
-                                                const alerts = clusterAlertsMap[clusterId] || [];
-                                                const isAlertsLoading = !!clusterAlertsLoading[clusterId];
-
+                                            <tbody className={`divide-y ${isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'}`}>
+                                              {(campaignTicketsMap[item.id] || []).map((tk, tkIdx) => {
+                                                const ticketId = tk.ticket_id || `tk-${tkIdx}`;
+                                                const isTkExpanded = !!expandedTicketIds[ticketId];
+                                                const tkClusters = ticketClustersMap[ticketId] || [];
+                                                const isTkLoading = !!ticketClustersLoading[ticketId];
                                                 return (
-                                                  <React.Fragment key={`${clusterId}-${cIdx}`}>
+                                                  <React.Fragment key={`${ticketId}-${tkIdx}`}>
                                                     <tr
-                                                      onClick={() => toggleExpandCluster(clusterId)}
-                                                      className={`transition-colors cursor-pointer select-none ${
-                                                        isClusterExpanded
-                                                          ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300')
-                                                          : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
-                                                      }`}
-                                                      title="Klik baris untuk melihat rincian alert 1 per 1"
+                                                      onClick={() => toggleExpandTicket(ticketId)}
+                                                      className={`transition-colors cursor-pointer select-none ${isTkExpanded ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300') : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')}`}
                                                     >
                                                       <td className="px-3 py-2.5 whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
                                                         <div className="flex items-center gap-1.5">
-                                                          {isClusterExpanded ? (
-                                                            <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
-                                                          ) : (
-                                                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                          )}
+                                                          {isTkExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                                                           <div>
-                                                            <span className="text-slate-900 dark:text-white select-all">
-                                                              {clusterId}
-                                                            </span>
-                                                            {(cluster.window_start || cluster.timestamp || cluster.event_timestamp || cluster.created_at) && (
-                                                              <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
-                                                                {formatDateTimeWib(cluster.window_start || cluster.timestamp || cluster.event_timestamp || cluster.created_at)}
-                                                              </div>
+                                                            <span className="text-slate-900 dark:text-white select-all">{ticketId}</span>
+                                                            {tk.ticket_created_at && (
+                                                              <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">{formatDateTimeWib(tk.ticket_created_at)}</div>
                                                             )}
                                                           </div>
                                                         </div>
                                                       </td>
-                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">
-                                                        {cluster.category || 'DISCOVERY'}
-                                                      </td>
-                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                                        {cluster.subcategory || cluster.mitre || 'system, logs'}
-                                                      </td>
-                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white" title={cluster.target || cluster.target_entity || item.target}>
-                                                        {cluster.target || cluster.target_entity || item.target}
-                                                      </td>
-                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                                        {cluster.actor || cluster.actor_entity || item.actor}
-                                                      </td>
-                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-normal text-slate-900 dark:text-white">
-                                                        {cluster.normalized_activity || cluster.activity || cluster.evidence_summary || 'ACTIVITY NORMALIZED'}
-                                                      </td>
+                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{tk.agent || item.agent || '-'}</td>
+                                                      <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{tk.actor || item.actor || '-'}</td>
                                                     </tr>
-
-                                                    {/* LEVEL 3: RAW ALERTS (Detail, hitam semua tanpa kotak lagi) */}
-                                                    {isClusterExpanded && (
+                                                    {isTkExpanded && (
                                                       <tr className={isDark ? 'bg-slate-900/60' : 'bg-slate-50/70'}>
-                                                        <td colSpan={6} className="px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
+                                                        <td colSpan={3} className="px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
                                                           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
-                                                            <div className="flex items-center gap-2">
-                                                              <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>
-                                                                Detail
-                                                              </span>
-                                                            </div>
-                                                            {isAlertsLoading && (
-                                                              <div className="flex items-center gap-1.5 text-xs text-indigo-500">
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                <span>Memuat alert...</span>
-                                                              </div>
-                                                            )}
+                                                            <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>Detail</span>
+                                                            {isTkLoading && <div className="flex items-center gap-1.5 text-xs text-indigo-500"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Memuat kluster...</span></div>}
                                                           </div>
-
-                                                          {isAlertsLoading ? (
-                                                            <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2">
-                                                              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-                                                              <span>Memuat raw alerts...</span>
-                                                            </div>
-                                                          ) : alerts.length === 0 ? (
-                                                            <div className="text-center py-5 text-xs text-slate-400 italic">
-                                                              Tidak ada alert forensik terhubung.
-                                                            </div>
+                                                          {isTkLoading ? (
+                                                            <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2"><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /><span>Memuat kluster...</span></div>
+                                                          ) : tkClusters.length === 0 ? (
+                                                            <div className="text-center py-5 text-xs text-slate-400 italic">Tidak ada kluster terikat pada tiket ini.</div>
                                                           ) : (
                                                             <div className="overflow-x-auto">
                                                               <table className="w-full text-left text-xs border-collapse">
                                                                 <thead>
                                                                   <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
-                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[170px]">CLUSTER ID</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">KATEGORI</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">SUB KATEGORY</th>
                                                                     <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
                                                                     <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
-                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">RULE ID</th>
-                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
+                                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTIVITY</th>
                                                                   </tr>
                                                                 </thead>
-                                                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                                                  {alerts.map((al, aIdx) => (
-                                                                    <tr key={`${al.event_id || aIdx}-${aIdx}`} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                                                                      {/* 1. ALERT ID (Hitam) */}
-                                                                      <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white select-all">
-                                                                        <div>{al.event_id || al.alert_id || '-'}</div>
-                                                                        {al.timestamp && (
-                                                                          <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">
-                                                                            {al.timestamp}
-                                                                          </div>
+                                                                <tbody className={`divide-y ${isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'}`}>
+                                                                  {tkClusters.map((cluster, cIdx) => {
+                                                                    const clusterId = cluster.aggregation_id || cluster.cluster_id || `cluster-${cIdx}`;
+                                                                    const isClusterExpanded = !!expandedClusterIds[clusterId];
+                                                                    const alerts = clusterAlertsMap[clusterId] || [];
+                                                                    const isAlertsLoading = !!clusterAlertsLoading[clusterId];
+                                                                    return (
+                                                                      <React.Fragment key={`${clusterId}-${cIdx}`}>
+                                                                        <tr
+                                                                          onClick={() => toggleExpandCluster(clusterId)}
+                                                                          className={`transition-colors cursor-pointer select-none ${isClusterExpanded ? (isDark ? 'bg-slate-800/70 border-b border-indigo-500/30' : 'bg-slate-100/90 border-b border-slate-300') : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')}`}
+                                                                        >
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs font-bold text-slate-900 dark:text-white">
+                                                                            <div className="flex items-center gap-1.5">
+                                                                              {isClusterExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                                                              <div>
+                                                                                <span className="text-slate-900 dark:text-white select-all">{clusterId}</span>
+                                                                                {(cluster.window_start || cluster.timestamp || cluster.created_at) && (
+                                                                                  <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">{formatDateTimeWib(cluster.window_start || cluster.timestamp || cluster.created_at)}</div>
+                                                                                )}
+                                                                              </div>
+                                                                            </div>
+                                                                          </td>
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs font-semibold text-slate-900 dark:text-white">{mapTo6CategoryTaxonomy(cluster.category || cluster.normalized_category, cluster.subcategory || cluster.sub_category).category}</td>
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{mapTo6CategoryTaxonomy(cluster.category || cluster.normalized_category, cluster.subcategory || cluster.sub_category).subcategory}</td>
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{cluster.source_ip || cluster.target_host || tk.agent || '-'}</td>
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{cluster.actor || cluster.username || tk.actor || '-'}</td>
+                                                                          <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-900 dark:text-white">{cluster.normalized_activity || cluster.activity || cluster.rule_description || '-'}</td>
+                                                                        </tr>
+                                                                        {isClusterExpanded && (
+                                                                          <tr className={isDark ? 'bg-slate-900/60' : 'bg-slate-50/70'}>
+                                                                            <td colSpan={6} className="px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
+                                                                              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                                                                                <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white" style={{ fontFamily: "'Trebuchet MS', sans-serif" }}>Detail</span>
+                                                                                {isAlertsLoading && <div className="flex items-center gap-1.5 text-xs text-indigo-500"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Memuat alert...</span></div>}
+                                                                              </div>
+                                                                              {isAlertsLoading ? (
+                                                                                <div className="flex items-center justify-center py-5 text-xs text-slate-400 gap-2"><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /><span>Memuat raw alerts...</span></div>
+                                                                              ) : alerts.length === 0 ? (
+                                                                                <div className="text-center py-5 text-xs text-slate-400 italic">Tidak ada alert forensik terhubung.</div>
+                                                                              ) : (
+                                                                                <div className="overflow-x-auto">
+                                                                                  <table className="w-full text-left text-xs border-collapse">
+                                                                                    <thead>
+                                                                                      <tr className={isDark ? 'bg-slate-800/80 text-slate-200 border-b border-slate-700' : 'bg-slate-100 text-slate-900 border-b border-slate-300'}>
+                                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white min-w-[140px]">ALERT ID</th>
+                                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">AGENT</th>
+                                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">ACTOR</th>
+                                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">RULE ID</th>
+                                                                                        <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10.5px] whitespace-nowrap text-slate-900 dark:text-white">FULL LOG</th>
+                                                                                      </tr>
+                                                                                    </thead>
+                                                                                    <tbody className={`divide-y ${isDark ? 'divide-slate-800/60 bg-[#060a14]' : 'divide-slate-200 bg-white'}`}>
+                                                                                      {alerts.map((al, alIdx) => (
+                                                                                        <tr key={`${al.raw_event_id || alIdx}`} className={isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                                                                                          <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
+                                                                                            <div>
+                                                                                              <span className="select-all">{al.raw_event_id || al.id || `LOG-${alIdx + 1}`}</span>
+                                                                                              {(al.event_timestamp || al.timestamp) && (
+                                                                                                <div className="text-[10px] text-slate-600 dark:text-slate-400 font-normal mt-0.5">{formatDateTimeWib(al.event_timestamp || al.timestamp)}</div>
+                                                                                              )}
+                                                                                            </div>
+                                                                                          </td>
+                                                                                          <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">{al.agent_name || cluster.source_ip || tk.agent || '-'}</td>
+                                                                                          <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">{al.username || al.source_ip || cluster.actor || tk.actor || '-'}</td>
+                                                                                          <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">{al.rule_id || cluster.rule_id || '-'}</td>
+                                                                                          <td className="px-3 py-2 text-xs font-mono text-slate-900 dark:text-white select-all break-all min-w-[320px]">{al.full_log || al.payload || al.raw_payload || al.rule_description || '-'}</td>
+                                                                                        </tr>
+                                                                                      ))}
+                                                                                    </tbody>
+                                                                                  </table>
+                                                                                </div>
+                                                                              )}
+                                                                            </td>
+                                                                          </tr>
                                                                         )}
-                                                                      </td>
-
-                                                                      {/* 2. AGENT (Hitam) */}
-                                                                      <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                        {al.agent_name || cluster.target || item.target || '-'}
-                                                                      </td>
-
-                                                                      {/* 3. ACTOR (Hitam) */}
-                                                                      <td className="px-3 py-2 text-xs whitespace-nowrap text-slate-900 dark:text-white">
-                                                                        {al.username || al.source_ip || cluster.actor || item.actor || '-'}
-                                                                      </td>
-
-                                                                      {/* 4. RULE ID (Hitam tanpa kotak) */}
-                                                                      <td className="px-3 py-2 text-xs font-bold whitespace-nowrap text-slate-900 dark:text-white">
-                                                                        {al.rule_id || cluster.rule_id || '-'}
-                                                                      </td>
-
-                                                                      {/* 5. FULL LOG (Hitam tanpa kotak) */}
-                                                                      <td className="px-3 py-2 text-xs font-mono text-slate-900 dark:text-white select-all break-all min-w-[320px]">
-                                                                        {al.full_log || al.payload || al.raw_payload || al.rule_description || '-'}
-                                                                      </td>
-                                                                    </tr>
-                                                                  ))}
+                                                                      </React.Fragment>
+                                                                    );
+                                                                  })}
                                                                 </tbody>
                                                               </table>
                                                             </div>
@@ -2721,46 +2762,64 @@ export default function PolicyBundlesView({
                   <div className={`p-3 border-b flex items-center justify-between ${
                     isDark ? 'border-slate-800 bg-[#0c1224]' : 'border-slate-200 bg-slate-50'
                   }`}>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditingCode && activeRightTab !== 'XML') {
+                              setCustomCodeSnippets(prev => ({
+                                ...prev,
+                                [selectedTenantView]: { ...prev[selectedTenantView], cdb: currentDraftCode }
+                              }));
+                              setCurrentDraftCode(xmlSnippet);
+                            }
+                            setActiveRightTab('XML');
+                          }}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
+                            activeRightTab === 'XML'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          XML Rule
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditingCode && activeRightTab !== 'CDB') {
+                              setCustomCodeSnippets(prev => ({
+                                ...prev,
+                                [selectedTenantView]: { ...prev[selectedTenantView], xml: currentDraftCode }
+                              }));
+                              setCurrentDraftCode(cdbSnippet);
+                            }
+                            setActiveRightTab('CDB');
+                          }}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
+                            activeRightTab === 'CDB'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          CDB List
+                        </button>
+                      </div>
+
+                      {/* AI Rule Optimizer Trigger Button */}
                       <button
                         type="button"
-                        onClick={() => {
-                          if (isEditingCode && activeRightTab !== 'XML') {
-                            setCustomCodeSnippets(prev => ({
-                              ...prev,
-                              [selectedTenantView]: { ...prev[selectedTenantView], cdb: currentDraftCode }
-                            }));
-                            setCurrentDraftCode(xmlSnippet);
-                          }
-                          setActiveRightTab('XML');
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
-                          activeRightTab === 'XML'
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        onClick={() => handleTriggerAiOptimizer(isEditingCode ? currentDraftCode : xmlSnippet)}
+                        disabled={aiOptimizing}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                        title="Analisis & optimisasi aturan menggunakan Local LLM (Tanpa auto-deploy)"
                       >
-                        XML Rule
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isEditingCode && activeRightTab !== 'CDB') {
-                            setCustomCodeSnippets(prev => ({
-                              ...prev,
-                              [selectedTenantView]: { ...prev[selectedTenantView], xml: currentDraftCode }
-                            }));
-                            setCurrentDraftCode(cdbSnippet);
-                          }
-                          setActiveRightTab('CDB');
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold  transition-all cursor-pointer ${
-                          activeRightTab === 'CDB'
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        CDB List
+                        {aiOptimizing ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                        )}
+                        <span>{aiOptimizing ? 'Menganalisis AI...' : '🤖 AI Rule Optimizer'}</span>
                       </button>
                     </div>
                   </div>
@@ -2822,7 +2881,7 @@ export default function PolicyBundlesView({
 
                         <button
                           type="button"
-                          onClick={() => handleApplyTenant(selectedTenantView)}
+                          onClick={() => handleApplyTenant(selectedTenantView, xmlSnippet, cdbSnippet)}
                           disabled={applyingTenant}
                           className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white  font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                           title="Apply aturan kustom langsung ke Wazuh Manager"
@@ -3662,6 +3721,128 @@ export default function PolicyBundlesView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: AI RULE OPTIMIZER (Local LLM Recommendation & Human Review)   */}
+      {/* ===================================================================== */}
+      {isAiOptimizerModalOpen && aiOptimizationResult && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+            isDark ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-700/60 flex items-center justify-between bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-slate-900/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                  <Sparkles className="w-5 h-5 text-amber-300 fill-amber-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold tracking-tight">AI Rule Optimizer (Local LLM)</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {aiOptimizationResult.engine || 'Local LLM'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Analisis agregasi aturan cerdas berbasis Model Keamanan Lokal (192.168.30.178)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiOptimizerModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* HUMAN GOVERNANCE GUARANTEE BANNER */}
+              <div className="rounded-xl p-3.5 bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>Human-in-the-Loop Governance</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40">TIDAK LANGSUNG DEPLOY</span>
+                  </div>
+                  <p className="text-slate-300 mt-0.5 text-[11px] leading-relaxed">
+                    AI hanya memberikan rekomendasi optimisasi draft. Aturan <strong>TIDAK AKAN</strong> langsung dikirim ke Wazuh. Anda harus memeriksa kode dan menekan "Terapkan Rekomendasi (Draft)", lalu deploy dilakukan secara terpisah oleh analis manusia.
+                  </p>
+                </div>
+              </div>
+
+              {/* STATS COMPARISON */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className={`p-3 rounded-xl border text-center ${isDark ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Aturan Semula</div>
+                  <div className="text-lg font-extrabold text-slate-300 mt-0.5">{aiOptimizationResult.original_count} Rule</div>
+                </div>
+                <div className={`p-3 rounded-xl border text-center ${isDark ? 'bg-indigo-950/40 border-indigo-800/50' : 'bg-indigo-50 border-indigo-200'}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Setelah Optimisasi</div>
+                  <div className="text-lg font-extrabold text-indigo-300 mt-0.5">{aiOptimizationResult.optimized_count} Rule</div>
+                </div>
+                <div className={`p-3 rounded-xl border text-center ${isDark ? 'bg-emerald-950/40 border-emerald-800/50' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Efisiensi / Kompresi</div>
+                  <div className="text-lg font-extrabold text-emerald-400 mt-0.5">-{aiOptimizationResult.compression_pct}%</div>
+                </div>
+              </div>
+
+              {/* EXPLANATION & RISK AUDIT */}
+              <div className={`p-3.5 rounded-xl border space-y-2 text-xs ${isDark ? 'bg-slate-800/30 border-slate-700/60' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <span className="font-bold text-indigo-400">💡 Penjelasan Optimisasi:</span>
+                  <p className="text-slate-300 mt-0.5 leading-relaxed">{aiOptimizationResult.explanation}</p>
+                </div>
+                {aiOptimizationResult.risk_assessment && (
+                  <div className="pt-2 border-t border-slate-700/40">
+                    <span className="font-bold text-emerald-400">🛡️ Analisis Risiko Keamanan:</span>
+                    <p className="text-slate-300 mt-0.5 leading-relaxed">{aiOptimizationResult.risk_assessment}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* OPTIMIZED XML CODE PREVIEW */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-slate-300">Hasil Kode XML Wazuh Teroptimisasi (Draft Proposal):</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Level="0" Drop Engine</span>
+                </div>
+                <pre className="code-terminal-box p-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-[11px] font-mono leading-relaxed max-h-[260px] overflow-y-auto select-all">
+                  {aiOptimizationResult.optimized_xml}
+                </pre>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`px-6 py-3.5 border-t flex items-center justify-between ${
+              isDark ? 'border-slate-800 bg-[#0c1224]' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <span className="text-[11px] text-slate-400 italic">
+                *Tindakan ini hanya memperbarui teks draft pada editor di layar Anda.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAiOptimizerModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyAiSuggestions()}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Terapkan Rekomendasi (Draft)</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

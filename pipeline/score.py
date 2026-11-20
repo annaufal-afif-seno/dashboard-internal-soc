@@ -7,7 +7,12 @@ Prioritas tiket ditentukan secara deterministik oleh 6 Kategori Murni & Subkateg
 - P2 (4 Jam): Percobaan serangan nyata (Web Attack, Exploitation / RCE, Malware, Auth Anomaly)
               ATAU target berstatus Vulnerability (P3) ditembak lagi oleh agregat lanjutan apapun.
 - P3 (1 Hari): Target terverifikasi memiliki celah (CVE Detected, Missing Patch, SCA Benchmark, FIM).
-- P4 (7 Hari): Hanya berisi reconnaissance / probe coba-coba / scanning noise (Web Operational, Service Health, Auth Failure, Recon / Scan).
+- P4 (7 Hari): Berisi reconnaissance / probe coba-coba / scanning noise (Web Operational, Service Health, Auth Failure, Recon / Scan).
+
+Catatan Arsitektur:
+Prioritas P0-P4 menentukan durasi jendela SLA penutupan agregat. Semua tiket (P0-P4)
+kemudian diproses secara merata oleh Cascading AI Triage Pipeline (ML -> Local LLM -> Cloud LLM)
+setelah SLA habis (lihat PRD Section 6 & AGENTS.md).
 """
 import os
 import json
@@ -32,77 +37,61 @@ RECON_SUBCATS = frozenset({
     "Auth Failure", "Recon / Scan", "Web Operational", "Service Health / Error", "Cloud / Container Event"
 })
 VULN_SUBCATS = frozenset({
-    "CVE Detected", "Missing Patch / Outdated", "SCA / CIS Benchmark", "File Integrity (FIM)", "Policy Violation"
+    "CVE Detected", "Missing Patch / Outdated Software", "Missing Patch / Outdated", "SCA / CIS Benchmark", "File Integrity (FIM)", "Policy Violation"
 })
 ATTACK_SUBCATS = frozenset({
     "Web Attack", "Exploitation / RCE", "Lateral Movement", "Auth Anomaly", "Rootkit / Backdoor", "Ransomware", "Virus / Trojan (YARA)"
 })
 BREACH_SUBCATS = frozenset({
-    "Auth Success", "Command & Control", "Privilege Escalation"
+    "Auth Success", "Command & Control (C2)", "Command & Control", "Privilege Escalation"
 })
 
-CANONICAL_CATEGORIES = frozenset({
-    "SYSTEM_HEALTH",
-    "COMPLIANCE",
-    "AUTH_SUCCESS",
-    "AUTH_FAILURE",
-    "WEB_OPERATIONAL",
-    "WEB_ATTACK",
-    "VULNERABILITY",
-    "MALWARE",
-    "RANSOMWARE",
-    "PRIVILEGE_ESCALATION",
-    "LATERAL_MOVEMENT",
-    "COMMAND_AND_CONTROL",
-    "DISCOVERY",
-    "DEFENSE_EVASION",
-    "EXECUTION",
-    "FILE_INTEGRITY",
-    "CONFIGURATION_ASSESSMENT",
-})
+from config.category_constants import PrimaryCategory, SUBCATEGORIES
+
+CANONICAL_CATEGORIES = frozenset(PrimaryCategory.ALL)
 
 def _normalize_category(cat_raw, rule_id=None, desc=""):
     """
-    Normalizes any raw or legacy category string to prevent duplicates
-    and avoid check constraint errors in PostgreSQL.
+    Normalizes any raw or legacy category string to strictly one of the 6 official Primary Categories:
+    - Attack
+    - Vulnerability
+    - Configuration / Compliance
+    - Identity / Access
+    - Malware
+    - System / Availability
     """
     if not cat_raw:
-        return "SYSTEM_HEALTH"
+        return PrimaryCategory.SYSTEM_AVAILABILITY
     raw = str(cat_raw).strip()
-    upper = raw.upper()
-    if upper in CANONICAL_CATEGORIES:
-        return upper
     
+    # Exact match check
+    if raw in CANONICAL_CATEGORIES:
+        return raw
+
+    upper = raw.upper()
     desc_lower = str(desc or "").lower()
     rid_str = str(rule_id or "")
 
     # Benign system health rules
     if rid_str in ("40704", "40700", "40701", "12109", "50120", "50520", "50521", "60746", "60969", "31301"):
-        return "SYSTEM_HEALTH"
+        return PrimaryCategory.SYSTEM_AVAILABILITY
     if rid_str in ("2904", "2932", "63105", "83202"):
-        return "COMPLIANCE"
+        return PrimaryCategory.CONFIGURATION_COMPLIANCE
 
-    if any(k in upper for k in ("SYSTEM", "HEALTH", "DAEMON", "SERVICE")):
-        return "SYSTEM_HEALTH"
-    if any(k in upper for k in ("COMPLIANCE", "CONFIGURATION", "SCA", "BENCHMARK")):
-        return "COMPLIANCE"
-    if "IDENTITY" in upper or "AUTH" in upper:
-        if "success" in desc_lower or rid_str in ("5715", "5501"):
-            return "AUTH_SUCCESS"
-        return "AUTH_FAILURE"
-    if "WEB" in upper:
-        if any(a in desc_lower for a in ("sql", "xss", "inject", "rce", "attack")):
-            return "WEB_ATTACK"
-        return "WEB_OPERATIONAL"
-    if "VULN" in upper or "CVE" in upper:
-        return "VULNERABILITY"
-    if "MALWARE" in upper or "VIRUS" in upper or "TROJAN" in upper:
-        return "MALWARE"
-    if "PRIVILEGE" in upper or "ROOT" in desc_lower or "sudo" in desc_lower:
-        return "PRIVILEGE_ESCALATION"
-    if "RECON" in upper or "SCAN" in upper or "DISCOVERY" in upper:
-        return "DISCOVERY"
-    return "SYSTEM_HEALTH"
+    if any(k in upper for k in ("MALWARE", "VIRUS", "TROJAN", "RANSOMWARE", "ROOTKIT", "YARA")):
+        return PrimaryCategory.MALWARE
+    if any(k in upper for k in ("COMPLIANCE", "CONFIGURATION", "SCA", "BENCHMARK", "FIM", "INTEGRITY", "POLICY")):
+        return PrimaryCategory.CONFIGURATION_COMPLIANCE
+    if any(k in upper for k in ("IDENTITY", "AUTH", "LOGIN", "PAM", "SSHD", "SUDO", "PRIVILEGE")):
+        return PrimaryCategory.IDENTITY_ACCESS
+    if any(k in upper for k in ("VULN", "CVE", "PATCH")):
+        return PrimaryCategory.VULNERABILITY
+    if any(k in upper for k in ("ATTACK", "EXPLOIT", "SQL", "XSS", "RCE", "C2", "COMMAND_AND_CONTROL", "LATERAL", "RECON", "SCAN", "DISCOVERY", "WEB_ATTACK")):
+        return PrimaryCategory.ATTACK
+    if any(k in upper for k in ("SYSTEM", "HEALTH", "DAEMON", "SERVICE", "DOCKER", "CONTAINER", "WEB_OPERATIONAL")):
+        return PrimaryCategory.SYSTEM_AVAILABILITY
+
+    return PrimaryCategory.SYSTEM_AVAILABILITY
 
 
 class PriorityEngine:
@@ -166,13 +155,16 @@ class PriorityEngine:
                 elif stage_upper in ("WEB_ATTACK", "INITIAL_ACCESS"):
                     subcat = "Web Attack"
                 elif stage_upper in ("COMMAND_AND_CONTROL", "C2"):
-                    subcat = "Command & Control"
+                    subcat = "Command & Control (C2)", "Command & Control"
                 elif stage_upper == "MALWARE":
                     subcat = "Virus / Trojan (YARA)"
                 elif stage_upper == "RANSOMWARE":
                     subcat = "Ransomware"
                 elif stage_upper in ("VULNERABILITY", "CVE"):
-                    subcat = "CVE Detected"
+                    if any(k in desc for k in ("cleared", "resolved", "patch", "outdated")):
+                        subcat = "Missing Patch / Outdated Software", "Missing Patch / Outdated"
+                    else:
+                        subcat = "CVE Detected"
                 elif stage_upper in ("COMPLIANCE", "CONFIGURATION / COMPLIANCE", "CONFIGURATION_ASSESSMENT", "CONFIGURATION_CHANGE"):
                     subcat = "File Integrity (FIM)" if ("syscheck" in desc or "file" in desc or "fim" in desc) else "SCA / CIS Benchmark"
                 elif stage_upper in ("DISCOVERY", "RECONNAISSANCE"):
@@ -193,7 +185,10 @@ class PriorityEngine:
                     else:
                         subcat = "Auth Failure"
                 elif pcat == "Vulnerability":
-                    subcat = "CVE Detected"
+                    if any(k in desc for k in ("cleared", "resolved", "patch", "outdated")):
+                        subcat = "Missing Patch / Outdated Software", "Missing Patch / Outdated"
+                    else:
+                        subcat = "CVE Detected"
                 elif pcat in ("Attack", "Malware"):
                     subcat = "Web Attack" if "sql" in desc or "xss" in desc else "Exploitation / RCE"
                 else:
@@ -208,8 +203,9 @@ class PriorityEngine:
 
             # Benign system health or configuration changes should never trigger post_exploit or attack
             is_benign_system = (
-                str(rid) in ("40704", "40700", "40701", "2904", "2932", "12109", "50120", "50520", "50521", "60746", "60969", "63105", "83202", "31301")
-                or pcat in ("SYSTEM_HEALTH", "System", "SYSTEM", "CONFIGURATION_CHANGE", "CONFIGURATION_ASSESSMENT")
+                str(rid) in ("23507", "40704", "40700", "40701", "2904", "2932", "12109", "50120", "50520", "50521", "60746", "60969", "63105", "83202", "31301")
+                or "cleared" in desc or "vulnerabilities cleared" in desc
+                or pcat in ("SYSTEM_HEALTH", "System", "SYSTEM", "CONFIGURATION_CHANGE", "CONFIGURATION_ASSESSMENT", "System / Availability")
                 or subcat in ("Service Health / Error", "Daemon / Service", "SYSTEM_EVENT", "PACKAGE_SETUP_STATE", "PACKAGE_INSTALLED")
             )
 
@@ -220,7 +216,7 @@ class PriorityEngine:
                     attack = True
                 if (subcat in BREACH_SUBCATS or subcat == "Auth Success") and not breach_seen:
                     breach_seen, breach_idx = True, idx
-                if subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control"):
+                if subcat in ("Privilege Escalation", "Lateral Movement", "Command & Control (C2)", "Command & Control"):
                     post_exploit = True
                 elif "privilege escalation" in desc or ("sudo" in desc and "root" in desc and "failed" not in desc):
                     post_exploit = True

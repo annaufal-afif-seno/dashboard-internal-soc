@@ -19,50 +19,7 @@ import {
 import IncidentDetailModal from './IncidentDetailModal';
 import PolicyBundlesView from './PolicyBundlesView';
 
-const fallbackRules = [
-  {
-    id: "SUP-2026-001",
-    name: "Routine Container AppArmor Denials",
-    classification: "KNOWN GOOD",
-    ownerLetter: "C",
-    owner: "Cloud Infra Team",
-    approver: "soc_lead_alice",
-    sids: ["52002", "52004"],
-    expiration: "2027-01-01",
-    daysRemaining: 115,
-    cycle: "ANNUAL",
-    status: "ACTIVE",
-    statusColor: "emerald"
-  },
-  {
-    id: "SUP-2026-002",
-    name: "Scheduled OS Package Upgrades (dpkg)",
-    classification: "MAINTENANCE",
-    ownerLetter: "P",
-    owner: "Platform Ops",
-    approver: "soc_lead_alice",
-    sids: ["2901", "2902", "550"],
-    expiration: "2026-12-15",
-    daysRemaining: 98,
-    cycle: "SEMI-ANNUAL",
-    status: "ACTIVE",
-    statusColor: "emerald"
-  },
-  {
-    id: "SUP-2026-003",
-    name: "Approved Nessus Vulnerability Scanner",
-    classification: "KNOWN GOOD",
-    ownerLetter: "S",
-    owner: "SecOps Team",
-    approver: "soc_lead_alice",
-    sids: ["5710", "31101", "5712"],
-    expiration: "2026-11-30",
-    daysRemaining: 83,
-    cycle: "QUARTERLY",
-    status: "ACTIVE",
-    statusColor: "emerald"
-  }
-];
+const fallbackRules = [];
 
 export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'dark' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -72,7 +29,7 @@ export default function SuppressionGovernance({ initialTab = 'inbox', theme = 'd
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
 
-  const [rules, setRules] = useState(fallbackRules);
+  const [rules, setRules] = useState([]);
   const [tuningRequests, setTuningRequests] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [availableGroups, setAvailableGroups] = useState([]);

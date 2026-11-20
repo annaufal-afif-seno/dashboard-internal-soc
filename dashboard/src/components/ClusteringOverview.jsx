@@ -1,15 +1,12 @@
+import { mapTo6CategoryTaxonomy } from '../utils/categoryConstants';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
-import { 
-
-  Search, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, 
-
-  ChevronsLeft, ChevronsRight, Copy, Check, X, Terminal, 
-
-  Layers, Flag
-
+import {
+  Search, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight,
+  ChevronsLeft, ChevronsRight, Copy, Check, X, Terminal,
+  Layers, Flag, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 const PALETTE = ['#10b981', '#0284c7', '#f59e0b', '#8b5cf6', '#f43f5e', '#64748b'];
@@ -96,7 +93,9 @@ const CustomDonutTooltip = ({ active, payload, isDark, mode }) => {
 
 
 
+
 export default function ClusteringOverview({
+
 
   theme = 'dark',
 
@@ -124,6 +123,9 @@ export default function ClusteringOverview({
 
   const [alerts, setAlerts] = useState([]);
 
+  
+
+
   const [alertsLoading, setAlertsLoading] = useState(false);
 
   const [alertsTotal, setAlertsTotal] = useState(0);
@@ -136,9 +138,124 @@ export default function ClusteringOverview({
 
   const [isFlagFilterActive, setIsFlagFilterActive] = useState(false);
 
+  // Subtable detail per alert states
+  const [expandedClusterId, setExpandedClusterId] = useState(null);
+  const [clusterLogsMap, setClusterLogsMap] = useState({});
+  const [clusterLogsLoading, setClusterLogsLoading] = useState({});
+
+  const handleToggleClusterDetail = async (clusterItem) => {
+    const clusterId = clusterItem.aggregation_id || clusterItem.cluster_id || clusterItem.id;
+    if (expandedClusterId === clusterId) {
+      setExpandedClusterId(null);
+      return;
+    }
+    setExpandedClusterId(clusterId);
+
+    if (!clusterLogsMap[clusterId]) {
+      setClusterLogsLoading(prev => ({ ...prev, [clusterId]: true }));
+      try {
+        const res = await fetch(`/api/aggregates/${clusterId}/logs`);
+        if (res.ok) {
+          const data = await res.json();
+          setClusterLogsMap(prev => ({ ...prev, [clusterId]: data.logs || [] }));
+        } else {
+          setClusterLogsMap(prev => ({ ...prev, [clusterId]: [] }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch cluster logs:', err);
+        setClusterLogsMap(prev => ({ ...prev, [clusterId]: [] }));
+      } finally {
+        setClusterLogsLoading(prev => ({ ...prev, [clusterId]: false }));
+      }
+    }
+  };
+
+  // Flagging Selection & Recheck Modal State
+  const [isFlagSelectionMode, setIsFlagSelectionMode] = useState(false);
+  const [selectedClusterItems, setSelectedClusterItems] = useState({});
+
+  const handleToggleFlagSelectionMode = () => {
+    setIsFlagSelectionMode(prev => {
+      const next = !prev;
+      if (!next) {
+        setSelectedClusterItems({});
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectCluster = (clusterItem, e) => {
+    if (e) e.stopPropagation();
+    const cid = clusterItem.aggregation_id || clusterItem.cluster_id || clusterItem.id;
+    setSelectedClusterItems(prev => {
+      const next = { ...prev };
+      if (next[cid]) {
+        delete next[cid];
+      } else {
+        next[cid] = clusterItem;
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = (e) => {
+    if (e) e.stopPropagation();
+    const currentIds = alerts.map(al => al.aggregation_id || al.cluster_id || al.id);
+    const allSelected = currentIds.length > 0 && currentIds.every(id => !!selectedClusterItems[id]);
+
+    setSelectedClusterItems(prev => {
+      const next = { ...prev };
+      if (allSelected) {
+        currentIds.forEach(id => delete next[id]);
+      } else {
+        alerts.forEach(al => {
+          const id = al.aggregation_id || al.cluster_id || al.id;
+          next[id] = al;
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleOpenSuppressionModalFromSelection = () => {
+    const selectedList = Object.values(selectedClusterItems);
+    if (selectedList.length === 0) return;
+
+    const uniqueTenants = Array.from(new Set(selectedList.map(c => c.tenant_id || c.tenant || 'DEFAULT').filter(Boolean)));
+    const uniqueAgents = Array.from(new Set(selectedList.map(c => c.agent || c.target).filter(a => a && a !== '-')));
+    const uniqueRuleIds = Array.from(new Set(selectedList.map(c => String(c.rule_id)).filter(r => r && r !== '-')));
+    const uniqueActors = Array.from(new Set(selectedList.map(c => c.actor).filter(a => a && a !== '-')));
+    const uniqueActivities = Array.from(new Set(selectedList.map(c => c.activity || c.rule_description).filter(a => a && a !== '-')));
+
+    setSuppForm({
+      username: getLoggedInUsername(),
+      tenant: uniqueTenants.join(', '),
+      agent: uniqueAgents.join(', '),
+      ruleId: uniqueRuleIds.join(', '),
+      actor: uniqueActors.join(', '),
+      activity: uniqueActivities.join(', '),
+      expiredDate: '',
+      reason: ''
+    });
+    setSuppSuccessMsg(null);
+    setSuppErrorMsg(null);
+    setShowSuppressionModal(true);
+  };
+
   // Suppression Form Modal State
   const [showSuppressionModal, setShowSuppressionModal] = useState(false);
+  const getLoggedInUsername = () => {
+    try {
+      if (currentUser?.username) return currentUser.username;
+      const u = JSON.parse(localStorage.getItem('wazuh_soc_user'));
+      return u?.username || u?.name || 'admin_secops';
+    } catch (e) {
+      return 'admin_secops';
+    }
+  };
+
   const [suppForm, setSuppForm] = useState({
+    username: '',
     tenant: '',
     agent: '',
     ruleId: '',
@@ -165,6 +282,7 @@ export default function ClusteringOverview({
     const initialActivity = effectiveActivity || selectedAlert?.rule_description || '';
 
     setSuppForm({
+      username: getLoggedInUsername(),
       tenant: initialTenant === 'ALL' ? 'DEFAULT' : initialTenant,
       agent: initialAgent,
       ruleId: initialRuleId,
@@ -192,54 +310,134 @@ export default function ClusteringOverview({
     setSuppSubmitting(true);
     setSuppErrorMsg(null);
     try {
-      const cleanRuleId = suppForm.ruleId ? suppForm.ruleId.replace(/^[^\d]*/, '').trim() : '';
-      const sids = cleanRuleId && !isNaN(parseInt(cleanRuleId, 10)) ? [parseInt(cleanRuleId, 10)] : [0];
-      
-      const payload = {
-        name: `Noise Proposal: ${suppForm.tenant || 'ALL'} - Rule ${cleanRuleId || 'ALL'}`,
-        classification: 'S2_FALSE_POSITIVE',
-        sids: sids,
-        owner: 'soc-analyst',
-        approver: 'soc-lead',
-        expiration: suppForm.expiredDate,
-        reason: suppForm.reason.trim(),
-        status: 'WAITING',
-        enforcement_mode: 'WAZUH_XML',
-        scope_definition: {
-          tenant_id: suppForm.tenant || undefined,
-          agent: suppForm.agent || undefined,
-          target_host: suppForm.agent || undefined,
-          rule_id: cleanRuleId || undefined,
-          match_sids: sids,
-          actor: suppForm.actor || undefined,
-          source_ip: suppForm.actor || undefined,
-          activity: suppForm.activity || undefined,
-          aggregation_id: selectedAlert?.aggregation_id || undefined,
-          category: selectedAlert?.category || 'SYSTEM_HEALTH',
-          subcategory: Array.isArray(selectedAlert?.classification_groups) ? selectedAlert.classification_groups.join(', ') : (selectedAlert?.classification_groups || 'general'),
+      const selectedList = Object.values(selectedClusterItems);
+
+      // Jika ada beberapa cluster yang dipilih dari mode ceklis, buat ATURAN TERPISAH per cluster di Policy Bundle
+      if (selectedList.length > 1) {
+        const createdRuleIds = [];
+        for (const cluster of selectedList) {
+          const cTenant = cluster.tenant_id || cluster.tenant || 'DEFAULT';
+          const cAgent = cluster.agent || cluster.target || '';
+          const cRuleId = cluster.rule_id ? String(cluster.rule_id).replace(/[^\d]/g, '').trim() : '';
+          const sids = cRuleId && !isNaN(parseInt(cRuleId, 10)) ? [parseInt(cRuleId, 10)] : [0];
+          const cActor = cluster.actor || '';
+          const cActivity = cluster.activity || cluster.rule_description || '';
+          const cAggId = cluster.aggregation_id || cluster.cluster_id || cluster.id || '';
+
+          const payload = {
+            name: `Noise Rule: ${cTenant} - ${cAgent || 'Agent'} - Rule ${cRuleId || 'ALL'}`,
+            classification: 'S2_FALSE_POSITIVE',
+            sids: sids,
+            owner: suppForm.username?.trim() || getLoggedInUsername(),
+            approver: 'soc-lead',
+            expiration: suppForm.expiredDate,
+            reason: suppForm.reason.trim(),
+            status: 'WAITING',
+            enforcement_mode: 'WAZUH_XML',
+            scope_definition: {
+              tenant_id: cTenant !== 'ALL' ? cTenant : undefined,
+              agent: cAgent || undefined,
+              target_host: cAgent || undefined,
+              rule_id: cRuleId || undefined,
+              match_sids: sids,
+              actor: cActor || undefined,
+              source_ip: cActor || undefined,
+              activity: cActivity || undefined,
+              aggregation_id: cAggId || undefined,
+              username: suppForm.username?.trim() || getLoggedInUsername(),
+              author: suppForm.username?.trim() || getLoggedInUsername(),
+              reason: suppForm.reason.trim(),
+              business_reason: suppForm.reason.trim(),
+              created_date: new Date().toISOString().split('T')[0],
+              category: mapTo6CategoryTaxonomy(cluster.category, cluster.classification_groups).category,
+              subcategory: mapTo6CategoryTaxonomy(cluster.category, cluster.classification_groups).subcategory,
+            }
+          };
+
+          const res = await fetch('/api/suppression/rules', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': 'wazuh-soc-secure-key-2026'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Gagal menyimpan aturan supresi untuk ${cAggId} (HTTP ${res.status})`);
+          }
+
+          const resData = await res.json();
+          if (resData.rule?.suppression_id) {
+            createdRuleIds.push(resData.rule.suppression_id);
+          }
         }
-      };
 
-      const res = await fetch('/api/suppression/rules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'wazuh-soc-secure-key-2026'
-        },
-        body: JSON.stringify(payload)
-      });
+        setSuppSuccessMsg(`Berhasil mengajukan ${createdRuleIds.length} aturan supresi terpisah ke Policy Bundle! (${createdRuleIds.join(', ')})`);
+        setSelectedClusterItems({});
+        setIsFlagSelectionMode(false);
+        setTimeout(() => {
+          setShowSuppressionModal(false);
+        }, 2200);
+      } else {
+        // Single cluster / manual entry
+        const cleanRuleId = suppForm.ruleId ? suppForm.ruleId.replace(/^[^\d]*/, '').trim() : '';
+        const sids = cleanRuleId && !isNaN(parseInt(cleanRuleId, 10)) ? [parseInt(cleanRuleId, 10)] : [0];
+        
+        const payload = {
+          name: `Noise Proposal: ${suppForm.tenant || 'ALL'} - Rule ${cleanRuleId || 'ALL'}`,
+          classification: 'S2_FALSE_POSITIVE',
+          sids: sids,
+          owner: suppForm.username?.trim() || getLoggedInUsername(),
+          approver: 'soc-lead',
+          expiration: suppForm.expiredDate,
+          reason: suppForm.reason.trim(),
+          status: 'WAITING',
+          enforcement_mode: 'WAZUH_XML',
+          scope_definition: {
+            tenant_id: suppForm.tenant || undefined,
+            agent: suppForm.agent || undefined,
+            target_host: suppForm.agent || undefined,
+            rule_id: cleanRuleId || undefined,
+            match_sids: sids,
+            actor: suppForm.actor || undefined,
+            source_ip: suppForm.actor || undefined,
+            activity: suppForm.activity || undefined,
+            aggregation_id: selectedAlert?.aggregation_id || (selectedList[0]?.aggregation_id) || undefined,
+            username: suppForm.username?.trim() || getLoggedInUsername(),
+            author: suppForm.username?.trim() || getLoggedInUsername(),
+            reason: suppForm.reason.trim(),
+            business_reason: suppForm.reason.trim(),
+            created_date: new Date().toISOString().split('T')[0],
+            category: mapTo6CategoryTaxonomy(selectedAlert?.category, selectedAlert?.classification_groups).category,
+            subcategory: mapTo6CategoryTaxonomy(selectedAlert?.category, selectedAlert?.classification_groups).subcategory,
+          }
+        };
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Failed to save suppression rule (HTTP ${res.status})`);
+        const res = await fetch('/api/suppression/rules', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'wazuh-soc-secure-key-2026'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Failed to save suppression rule (HTTP ${res.status})`);
+        }
+
+        const resData = await res.json();
+        const ruleId = resData.rule?.suppression_id || 'SUP-2026';
+        setSuppSuccessMsg(`Usulan aturan Wazuh ${ruleId} berhasil diajukan ke Policy Bundle!`);
+        setSelectedClusterItems({});
+        setIsFlagSelectionMode(false);
+        setTimeout(() => {
+          setShowSuppressionModal(false);
+        }, 1800);
       }
-
-      const resData = await res.json();
-      const ruleId = resData.rule?.suppression_id || 'SUP-2026';
-      setSuppSuccessMsg(`Usulan aturan Wazuh ${ruleId} berhasil diajukan ke Policy Bundle!`);
-      setTimeout(() => {
-        setShowSuppressionModal(false);
-      }, 1800);
     } catch (err) {
       setSuppErrorMsg(err.message || 'An error occurred while saving the suppression rule.');
     } finally {
@@ -542,124 +740,75 @@ export default function ClusteringOverview({
   // Reset ke halaman 1 setiap kali filter cluster / pencarian / tingkat keparahan berubah
 
   useEffect(() => {
-
     setAlertsPage(1);
-
-  }, [effectiveTenant, effectiveRuleId, effectiveAgent, effectiveActor, effectiveActivity, alertsLevelFilter, alertsSearchQuery, timeRange, customStartDate, customEndDate]);
-
-
+    setExpandedClusterId(null);
+  }, [effectiveTenant, effectiveRuleId, effectiveAgent, effectiveActor, effectiveActivity, alertsLevelFilter, alertsSearchQuery, timeRange, customStartDate, customEndDate, clusterMode]);
 
   const fetchClusterAlerts = async () => {
-
     setAlertsLoading(true);
-
     try {
-
       const params = new URLSearchParams({
-
         page: String(alertsPage),
-
         limit: String(alertsLimit),
-
-        level_filter: alertsLevelFilter
-
       });
 
+      if (clusterMode !== 'interval') {
+        params.append('level_filter', alertsLevelFilter);
+      }
+
       if (effectiveTenant) {
-
         params.append('tenant_id', effectiveTenant);
-
       }
-
       if (effectiveRuleId) {
-
         params.append('rule_id', effectiveRuleId);
-
       }
-
       if (effectiveAgent) {
-
         params.append('agent', effectiveAgent);
-
       }
-
       if (effectiveActor) {
-
         params.append('actor', effectiveActor);
-
       }
-
       if (effectiveActivity) {
-
         params.append('activity', effectiveActivity);
-
       }
-
       if (timeRange) {
-
         params.append('range', timeRange);
-
         if (timeRange === 'custom') {
-
           params.append('start', customStartDate);
-
           params.append('end', customEndDate);
-
         }
-
       }
-
       if (alertsSearchQuery.trim()) {
-
         params.append('search', alertsSearchQuery.trim());
-
       }
 
+      const endpoint = clusterMode === 'interval'
+        ? '/api/telemetry/aggregates'
+        : (clusterMode === 'cumulative' ? '/api/telemetry/cumulative' : '/api/raw-alerts');
 
-
-      const res = await fetch(`/api/raw-alerts?${params.toString()}`);
-
+      const res = await fetch(`${endpoint}?${params.toString()}`);
       if (res.ok) {
-
         setAlertsNetworkError(false);
-
         const data = await res.json();
-
-        setAlerts(data.alerts || []);
-
+        const items = data.aggregates || data.clusters || data.cumulative || data.alerts || [];
+        setAlerts(items);
         if (data.total !== undefined) {
-
           setAlertsTotal(data.total);
-
         }
-
       } else {
-
         setAlertsNetworkError(true);
-
       }
-
     } catch (err) {
-
       console.error('Failed to fetch cluster alerts:', err);
-
       setAlertsNetworkError(true);
-
     } finally {
-
       setAlertsLoading(false);
-
     }
-
   };
 
-
-
   useEffect(() => {
-
     fetchClusterAlerts();
-
-  }, [alertsPage, alertsLimit, alertsLevelFilter, alertsSearchQuery, effectiveTenant, effectiveRuleId, effectiveAgent, effectiveActor, effectiveActivity, timeRange, customStartDate, customEndDate]);
+  }, [clusterMode, alertsPage, alertsLimit, alertsLevelFilter, alertsSearchQuery, effectiveTenant, effectiveRuleId, effectiveAgent, effectiveActor, effectiveActivity, timeRange, customStartDate, customEndDate]);
 
 
 
@@ -759,6 +908,10 @@ export default function ClusteringOverview({
 
         key={cluster.id}
 
+        id={cluster.id}
+
+        data-chart-id={cluster.id}
+
         className={`p-5 rounded-xl border flex flex-col justify-between transition-colors min-w-0 ${
 
           isDark ? 'bg-[#0a0e1a] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -843,17 +996,21 @@ export default function ClusteringOverview({
 
                 >
 
-                  {cluster.data.map((entry, index) => (
-
+                  {cluster.data.map((entry, index) => {
+                    const isActiveSlice = activeFilters[cluster.id]?.name === entry.name;
+                    const hasChartFilter = !!activeFilters[cluster.id];
+                    return (
                     <Cell 
 
                       key={`cell-${cluster.id}-${index}`} 
 
                       fill={entry.color} 
 
-                      stroke="none" 
+                      stroke={isActiveSlice ? '#fff' : 'none'}
 
-                      strokeWidth={0}
+                      strokeWidth={isActiveSlice ? 2.5 : 0}
+
+                      opacity={hasChartFilter && !isActiveSlice ? 0.35 : 1}
 
                       cursor="pointer"
 
@@ -865,11 +1022,11 @@ export default function ClusteringOverview({
 
                       }}
 
-                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                      className="cursor-pointer transition-opacity"
 
                     />
-
-                  ))}
+                    );
+                  })}
 
                 </Pie>
 
@@ -897,7 +1054,11 @@ export default function ClusteringOverview({
 
                   onClick={() => handleSliceClick(cluster.id, item)}
 
-                  className="flex items-center gap-2.5 text-xs min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  className={`flex items-center gap-2.5 text-xs min-w-0 cursor-pointer transition-all ${
+                    activeFilters[cluster.id]?.name === item.name
+                      ? 'opacity-100'
+                      : activeFilters[cluster.id] ? 'opacity-40 hover:opacity-70' : 'opacity-100 hover:opacity-80'
+                  }`}
 
                   title={`Klik untuk memfilter ${item.name} (${item.pct}%)`}
 
@@ -905,16 +1066,16 @@ export default function ClusteringOverview({
 
                   <span 
 
-                    className="w-2.5 h-2.5 rounded-full shrink-0" 
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 transition-transform ${activeFilters[cluster.id]?.name === item.name ? 'scale-125 ring-2 ring-white/60' : ''}`}
 
                     style={{ backgroundColor: item.color }} 
 
                   />
 
-                  <span className={`truncate font-medium ${
-
-                    isDark ? 'text-slate-300' : 'text-slate-700'
-
+                  <span className={`truncate ${
+                    activeFilters[cluster.id]?.name === item.name
+                      ? (isDark ? 'text-white font-bold' : 'text-slate-900 font-bold')
+                      : (isDark ? 'text-slate-300 font-medium' : 'text-slate-700 font-medium')
                   }`}>
 
                     {item.name} <span className={isDark ? 'text-slate-400 font-mono' : 'text-slate-500 font-mono'}>({item.pct}%)</span>
@@ -1417,7 +1578,11 @@ export default function ClusteringOverview({
 
             type="button"
 
-            onClick={() => setClusterMode('interval')}
+            onClick={() => {
+            setClusterMode('interval');
+            setAlertsLevelFilter('ALL');
+            setAlertsPage(1);
+          }}
 
             className={`px-3 py-1 rounded-md text-xs font-mono font-semibold transition-all duration-200 cursor-pointer ${
 
@@ -1439,7 +1604,11 @@ export default function ClusteringOverview({
 
             type="button"
 
-            onClick={() => setClusterMode('cumulative')}
+            onClick={() => {
+            setClusterMode('cumulative');
+            setAlertsLevelFilter('ALL');
+            setAlertsPage(1);
+          }}
 
             className={`px-3 py-1 rounded-md text-xs font-mono font-semibold transition-all duration-200 cursor-pointer ${
 
@@ -1511,14 +1680,10 @@ export default function ClusteringOverview({
 
             {/* Sisi Kiri: Judul Raw Alerts */}
 
-            <div className="shrink-0 w-28 sm:w-36">
-
+            <div className="shrink-0 w-36 sm:w-44">
               <h3 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-
-                Alert
-
+                {clusterMode === 'interval' ? 'Interval Clusters' : (clusterMode === 'cumulative' ? 'Cumulative Clusters' : 'Alert')}
               </h3>
-
             </div>
 
 
@@ -1605,13 +1770,34 @@ export default function ClusteringOverview({
 
 
 
-            {/* Sisi Kanan (Pojok Kanan): Icon Flag Merah untuk Buka Form Supresi */}
-            <div className="shrink-0 w-28 sm:w-36 flex justify-end items-center">
+            {/* Sisi Kanan (Pojok Kanan): Tombol Recheck & Icon Flag Merah */}
+            <div className="shrink-0 flex justify-end items-center gap-2.5">
+              {isFlagSelectionMode && (
+                <button
+                  type="button"
+                  onClick={handleOpenSuppressionModalFromSelection}
+                  disabled={Object.keys(selectedClusterItems).length === 0}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all shadow-sm ${
+                    Object.keys(selectedClusterItems).length > 0
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer ring-2 ring-blue-400/40'
+                      : 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed opacity-60'
+                  }`}
+                  title={Object.keys(selectedClusterItems).length === 0 ? "Pilih minimal 1 cluster untuk di-recheck" : "Buka form supresi untuk cluster yang dipilih"}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Recheck {Object.keys(selectedClusterItems).length > 0 ? `(${Object.keys(selectedClusterItems).length})` : ''}</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={handleOpenSuppressionModal}
-                className="p-1 cursor-pointer transition-transform hover:scale-125 group flex items-center justify-center"
-                title="Tandai Noise & Usulkan Aturan Wazuh (CDB/XML)"
+                onClick={handleToggleFlagSelectionMode}
+                className={`p-1.5 rounded-lg cursor-pointer transition-all flex items-center justify-center ${
+                  isFlagSelectionMode
+                    ? 'bg-red-500/20 ring-2 ring-red-500/60 scale-110 shadow-sm'
+                    : 'hover:scale-125'
+                }`}
+                title={isFlagSelectionMode ? "Tutup Mode Flagging Cluster" : "Mode Ceklis Flagging Cluster (Tandai Noise)"}
               >
                 <Flag className="w-5 h-5 fill-red-500 text-red-500 opacity-90 group-hover:opacity-100 transition-all drop-shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
               </button>
@@ -1626,309 +1812,313 @@ export default function ClusteringOverview({
           <div className="overflow-x-auto w-full">
 
             <table className="w-full text-left text-xs border-collapse">
-
               <thead>
-
                 <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${
-
                   isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
-
                 }`}>
-
-                  <th className="px-3 py-3 select-none whitespace-nowrap">Timestamp</th>
-
-                  <th className="px-3 py-3 select-none whitespace-nowrap">ID</th>
-
+                  <th className="w-8 px-2 py-3 text-center select-none whitespace-nowrap"></th>
+                  {isFlagSelectionMode && (
+                    <th className="w-8 px-2 py-3 text-center select-none whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={alerts.length > 0 && alerts.every(al => !!selectedClusterItems[al.aggregation_id || al.cluster_id || al.id])}
+                        onChange={handleToggleSelectAll}
+                        className="w-4 h-4 rounded text-blue-600 cursor-pointer accent-blue-600 align-middle"
+                        title="Pilih / Batal Pilih Semua"
+                      />
+                    </th>
+                  )}
+                  <th className="px-3 py-3 select-none whitespace-nowrap">Timestamp Start</th>
+                  {clusterMode === 'cumulative' ? (
+                    <th className="px-3 py-3 select-none whitespace-nowrap">Last Update</th>
+                  ) : (
+                    <th className="px-3 py-3 select-none whitespace-nowrap">Timestamp Stop</th>
+                  )}
+                  <th className="px-3 py-3 select-none whitespace-nowrap">Cluster ID</th>
                   <th className="px-3 py-3 select-none whitespace-nowrap">Tenant</th>
-
+                  <th className="px-3 py-3 select-none whitespace-nowrap">Agent</th>
                   <th className="px-2 py-3 text-center select-none whitespace-nowrap">Rule ID</th>
-
-                  <th className="px-3 py-3 select-none whitespace-nowrap min-w-[180px]">Rule Desc</th>
-
-                  <th className="px-2 py-3 text-center select-none whitespace-nowrap">Level</th>
-
-                  <th className="px-3 py-3 select-none whitespace-nowrap">Actor</th>
-
-                  <th className="px-3 py-3 select-none whitespace-nowrap">Target</th>
-
+                  {clusterMode !== 'cumulative' && (
+                    <th className="px-3 py-3 select-none whitespace-nowrap">Actor</th>
+                  )}
+                  <th className="px-3 py-3 select-none whitespace-nowrap min-w-[200px]">Activity</th>
                 </tr>
-
               </thead>
-
               <tbody className={`divide-y font-sans ${
-
                 isDark ? 'divide-slate-800/60 bg-[#0a0e1a]' : 'divide-slate-100 bg-white'
-
               }`}>
-
                 {alertsLoading && alerts.length === 0 ? (
-
                   <tr>
-
-                    <td colSpan="8" className="px-6 py-16 text-center">
-
+                    <td colSpan={clusterMode === 'cumulative' ? (isFlagSelectionMode ? 9 : 8) : (isFlagSelectionMode ? 10 : 9)} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center justify-center gap-2.5">
-
                         <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
-
                         <span className={`text-xs font-mono font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-
-                          Memuat data alert yang cocok dengan cluster...
-
+                          Memuat data cluster yang cocok...
                         </span>
-
                       </div>
-
                     </td>
-
                   </tr>
-
                 ) : alertsNetworkError && alerts.length === 0 ? (
-
                   <tr>
-
-                    <td colSpan="8" className="px-6 py-12 text-center">
-
+                    <td colSpan={clusterMode === 'cumulative' ? (isFlagSelectionMode ? 9 : 8) : (isFlagSelectionMode ? 10 : 9)} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
-
                         <AlertTriangle className="w-5 h-5 text-amber-500" />
-
                         <span className={`text-xs font-mono font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-
-                          Gagal memuat alert dari backend API.
-
+                          Gagal memuat cluster dari backend API.
                         </span>
-
                         <button
-
                           onClick={fetchClusterAlerts}
-
                           className="mt-2 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer"
-
                         >
-
                           Coba Lagi
-
                         </button>
-
                       </div>
-
                     </td>
-
                   </tr>
-
                 ) : alerts.length === 0 ? (
-
                   <tr>
-
-                    <td colSpan="8" className="px-6 py-12 text-center">
-
+                    <td colSpan={clusterMode === 'cumulative' ? (isFlagSelectionMode ? 9 : 8) : (isFlagSelectionMode ? 10 : 9)} className="px-6 py-12 text-center">
                       <span className={`text-xs font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-
-                        Tidak ada alert yang cocok dengan filter cluster yang dipilih.
-
+                        Tidak ada cluster yang cocok dengan filter yang dipilih.
                       </span>
-
                     </td>
-
                   </tr>
-
                 ) : (
-
                   alerts.map((al) => {
-
-                    const isSelected = selectedAlert && selectedAlert.id === al.id;
-
-                    return (
-
-                      <tr
-
-                        key={al.id}
-
-                        className={`transition-colors align-middle h-10 ${
-
-                          isSelected
-
-                            ? (isDark ? 'bg-blue-600/15 border-l-4 border-l-blue-500' : 'bg-blue-50/80 border-l-4 border-l-blue-600')
-
-                            : (isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50/70')
-
-                        }`}
-
-                      >
-
-                        {/* Timestamp */}
-
-                        <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap overflow-hidden">
-
-                          <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-
-                            {al.timestamp}
-
-                          </span>
-
-                        </td>
-
-
-
-                        {/* ID (Warna Biru / Solid Pill Saat Terpilih, Clickable, Exact Image 1 Style) */}
-
-                        <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
-
-                          {isSelected ? (
-
-                            <span 
-
-                              className="font-bold text-[11px] tracking-tight bg-blue-600 text-white px-2 py-0.5 rounded select-all truncate inline-block cursor-pointer shadow-xs"
-
-                              title="Klik untuk menutup detail"
-
-                              onClick={() => setSelectedAlert(null)}
-
-                            >
-
-                              {al.id}
-
-                            </span>
-
-                          ) : (
-
-                            <span 
-
-                              className="font-bold text-[11px] tracking-tight text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline cursor-pointer select-all truncate block"
-
-                              title={`Buka detail alert (${al.id})`}
-
-                              onClick={() => setSelectedAlert(al)}
-
-                            >
-
-                              {al.id}
-
-                            </span>
-
-                          )}
-
-                        </td>
-
-
-
-                        {/* Tenant */}
-
-                        <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
-
-                          <span 
-
-                            className={`text-[11px] font-semibold truncate block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
-
-                            title={al.tenant_id || 'DEFAULT'}
-
-                          >
-
-                            {al.tenant_id || 'DEFAULT'}
-
-                          </span>
-
-                        </td>
-
-
-
-                        {/* Rule ID */}
-
-                        <td className="px-2 py-2 text-center font-mono whitespace-nowrap overflow-hidden">
-
-                          <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-
-                            {al.rule_id || '-'}
-
-                          </span>
-
-                        </td>
-
-
-
-                        {/* Rule Desc */}
-
-                        <td className="px-3 py-2 whitespace-nowrap overflow-hidden max-w-[260px]">
-
-                          <span 
-
-                            className={`text-[11px] font-medium truncate block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
-
-                            title={al.rule_description || `Wazuh Rule ${al.rule_id}`}
-
-                          >
-
-                            {al.rule_description || `Wazuh Rule ${al.rule_id}`}
-
-                          </span>
-
-                        </td>
-
-
-
-                        {/* Level */}
-
-                        <td className="px-2 py-2 text-center font-mono whitespace-nowrap">
-
-                          {getLevelBadge(al.rule_level)}
-
-                        </td>
-
-
-
-                        {/* Actor */}
-
-                        <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
-
-                          <div 
-
-                            className={`text-[11px] font-mono truncate block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-
-                            title={al.actor || '-'}
-
-                          >
-
-                            {al.actor || '-'}
-
-                          </div>
-
-                        </td>
-
-
-
-                        {/* Target */}
-
-                        <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
-
-                          <div 
-
-                            className={`text-[11px] font-mono font-medium truncate block uppercase ${
-
-                              isDark ? 'text-slate-300' : 'text-slate-700'
-
-                            }`}
-
-                            title={al.target || '-'}
-
-                          >
-
-                            {al.target || '-'}
-
-                          </div>
-
-                        </td>
-
-                      </tr>
-
+                    const clusterId = al.aggregation_id || al.cluster_id || al.id;
+                    const isExpanded = expandedClusterId === clusterId;
+                    const isSelected = selectedAlert && (
+                      selectedAlert.aggregation_id === clusterId || 
+                      selectedAlert.cluster_id === clusterId || 
+                      selectedAlert.id === clusterId
                     );
 
+                    const tzOpts = { timeZone: 'Asia/Jakarta', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+                    const formatFeDate = (d) => {
+                      if (!d) return '-';
+                      try {
+                        return new Date(d).toLocaleString('en-US', tzOpts) + ' WIB';
+                      } catch (e) {
+                        return String(d);
+                      }
+                    };
+
+                    const startDisplay = al.timestamp_start || al.start || formatFeDate(al.first_seen_at || al.window_start);
+                    const stopDisplay = al.timestamp_stop || al.stop || formatFeDate(al.window_end);
+                    const lastUpdateDisplay = al.last_update || formatFeDate(al.last_seen_at);
+
+                    const isClusterChecked = !!selectedClusterItems[clusterId];
+
+                    return (
+                      <React.Fragment key={clusterId}>
+                        <tr
+                          onClick={() => handleToggleClusterDetail(al)}
+                          className={`transition-colors align-middle h-10 cursor-pointer ${
+                            isClusterChecked
+                              ? (isDark ? 'bg-blue-900/30 border-l-4 border-l-blue-400' : 'bg-blue-100/70 border-l-4 border-l-blue-500')
+                              : (isSelected || isExpanded)
+                              ? (isDark ? 'bg-blue-600/15 border-l-4 border-l-blue-500' : 'bg-blue-50/80 border-l-4 border-l-blue-600')
+                              : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80')
+                          }`}
+                        >
+                          {/* 0. Chevron Expand Indicator */}
+                          <td className="w-8 px-2 py-2 text-center select-none text-slate-400">
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 mx-auto text-blue-500" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 mx-auto hover:text-blue-500 transition-colors" />
+                            )}
+                          </td>
+
+                          {/* 0b. Checkbox Flag Selection */}
+                          {isFlagSelectionMode && (
+                            <td 
+                              className="w-8 px-2 py-2 text-center select-none"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isClusterChecked}
+                                onChange={(e) => handleToggleSelectCluster(al, e)}
+                                className="w-4 h-4 rounded text-blue-600 cursor-pointer accent-blue-600 align-middle"
+                              />
+                            </td>
+                          )}
+
+                          {/* 1. Timestamp Start */}
+                          <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap overflow-hidden">
+                            <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                              {startDisplay}
+                            </span>
+                          </td>
+
+                          {/* 2. Timestamp Stop / Last Update */}
+                          <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap overflow-hidden">
+                            <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                              {clusterMode === 'cumulative' ? lastUpdateDisplay : stopDisplay}
+                            </span>
+                          </td>
+
+                          {/* 3. Cluster ID (yang interval) */}
+                          <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
+                            <span 
+                              className="font-bold text-[11px] tracking-tight text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline cursor-pointer select-all truncate block"
+                              title={`Klik untuk melihat detail per alert (${clusterId})`}
+                              onClick={() => handleToggleClusterDetail(al)}
+                            >
+                              {clusterId}
+                            </span>
+                          </td>
+
+                          {/* 4. Tenant */}
+                          <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
+                            <span 
+                              className={`text-[11px] font-semibold truncate block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                              title={al.tenant_id || 'DEFAULT'}
+                            >
+                              {al.tenant_id || 'DEFAULT'}
+                            </span>
+                          </td>
+
+                          {/* 5. Agent */}
+                          <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
+                            <span 
+                              className={`text-[11px] font-mono font-medium truncate block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
+                              title={al.agent || al.target || '-'}
+                            >
+                              {al.agent || al.target || '-'}
+                            </span>
+                          </td>
+
+                          {/* 6. Rule ID */}
+                          <td className="px-2 py-2 text-center font-mono whitespace-nowrap overflow-hidden">
+                            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-800 border border-slate-300'}`}>
+                              {al.rule_id || '-'}
+                            </span>
+                          </td>
+
+                          {/* 7. Actor (interval only) */}
+                          {clusterMode !== 'cumulative' && (
+                            <td className="px-3 py-2 font-mono whitespace-nowrap overflow-hidden">
+                              <div 
+                                className={`text-[11px] font-mono truncate block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
+                                title={al.actor || '-'}
+                              >
+                                {al.actor || '-'}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* 8. Activity */}
+                          <td className="px-3 py-2 whitespace-nowrap overflow-hidden max-w-[260px]">
+                            <span 
+                              className={`text-[11px] font-medium truncate block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                              title={al.activity || al.rule_description || '-'}
+                            >
+                              {al.activity || al.rule_description || '-'}
+                            </span>
+                          </td>
+
+                        </tr>
+
+                        {/* DETAIL PER ALERT SUBTABLE */}
+                        {isExpanded && (
+                          <tr onClick={(e) => e.stopPropagation()} className={isDark ? 'bg-slate-900/90 border-b border-slate-800' : 'bg-slate-50 border-b border-slate-200'}>
+                            <td colSpan={clusterMode === 'cumulative' ? (isFlagSelectionMode ? 9 : 8) : (isFlagSelectionMode ? 10 : 9)} className="p-3 sm:p-4">
+                              <div className={`p-4 rounded-xl border shadow-sm ${
+                                isDark ? 'bg-[#070b14] border-slate-700/80' : 'bg-white border-slate-200'
+                              }`}>
+                                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                      Detail
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedClusterId(null)}
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-medium cursor-pointer"
+                                  >
+                                    ✕ Tutup
+                                  </button>
+                                </div>
+
+                                {clusterLogsLoading[clusterId] ? (
+                                  <div className="py-8 flex flex-col items-center justify-center gap-2">
+                                    <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
+                                    <span className="text-xs font-mono text-slate-500">Memuat detail per alert...</span>
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className={`border-b text-[10.5px] font-bold uppercase tracking-wider ${
+                                          isDark ? 'bg-slate-800/80 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                        }`}>
+                                          <th className="px-3 py-2 whitespace-nowrap min-w-[150px]">ALERT ID</th>
+                                          <th className="px-3 py-2 whitespace-nowrap min-w-[130px]">AGENT</th>
+                                          <th className="px-3 py-2 whitespace-nowrap min-w-[130px]">ACTOR</th>
+                                          <th className="px-2 py-2 text-center whitespace-nowrap min-w-[80px]">RULE ID</th>
+                                          <th className="px-3 py-2 whitespace-nowrap min-w-[320px]">FULL LOG</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className={`divide-y font-mono ${
+                                        isDark ? 'divide-slate-800 bg-[#060a12]' : 'divide-slate-100 bg-white'
+                                      }`}>
+                                        {(clusterLogsMap[clusterId] || []).length === 0 ? (
+                                          <tr>
+                                            <td colSpan="5" className="px-4 py-6 text-center text-xs text-slate-500 font-sans">
+                                              Tidak ada detail alert untuk cluster ini.
+                                            </td>
+                                          </tr>
+                                        ) : (
+                                          (clusterLogsMap[clusterId] || []).map((logItem, lIdx) => (
+                                            <tr key={`${logItem.alert_id || logItem.event_id}-${lIdx}`} className={isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                                              {/* 1. ALERT ID */}
+                                              <td className="px-3 py-2.5 text-xs font-bold whitespace-nowrap text-blue-600 dark:text-blue-400 select-all">
+                                                <div>{logItem.alert_id || logItem.event_id || '-'}</div>
+                                                {logItem.timestamp && (
+                                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                                                    {logItem.timestamp}
+                                                  </div>
+                                                )}
+                                              </td>
+                                              {/* 2. AGENT */}
+                                              <td className="px-3 py-2.5 text-xs font-sans text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                {logItem.agent || logItem.agent_name || '-'}
+                                              </td>
+                                              {/* 3. ACTOR */}
+                                              <td className="px-3 py-2.5 text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                {logItem.actor || logItem.source_ip || '-'}
+                                              </td>
+                                              {/* 4. RULE ID */}
+                                              <td className="px-2 py-2.5 text-xs text-center font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px]">
+                                                  {logItem.rule_id || '-'}
+                                                </span>
+                                              </td>
+                                              {/* 5. FULL LOG */}
+                                              <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-300 select-all break-all min-w-[320px]">
+                                                <div className="max-h-28 overflow-y-auto whitespace-pre-wrap bg-slate-50 dark:bg-slate-950/70 p-2 rounded border border-slate-200 dark:border-slate-800 font-mono text-[11px]">
+                                                  {logItem.full_log || logItem.payload || '-'}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
                   })
-
                 )}
-
               </tbody>
-
             </table>
 
           </div>
@@ -1949,7 +2139,7 @@ export default function ClusteringOverview({
 
               <span>
 
-                Menampilkan {alerts.length > 0 ? ((alertsPage - 1) * alertsLimit) + 1 : 0} - {Math.min(alertsTotal, alertsPage * alertsLimit)} dari {alertsTotal.toLocaleString()} alert
+                Menampilkan {alerts.length > 0 ? ((alertsPage - 1) * alertsLimit) + 1 : 0} - {Math.min(alertsTotal, alertsPage * alertsLimit)} dari {alertsTotal.toLocaleString()} {clusterMode === 'interval' ? 'cluster' : 'alert'}
 
               </span>
 
@@ -2511,7 +2701,9 @@ export default function ClusteringOverview({
                     Tandai Noise & Usul Aturan Wazuh (CDB / XML)
                   </h3>
                   <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Menandai kluster sebagai noise operasional untuk Policy Bundle (Wazuh). Kluster & tiket tetap diproses normal dalam pipeline.
+                    {Object.keys(selectedClusterItems).length > 1
+                      ? `Menandai ${Object.keys(selectedClusterItems).length} cluster terpilih. Setiap cluster akan otomatis diajukan sebagai aturan supresi terpisah di Policy Bundle.`
+                      : 'Menandai kluster sebagai noise operasional untuk Policy Bundle (Wazuh). Kluster & tiket tetap diproses normal dalam pipeline.'}
                   </p>
                 </div>
               </div>
@@ -2637,24 +2829,43 @@ export default function ClusteringOverview({
                   Validity & Justification
                 </span>
 
-                {/* Expired Date */}
-                <div>
-                  <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Expiration Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={suppForm.expiredDate}
-                    onChange={(e) => setSuppForm({ ...suppForm, expiredDate: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
-                      isDark ? 'bg-[#0f1422] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'
-                    }`}
-                  />
-                  <span className={`text-[10px] block mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                    Maximum suppression SLA validity is 90 days from creation date.
-                  </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Username (Otomatis Terisi Sesuai User yang Sedang Login) */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Username <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={suppForm.username}
+                      onChange={(e) => setSuppForm({ ...suppForm, username: e.target.value })}
+                      placeholder="e.g. admin_secops"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Expired Date */}
+                  <div>
+                    <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Expiration Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={suppForm.expiredDate}
+                      onChange={(e) => setSuppForm({ ...suppForm, expiredDate: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                        isDark ? 'bg-[#0f1422] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'
+                      }`}
+                    />
+                  </div>
                 </div>
+                <span className={`text-[10px] block mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Maximum suppression SLA validity is 90 days from creation date.
+                </span>
 
                 {/* Alasan */}
                 <div>
@@ -2695,7 +2906,7 @@ export default function ClusteringOverview({
                   ) : (
                     <Flag className="w-3.5 h-3.5 fill-white" />
                   )}
-                  <span>{suppSubmitting ? 'Menyimpan...' : 'Ajukan Usul Aturan Wazuh'}</span>
+                  <span>{suppSubmitting ? 'Menyimpan...' : Object.keys(selectedClusterItems).length > 1 ? `Ajukan ${Object.keys(selectedClusterItems).length} Aturan Terpisah ke Policy Bundle` : 'Ajukan Usul Aturan Wazuh'}</span>
                 </button>
               </div>
 
@@ -2704,7 +2915,10 @@ export default function ClusteringOverview({
         </div>
       )}
 
-    </div>
 
-  );
+
+          </div>
+
+
+        );
 }

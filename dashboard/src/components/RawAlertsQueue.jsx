@@ -52,17 +52,20 @@ export default function RawAlertsQueue({
 
   const [networkError, setNetworkError] = useState(false);
 
-  const [levelCounts, setLevelCounts] = useState({
-
-    CRITICAL: 38,
-
-    HIGH: 4448,
-
-    MEDIUM: 925369,
-
-    LOW: 3643243
-
+  const [levelCounts, setLevelCounts] = useState(() => {
+    try {
+      const activeRange = timeRange || 'ALL';
+      const activeTenant = selectedTenant || 'ALL';
+      const saved = sessionStorage.getItem(`cached_level_counts_${activeTenant}_${activeRange}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
   });
+
+  const [selectedAgent, setSelectedAgent] = useState('ALL');
+  const [agentOptions, setAgentOptions] = useState([]);
+  const [isAgentDropdownOpen, setIsAgentDropdownOpen] = useState(false);
+
 
 
 
@@ -87,6 +90,10 @@ export default function RawAlertsQueue({
         params.append('tenant_id', selectedTenant);
 
       }
+      if (selectedAgent && selectedAgent !== 'ALL') {
+        params.append('agent', selectedAgent);
+      }
+
 
       if (timeRange) {
 
@@ -129,6 +136,11 @@ export default function RawAlertsQueue({
         if (data.level_counts) {
 
           setLevelCounts(data.level_counts);
+          try {
+            const activeRange = timeRange || 'ALL';
+            const activeTenant = selectedTenant || 'ALL';
+            sessionStorage.setItem(`cached_level_counts_${activeTenant}_${activeRange}`, JSON.stringify(data.level_counts));
+          } catch {}
 
         }
 
@@ -154,11 +166,44 @@ export default function RawAlertsQueue({
 
 
 
+    const fetchAgents = async () => {
+    try {
+      const p = new URLSearchParams();
+      if (selectedTenant && selectedTenant !== 'ALL') {
+        p.append('tenant_id', selectedTenant);
+      }
+      const res = await fetch(`/api/telemetry/agents?${p.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgentOptions(data.agents || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch agents:', err);
+    }
+  };
+
   useEffect(() => {
+    fetchAgents();
+    setSelectedAgent('ALL');
+  }, [selectedTenant]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('#raw-alert-agent-dropdown')) {
+        setIsAgentDropdownOpen(false);
+      }
+    };
+    if (isAgentDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAgentDropdownOpen]);
+
+  useEffect(() => {
     fetchAlerts();
-
-  }, [currentPage, pageSize, levelFilter, selectedTenant, timeRange, customStartDate, customEndDate]);
+  }, [currentPage, pageSize, levelFilter, selectedTenant, selectedAgent, timeRange, customStartDate, customEndDate]);
 
 
 
@@ -230,7 +275,21 @@ export default function RawAlertsQueue({
 
 
 
+  const totalAllAlerts = levelCounts ? (levelCounts.CRITICAL || 0) + (levelCounts.HIGH || 0) + (levelCounts.MEDIUM || 0) + (levelCounts.LOW || 0) : 0;
+
   const severityCards = [
+
+    {
+
+      id: 'ALL',
+
+      label: 'Total',
+
+      range: 'All Levels',
+
+      count: totalAllAlerts
+
+    },
 
     {
 
@@ -240,7 +299,7 @@ export default function RawAlertsQueue({
 
       range: 'Level 15+',
 
-      count: levelCounts.CRITICAL || 0
+      count: levelCounts ? (levelCounts.CRITICAL || 0) : 0
 
     },
 
@@ -252,7 +311,7 @@ export default function RawAlertsQueue({
 
       range: 'Level 12 - 14',
 
-      count: levelCounts.HIGH || 0
+      count: levelCounts ? (levelCounts.HIGH || 0) : 0
 
     },
 
@@ -264,7 +323,7 @@ export default function RawAlertsQueue({
 
       range: 'Level 7 - 11',
 
-      count: levelCounts.MEDIUM || 0
+      count: levelCounts ? (levelCounts.MEDIUM || 0) : 0
 
     },
 
@@ -276,7 +335,7 @@ export default function RawAlertsQueue({
 
       range: 'Level 0 - 6',
 
-      count: levelCounts.LOW || 0
+      count: levelCounts ? (levelCounts.LOW || 0) : 0
 
     }
 
@@ -369,7 +428,7 @@ export default function RawAlertsQueue({
 
       {/* 4 Severity Level Metric Summary Cards */}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 w-full">
 
         {severityCards.map(card => {
 
@@ -427,7 +486,11 @@ export default function RawAlertsQueue({
 
               }`}>
 
-                {Number(card.count).toLocaleString('id-ID')}
+                {loading && !levelCounts ? (
+                <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 rounded animate-pulse my-0.5 mx-auto" />
+              ) : (
+                Number(card.count || 0).toLocaleString('id-ID')
+              )}
 
               </div>
 
@@ -588,9 +651,100 @@ export default function RawAlertsQueue({
 
 
 
-            {/* Right spacer for symmetrical centering */}
+            {/* Right: Agent Dropdown Filter */}
+            <div className="relative shrink-0" id="raw-alert-agent-dropdown">
+              <button
+                type="button"
+                onClick={() => setIsAgentDropdownOpen(!isAgentDropdownOpen)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all cursor-pointer shadow-xs ${
+                  selectedAgent !== 'ALL'
+                    ? (isDark ? 'bg-blue-900/30 border-blue-500 text-blue-300' : 'bg-blue-50 border-blue-400 text-blue-700')
+                    : (isDark 
+                        ? 'bg-[#0c101c] border-slate-700 text-slate-200 hover:bg-slate-800/80 hover:border-slate-600' 
+                        : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300')
+                }`}
+                title="Filter berdasarkan Agent"
+              >
+                <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-[170px]">
+                  <Server className={`w-3.5 h-3.5 shrink-0 ${selectedAgent !== 'ALL' ? 'text-blue-500' : 'text-slate-400'}`} />
+                  <span className="truncate">
+                    {selectedAgent === 'ALL' ? 'All Agents' : selectedAgent}
+                  </span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
+                  isAgentDropdownOpen ? 'rotate-180 text-blue-500' : ''
+                }`} />
+              </button>
 
-            <div className="shrink-0 w-24 sm:w-32" />
+              {/* Agent Dropdown Popover matching Tenant dropdown style */}
+              {isAgentDropdownOpen && (
+                <div className={`absolute right-0 mt-1 w-64 max-h-72 overflow-y-auto custom-scrollbar rounded-md shadow-2xl border z-50 font-mono text-xs animate-in fade-in zoom-in-95 ${
+                  isDark
+                    ? 'bg-[#0c101c] border-slate-700 text-slate-200 shadow-black/80'
+                    : 'bg-white border-slate-300 text-slate-800 shadow-slate-400/30'
+                }`}>
+                  <div className="py-1">
+                    {/* Option All Agents */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAgent('ALL');
+                        setCurrentPage(1);
+                        setIsAgentDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                        selectedAgent === 'ALL'
+                          ? (isDark ? 'bg-slate-700/80 text-white font-semibold' : 'bg-slate-200/90 text-slate-900 font-semibold')
+                          : (isDark ? 'hover:bg-slate-800/60 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900')
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 opacity-60 text-blue-500" />
+                        <span>All Agents ({agentOptions.length})</span>
+                      </div>
+                      {selectedAgent === 'ALL' && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                    </button>
+
+                    <div className="my-1 border-t border-slate-200 dark:border-slate-800" />
+
+                    {/* Agent Items */}
+                    {agentOptions.length === 0 ? (
+                      <div className="px-3.5 py-3 text-center text-xs text-slate-400 font-sans">
+                        Tidak ada agent untuk tenant ini
+                      </div>
+                    ) : (
+                      agentOptions.map((ag) => {
+                        const isSelected = selectedAgent === ag.agent_name;
+                        return (
+                          <button
+                            key={`${ag.agent_name}-${ag.agent_id}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAgent(ag.agent_name);
+                              setCurrentPage(1);
+                              setIsAgentDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                              isSelected
+                                ? (isDark ? 'bg-slate-700/80 text-white font-semibold' : 'bg-slate-200/90 text-slate-900 font-semibold')
+                                : (isDark ? 'hover:bg-slate-800/60 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900')
+                            }`}
+                          >
+                            <div className="flex flex-col truncate pr-2">
+                              <span className="truncate">{ag.agent_name}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                ID: {ag.agent_id} {selectedTenant === 'ALL' ? `• ${ag.tenant_id}` : ''}
+                              </span>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
           </div>
 

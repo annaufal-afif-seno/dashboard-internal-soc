@@ -239,6 +239,23 @@ export default function ThreatCampaignsView({
 
 
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  const handleUpdateStatus = async (e, clusterId, newStatus) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/campaign-clusters/${encodeURIComponent(clusterId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        setCampaigns(prev => prev.map(c => c.cluster_id === clusterId ? { ...c, cluster_status: newStatus } : c));
+      }
+    } catch (err) {
+      console.error("Failed to update campaign status:", err);
+    }
+  };
 
   const [searchInput, setSearchInput] = useState('');
 
@@ -596,27 +613,40 @@ export default function ThreatCampaignsView({
 
 
 
+    const statusCounts = useMemo(() => {
+    const counts = { ALL: campaigns.length, OPEN: 0, CLOSE: 0, RESOLVED: 0 };
+    campaigns.forEach(c => {
+      const st = (c.cluster_status || '').toUpperCase();
+      if (st === 'OPEN' || st === 'UNDER_INVESTIGATION') counts.OPEN++;
+      else if (st === 'CLOSE' || st === 'CONFIRMED_THREAT') counts.CLOSE++;
+      else if (st === 'RESOLVED' || st === 'FALSE_CORRELATION') counts.RESOLVED++;
+    });
+    return counts;
+  }, [campaigns]);
+
   const filteredCampaigns = useMemo(() => {
-
-    if (!searchTerm) return campaigns;
-
-    const term = searchTerm.toLowerCase();
-
-    return campaigns.filter(c => 
-
-      c.cluster_id.toLowerCase().includes(term) ||
-
-      (c.target_host && c.target_host.toLowerCase().includes(term)) ||
-
-      (c.campaign_title && c.campaign_title.toLowerCase().includes(term)) ||
-
-      (c.priority && c.priority.toLowerCase().includes(term)) ||
-
-      (c.cluster_status && c.cluster_status.toLowerCase().includes(term))
-
-    );
-
-  }, [campaigns, searchTerm]);
+    let result = campaigns;
+    if (statusFilter !== 'ALL') {
+      result = result.filter(c => {
+        const st = (c.cluster_status || '').toUpperCase();
+        if (statusFilter === 'OPEN') return st === 'OPEN' || st === 'UNDER_INVESTIGATION';
+        if (statusFilter === 'CLOSE') return st === 'CLOSE' || st === 'CONFIRMED_THREAT';
+        if (statusFilter === 'RESOLVED') return st === 'RESOLVED' || st === 'FALSE_CORRELATION';
+        return true;
+      });
+    }
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c => 
+        c.cluster_id.toLowerCase().includes(term) ||
+        (c.target_host && c.target_host.toLowerCase().includes(term)) ||
+        (c.campaign_title && c.campaign_title.toLowerCase().includes(term)) ||
+        (c.priority && c.priority.toLowerCase().includes(term)) ||
+        (c.cluster_status && c.cluster_status.toLowerCase().includes(term))
+      );
+    }
+    return result;
+  }, [campaigns, searchTerm, statusFilter]);
 
 
 
@@ -1004,7 +1034,7 @@ export default function ThreatCampaignsView({
 
   return (
 
-    <div className="space-y-4 font-sans text-xs">
+    <div className="space-y-4 font-trebuchet text-xs">
 
       
 
@@ -1039,10 +1069,10 @@ export default function ThreatCampaignsView({
             )}
             <button
               type="button"
-              className="w-7 h-7 rounded-full bg-[#3B5BFF] hover:bg-[#2D4BEB] flex items-center justify-center shrink-0 cursor-pointer transition-transform hover:scale-105 shadow-xs"
+              className="w-7 h-7 rounded-full bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center shrink-0 cursor-pointer transition-transform hover:scale-105 shadow-xs border border-slate-200 dark:border-slate-700"
               title="Search"
             >
-              <Search className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+              <Search className="w-3.5 h-3.5 text-slate-700 dark:text-slate-200" strokeWidth={2.5} />
             </button>
           </div>
         </div>
@@ -1095,215 +1125,196 @@ export default function ThreatCampaignsView({
           <div className="space-y-3">
 
             {filteredCampaigns.map((c) => {
-
               const isSelected = c.cluster_id === selectedClusterId;
+              const targetHost = c.target_host || 'SARANA_INSTIKIBALI';
+              const rawPhase = c.causality_dag?.incident_phase;
+              const icsScore = c.causality_dag?.incident_confidence_score ?? (rawPhase === 'BENIGN_OPERATIONAL' || c.cluster_status === 'FALSE_CORRELATION' ? 5 : (c.priority === 'P0' ? 85 : 50));
+              const issScore = c.causality_dag?.incident_severity_score ?? (rawPhase === 'BENIGN_OPERATIONAL' || icsScore < 30 ? 15 : (c.campaign_risk_score ?? 100));
 
-              const isThreat = c.cluster_status === 'CONFIRMED_THREAT';
+              // 1. Sinkronisasi Fase Penetrasi (PHASE) dengan tingkat keyakinan forensik (ICS)
+              let phase = 'POST_COMPROMISE';
+              if (rawPhase === 'BENIGN_OPERATIONAL' || c.cluster_status === 'FALSE_CORRELATION' || icsScore < 30) {
+                phase = 'BENIGN_OPERATIONAL';
+              } else if (icsScore < 70 || c.cluster_status === 'OPEN' || c.cluster_status === 'UNDER_INVESTIGATION') {
+                phase = 'ACTIVE_INTRUSION';
+              } else {
+                phase = 'POST_COMPROMISE';
+              }
 
-              const isInvestigation = c.cluster_status === 'UNDER_INVESTIGATION';
+              // 2. Sinkronisasi Klasifikasi Bahaya (THREAT / INVESTIGATE / BENIGN)
+              let verdict = 'BENIGN';
+              if (phase === 'BENIGN_OPERATIONAL') {
+                verdict = 'BENIGN';
+              } else if (phase === 'POST_COMPROMISE' && icsScore >= 70) {
+                verdict = 'THREAT';
+              } else {
+                verdict = 'INVESTIGATE';
+              }
 
-              const isBenign = c.cluster_status === 'FALSE_CORRELATION';
-
-              const phase = c.causality_dag?.incident_phase || (isBenign ? 'BENIGN_OPERATIONAL' : 'POST_COMPROMISE');
-
-              const icsScore = c.causality_dag?.incident_confidence_score ?? (isBenign ? 7 : 85);
-
-
+              // Lifecycle status (CLOSE / OPEN / SOLVE) - pilih salah satu sesuai kondisi kampanye
+              let normalizedStatus = 'OPEN';
+              if (c.cluster_status === 'RESOLVED' || c.cluster_status === 'RESOLVE' || c.cluster_status === 'FALSE_CORRELATION') {
+                normalizedStatus = 'SOLVE';
+              } else if (c.cluster_status === 'CLOSE' || c.cluster_status === 'CONFIRMED_THREAT') {
+                normalizedStatus = 'CLOSE';
+              } else {
+                normalizedStatus = 'OPEN';
+              }
 
               return (
-
                 <div
-
                   key={c.cluster_id}
-
                   className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-
                     isDark 
-
                       ? 'bg-[#0b101d] border-slate-800 hover:border-slate-700' 
-
                       : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
-
                   }`}
-
                 >
-
                   {/* Clickable Header Box for Campaign */}
-
                   <div
-
                     onClick={() => toggleCampaign(c.cluster_id)}
-
                     className="p-4 cursor-pointer select-none group"
-
-                    title={isSelected ? "Klik kotak ini untuk menutup" : "Klik kotak ini untuk membuka rantai serangan di bawah"}
-
+                    title={isSelected ? "Klik untuk menutup detail rantai serangan" : "Klik untuk membuka detail rantai serangan"}
                   >
-
-                    <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
-
-                      <div className="flex items-center gap-2.5">
-
-                        <span className={`font-mono font-bold text-sm tracking-tight ${
-
+                    {/* TOP HEADER: CAMP-ID (Left) | TARGET: XXX (Center) | STATUS: phase (Right) */}
+                    <div className="flex items-center justify-between gap-4 mb-3.5 flex-wrap">
+                      {/* Left: CAMP-ID */}
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono font-black text-sm tracking-wide ${
                           isDark ? 'text-white' : 'text-slate-900'
-
                         }`}>
-
                           {c.cluster_id}
-
                         </span>
-
                       </div>
 
+                      {/* Right: TARGET: XXX and STATUS: phase + Accordion toggle */}
+                      <div className="flex items-center gap-3.5 sm:gap-5 text-xs font-mono">
+                        {/* TARGET */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-400 font-semibold tracking-wider text-[11px]">TARGET:</span>
+                          <span className={`font-bold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                            {targetHost}
+                          </span>
+                        </div>
 
+                        <span className="text-slate-600 hidden sm:inline">&bull;</span>
 
-                      {/* Right Indicator: Status + Chevron icon */}
+                        {/* STATUS (Incident Phase) */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-400 font-semibold tracking-wider text-[11px]">PHASE:</span>
+                          <span className={`font-bold tracking-tight uppercase ${
+                            phase === 'POST_COMPROMISE'
+                              ? 'text-red-500 dark:text-red-400'
+                              : phase === 'ACTIVE_INTRUSION'
+                              ? 'text-orange-500 dark:text-orange-400'
+                              : phase === 'PRECURSOR_PROBING'
+                              ? 'text-cyan-500 dark:text-cyan-400'
+                              : 'text-emerald-500 dark:text-emerald-400'
+                          }`}>
+                            {phase.toLowerCase().replace(/_/g, ' ')}
+                          </span>
+                        </div>
 
-                      <div className="flex items-center gap-2.5">
-
-                        <span className={`font-mono font-bold text-xs uppercase tracking-wider ${
-
-                          isThreat 
-
-                            ? 'text-red-500' 
-
-                            : isInvestigation 
-
-                            ? 'text-amber-500' 
-
-                            : 'text-emerald-500'
-
-                        }`}>
-
-                          {isThreat ? 'THREAT' : isInvestigation ? 'INVESTIGATING' : 'BENIGN'}
-
-                        </span>
-
-
-
-                        <div className={`p-1.5 rounded-lg transition-colors ${
-
+                        {/* Expand / Collapse Chevron indicator */}
+                        <div className={`p-1.5 rounded-lg transition-colors ml-1 ${
                           isDark 
-
-                            ? 'bg-slate-800/60 text-slate-400 group-hover:bg-slate-700 group-hover:text-slate-200' 
-
+                            ? 'bg-slate-800/70 text-slate-400 group-hover:bg-slate-700 group-hover:text-slate-200' 
                             : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
-
                         }`}>
-
                           {isSelected ? (
-
                             <ChevronUp className="w-4 h-4" />
-
                           ) : (
-
                             <ChevronDown className="w-4 h-4" />
-
                           )}
-
                         </div>
-
                       </div>
-
                     </div>
 
-
-
-                    {/* Executive Forensic Summary with distinct badge & container */}
-                    {c.narrative_summary && (
-                      <div className={`my-2.5 p-3.5 rounded-xl border text-xs leading-relaxed transition-all ${
-                        isDark ? 'bg-slate-900/70 border-blue-900/40 text-slate-200' : 'bg-blue-50/60 border-blue-200 text-slate-700'
+                                        {/* MAIN CONTENT AREA: 2-COLUMN SIDE-BY-SIDE (MENYAMPING) */}
+                    <div className="flex flex-row items-stretch gap-3 w-full">
+                      {/* LEFT BOX: EXECUTIVE FORENSIC SUMMARY */}
+                      <div className={`flex-1 min-w-0 p-3.5 rounded-xl border flex flex-col justify-between ${
+                        isDark ? 'bg-slate-900/60 border-slate-800 text-slate-200' : 'bg-blue-50/40 border-blue-200/80 text-slate-700'
                       }`}>
-                        <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400">
-                          <FileText className="w-3.5 h-3.5 shrink-0" />
-                          <span>Executive Forensic Summary</span>
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 font-mono">
+                            <FileText className="w-3.5 h-3.5 shrink-0" />
+                            <span>EXECUTIVE FORENSIC SUMMARY</span>
+                          </div>
+                          <p className="font-sans leading-relaxed text-xs text-justify">
+                            {c.narrative_summary || `Investigasi forensik terhadap kampanye ${c.cluster_id} pada host target ${targetHost} merekonstruksi korelasi insiden multi-tahap dengan keyakinan forensik ${icsScore}%. Aktivitas mencakup penetrasi, eksploitasi, dan persistensi terkoordinasi.`}
+                          </p>
                         </div>
-                        <p className="text-justify font-sans leading-relaxed text-xs">
-                          {c.narrative_summary}
-                        </p>
                       </div>
-                    )}
 
-
-
-                    {/* Campaign Meta & Metrics */}
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono flex-wrap gap-2 pt-2 border-t border-slate-700/20">
-
-                      <div className="flex items-center gap-3">
-
-                        <span>
-
-                          Target: <strong className={`font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{c.target_host}</strong>
-
-                        </span>
-
-                        <span>&bull;</span>
-
-                        <span className={`font-mono font-bold ${
-
-                          phase === 'POST_COMPROMISE'
-
-                            ? 'text-red-600 dark:text-red-400'
-
-                            : phase === 'ACTIVE_INTRUSION'
-
-                            ? 'text-orange-600 dark:text-orange-400'
-
-                            : phase === 'PRECURSOR_PROBING'
-
-                            ? 'text-cyan-600 dark:text-cyan-400'
-
-                            : 'text-slate-500'
-
+                      {/* RIGHT BOX: MULTI-ROW SEGMENTED BOX MENYAMPING */}
+                      <div className={`w-72 shrink-0 rounded-xl border flex flex-col justify-between overflow-hidden ${
+                        isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                      }`}>
+                        {/* Sub-row 1: Split 50/50 for ICS & ISS */}
+                        <div className={`grid grid-cols-2 divide-x border-b ${
+                          isDark ? 'divide-slate-800 border-slate-800' : 'divide-slate-200 border-slate-200'
                         }`}>
+                          {/* Left Cell: ICS (Angka Hitam) */}
+                          <div className="p-2.5 text-center flex flex-col items-center justify-center">
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                              ICS:
+                            </span>
+                            <span className="text-xl font-mono font-extrabold text-black dark:text-white tracking-tight">
+                              {icsScore}%
+                            </span>
+                          </div>
 
-                          {phase}
+                          {/* Right Cell: ISS */}
+                          <div className="p-2.5 text-center flex flex-col items-center justify-center">
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                              ISS:
+                            </span>
+                            <span className={`text-xl font-mono font-extrabold tracking-tight ${
+                              verdict === 'THREAT' ? 'text-red-500 dark:text-red-400' : verdict === 'INVESTIGATE' ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'
+                            }`}>
+                              {issScore}
+                            </span>
+                          </div>
+                        </div>
 
-                        </span>
+                        {/* Sub-row 2: Threat Classification Text (Tanpa kotak border) */}
+                        <div className={`p-2.5 text-center border-b flex items-center justify-center ${
+                          isDark ? 'border-slate-800' : 'border-slate-200'
+                        }`}>
+                          {verdict === 'THREAT' && (
+                            <span className="font-mono font-bold text-xs uppercase tracking-wider text-red-500 dark:text-red-400 text-center">
+                              THREAT
+                            </span>
+                          )}
+                          {verdict === 'INVESTIGATE' && (
+                            <span className="font-mono font-bold text-xs uppercase tracking-wider text-amber-500 dark:text-amber-400 text-center">
+                              INVESTIGATE
+                            </span>
+                          )}
+                          {verdict === 'BENIGN' && (
+                            <span className="font-mono font-bold text-xs uppercase tracking-wider text-emerald-500 dark:text-emerald-400 text-center">
+                              BENIGN
+                            </span>
+                          )}
+                        </div>
 
+                        {/* Sub-row 3: Lifecycle Status (HANYA SATU STATUS YANG DITULIS: CLOSE / OPEN / RESOLVE) */}
+                        <div className="p-2 flex items-center justify-center">
+                          <div className={`w-full py-1.5 px-3 rounded-lg font-mono font-bold text-xs uppercase tracking-wider text-center border ${
+                            normalizedStatus === 'OPEN'
+                              ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border-amber-500/40'
+                              : normalizedStatus === 'CLOSE'
+                              ? 'bg-sky-500/20 text-sky-500 dark:text-sky-400 border-sky-500/40'
+                              : 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 border-emerald-500/40'
+                          }`}>
+                            {normalizedStatus}
+                          </div>
+                        </div>
                       </div>
-
-
-
-                      <div className="flex items-center gap-3">
-
-                        <span className="text-cyan-500 font-bold" title="Incident Confidence Score">
-
-                          ICS {icsScore}%
-
-                        </span>
-
-                        <span>&bull;</span>
-
-                        <span className={isThreat ? 'text-red-500 font-bold' : isInvestigation ? 'text-orange-500 font-bold' : 'text-slate-500 font-bold'} title="Incident Severity Score">
-
-                          ISS {c.campaign_risk_score}
-
-                        </span>
-
-                        <span>&bull;</span>
-
-                        <span>{c.total_distinct_actors || 1} Actors</span>
-
-                        <span>&bull;</span>
-
-                        <span className="font-bold text-slate-300 dark:text-slate-200">
-
-                          {(c.total_raw_events_count || 0).toLocaleString()} Logs
-
-                        </span>
-
-                      </div>
-
                     </div>
-
                   </div>
-
-
-
-                  {/* UNDERNEATH THAT CAMPAIGN BOX (di bawah kotak tersebut): The Forensic Table and Details */}
+{/* UNDERNEATH THAT CAMPAIGN BOX (di bawah kotak tersebut): The Forensic Table and Details */}
 
                   {isSelected && (
 

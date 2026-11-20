@@ -60,7 +60,13 @@ def get_expired_tickets(
         LEFT JOIN enrichment.threat_intelligence_iocs ti ON (i.attacker_source_ip = ti.indicator_value AND ti.is_active = TRUE)
         WHERE q.triage_status IN ('NEW', 'HOLDING_P4', 'OPEN')
           AND COALESCE(q.sla_deadline, (COALESCE(q.priority_established_at, q.created_at) + INTERVAL '7 days')) <= %s
-          AND (q.window_buffer_until IS NULL OR q.window_buffer_until <= %s)
+          AND NOT EXISTS (
+              SELECT 1 
+              FROM correlation.incident_stages s
+              JOIN suppression.aggregated_alerts a ON s.reference_id = a.aggregation_id
+              WHERE s.incident_id = q.incident_id
+                AND (a.status != 'CLOSED' OR (a.window_end IS NOT NULL AND a.window_end > %s))
+          )
         ORDER BY q.priority ASC, q.created_at ASC
         {limit_clause};
     """
